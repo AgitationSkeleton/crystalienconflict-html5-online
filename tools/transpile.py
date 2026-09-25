@@ -505,7 +505,9 @@ HEADER = """/*
 
 
 def main():
-    out_dir = os.path.join(ROOT, 'src', 'scripts')
+    # In CrystAlien Conflict Online, src/scripts/game.js is maintained by hand; a fresh
+    # translation of the original goes beside it for reference, never over it.
+    out_dir = os.path.join(ROOT, 'work', 'transpiled')
     os.makedirs(out_dir, exist_ok=True)
     for movie in ('loader', 'game'):
         scripts = collect(movie)
