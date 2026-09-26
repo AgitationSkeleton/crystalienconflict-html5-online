@@ -677,8 +677,11 @@ export class Bot {
     const amount = (t) => (arena.baits[t.x] && arena.baits[t.x][t.y]) || 0;
     if (fed && amount(fed) > 25) return;
     const moving = (nav.path && nav.path.length > 1) || nav.npath;
-    // (on its way, as a new miner is, to crystals the engine found for it)
-    if (!fed && (moving || nav.feeding)) return;
+    // (on its way, as a new miner is, to crystals the engine found for it -- but not one that
+    // was to go and never went, marked as feeding where it stands: a starting miner whose way
+    // out was blocked by the units it started with)
+    if (!fed && moving) return;
+    if (!fed && nav.feeding && amount(u.tilePos) > 0) return;
     // (mining a thin field, or on its way back to one: only for rich crystals elsewhere)
     const least = fed ? 25 : 0;
     if (!u.botFarFields) u.botFarFields = new Set();

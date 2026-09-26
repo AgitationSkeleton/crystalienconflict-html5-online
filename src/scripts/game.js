@@ -2217,15 +2217,17 @@
             return undefined;
          }
          this.bait = this.parent?.parent?.parent?.data?.tileDatumB?.[this.id];
-         var _loc2_ = this.parent?.tileMC?.getNextHighestDepth?.();
+         // (Online: in its band of rows -- see Arena.tileBand.)
+         var layer = this.parent?.tileBand?.(this.y) || this.parent?.tileMC;
+         var _loc2_ = layer?.getNextHighestDepth?.();
          if(!this.bait)
          {
-            this.MC = this.parent?.tileMC?.attachMovie?.("tile", "tile" + _loc2_, _loc2_);
+            this.MC = layer?.attachMovie?.("tile", "tile" + _loc2_, _loc2_);
             this.MC?.gotoAndStop?.(this.id);
          }
          else
          {
-            this.MC = this.parent?.tileMC?.attachMovie?.("bait", "tile" + _loc2_, _loc2_);
+            this.MC = layer?.attachMovie?.("bait", "tile" + _loc2_, _loc2_);
             this.MC?.gotoAndStop?.(1);
          }
          __as.set(this.MC, "_x", this.posX);
@@ -2261,6 +2263,24 @@
          __as.set(this.scorchMC, "cacheAsBitmap", true);
          this.bgMC = this.MC?.createEmptyMovieClip?.("bg", -3);
          this.tileMC = this.bgMC?.createEmptyMovieClip?.("tiles", 2);
+         // Online: the tiles in bands of rows, each drawn once and kept (cacheAsBitmap) rather
+         // than tile by tile every frame: zoomed out on a big map, thousands are in view.  Bands
+         // of whole rows, not blocks, keep the original's order: a row over the rows above it.
+         // (Up close a band is wider than a kept picture may be, and its tiles are drawn as they
+         // were, those in view.)
+         this.tileBands = new Array();
+         this.tileBand = function (row)
+         {
+            var index = Math.floor((row - 1) / 8);
+            var band = this.tileBands[index];
+            if(!band)
+            {
+               band = this.tileMC?.createEmptyMovieClip?.("band" + index, index);
+               __as.set(band, "cacheAsBitmap", true);
+               this.tileBands[index] = band;
+            }
+            return band;
+         };
          this.windMC = this.bgMC?.createEmptyMovieClip?.("wind", 1);
          __as.set(this.windMC, "_alpha", 50);
          this.windBitmap = flash.display.BitmapData?.loadBitmap?.("wind");
@@ -9851,6 +9871,12 @@
          // to radius tiles away), or undefined.
          this.siteNear = function (type, owner, point, radius, also)
          {
+            // (Online: a place or a reach that is not a number -- a player with no base on the
+            // map -- would have this search for ever.)
+            if(!(radius >= 0 && radius < 1000) || !isFinite(point?.x) || !isFinite(point?.y))
+            {
+               return undefined;
+            }
             var r = 0;
             var dx;
             var dy;
