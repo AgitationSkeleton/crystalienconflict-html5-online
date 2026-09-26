@@ -6,7 +6,7 @@
 import { Player } from './flash/player.js';
 import { Library } from './flash/library.js';
 import { OnlineUI } from './online/ui.js';
-import { loadSettings, UI_SCALES } from './online/settings.js';
+import { loadSettings, UI_SCALES, COLOUR_CSS } from './online/settings.js';
 import { Bot } from './online/bot.js';
 import { ErrorReporter } from './online/errors.js';
 import { Net, serverRoot } from './online/net.js';
@@ -71,6 +71,7 @@ player.online.fxRandom = (n) => {
 const errors = new ErrorReporter(player);  // (a notice, and a report to copy, when something goes wrong)
 player.online.Bot = Bot;                   // the computer players (the game makes them)
 player.online.icons = ICONS;
+player.online.colourCss = COLOUR_CSS;       // the players' colours, for names in messages
 
 // ?test stops the clock: frames advance only when __step() is called, so a test decides
 // exactly when each click lands.  ?seed=N makes the random numbers repeatable.

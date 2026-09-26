@@ -8539,9 +8539,15 @@
             }
             return false;
          };
-         this.defeat = function (player)
+         this.defeat = function (player, line)
          {
             player.defeated = true;
+            // Online: everyone else is told, the name in the player's colour (the player is
+            // told they are conquered).
+            if(player != this.localPlayer)
+            {
+               this.parent?.hud?.showNamed?.(line || "int_eliminated", player);
+            }
             this.removeFlag?.(player);
             for(var index of __as.keys(this.units))
             {
@@ -9324,8 +9330,7 @@
                         this.buildings?.[at]?.destroy?.();
                      }
                   }
-                  this.defeat?.(who);
-                  this.parent?.hud?.showMessage?.(dialogue?.("int_surrendered")?.split?.("%s")?.join?.(String(who.name || "A player")));
+                  this.defeat?.(who, "int_surrendered");
                   break;
             }
          };
@@ -10526,26 +10531,35 @@
             // The power meter stands on the sidebar's floor, as tall as the lists beside it.
             __as.set(this.MC?.power, "_y", 390 + extra);
             __as.set(this.MC?.power, "_yscale", 210 + extra);
-            __as.set(this.MC?.popup, "_x", Math.round((SCREENX - 600) / 2));
-            __as.set(this.MC?.popup, "_y", Math.round(extra / 2));
+            // The pause popup: over the view beside the sidebar, where it has the room (the
+            // original's, on its 600, crosses the sidebar's edge, and still does at 600), and
+            // smaller on a stage narrower or lower than the original's.
+            var popupScale = Math.min(1, SCREENX / 600, SCREENY / 400);
+            __as.set(this.MC?.popup, "_xscale", 100 * popupScale);
+            __as.set(this.MC?.popup, "_yscale", 100 * popupScale);
+            __as.set(this.MC?.popup, "_x", Math.round(popupScale < 1 ? (SCREENX - 600 * popupScale) / 2 : Math.min(centre - 300, SCREENX - 600)));
+            __as.set(this.MC?.popup, "_y", Math.round((SCREENY - 400 * popupScale) / 2));
          };
          this.layout();
          // The pause popup's two dimming layers (timeline depths 1 and 2) are stretched across
-         // the whole stage whenever the popup places them.
+         // the whole stage whenever the popup places them (inside the popup, however large it is).
          this.fitPopup = function ()
          {
             var popup = this.MC?.popup;
+            var scale = (popup?._xscale || 100) / 100;
+            var fit = SCREENX + "x" + SCREENY + " " + popup?._x + "," + popup?._y + " " + scale;
             var depth = 1;
             var dim;
             while(depth <= 2)
             {
                dim = popup?.$childAt?.(depth - 16384);
-               if(dim && (dim._xscale != SCREENX / 6 || dim._yscale != SCREENY / 4))
+               if(dim && dim.fittedTo != fit)
                {
-                  __as.set(dim, "_x", - popup?._x);
-                  __as.set(dim, "_xscale", SCREENX / 6);
-                  __as.set(dim, "_y", - popup?._y);
-                  __as.set(dim, "_yscale", SCREENY / 4);
+                  __as.set(dim, "_x", - popup?._x / scale);
+                  __as.set(dim, "_xscale", SCREENX / 6 / scale);
+                  __as.set(dim, "_y", - popup?._y / scale);
+                  __as.set(dim, "_yscale", SCREENY / 4 / scale);
+                  __as.set(dim, "fittedTo", fit);
                }
                depth++;
             }
@@ -10555,6 +10569,12 @@
             this.doCash?.();
             this.doPower?.();
             this.draw?.();
+            // (Online: the next message kept back while one naming a player is read.)
+            if(this.heldFrames > 0 && !--this.heldFrames && this.held?.length)
+            {
+               var next = this.held.shift();
+               this.showMessage?.(next[0], next[1]);
+            }
          };
          this.draw = function ()
          {
@@ -10651,11 +10671,36 @@
          {
             this.MC?.flasher?.gotoAndPlay?.("fadethru");
          };
-         this.showMessage = function (message)
+         this.showMessage = function (message, html)
          {
+            // (Online: one naming a player is read before the next comes up.)
+            if(this.heldFrames > 0)
+            {
+               this.held.push([message, html]);
+               return undefined;
+            }
             this.MC?.messageUp?.gotoAndPlay?.(2);
             this.MC?.messageUp?.play?.();
-            __as.set(this.MC?.messageUp?.message, "message", message?.toUpperCase?.());
+            __as.set(this.MC?.messageUp?.message, "message", html ? message : message?.toUpperCase?.());
+            if(html)
+            {
+               this.heldFrames = 46;
+            }
+         };
+         // Online: a message about a player (the dialogue's %s), their name in their colour.
+         this.held = new Array();
+         this.heldFrames = 0;
+         this.showNamed = function (line, player)
+         {
+            var name = String(player?.name || "A player")?.toUpperCase?.()?.split?.("&")?.join?.("&amp;")?.split?.("<")?.join?.("&lt;")?.split?.(">")?.join?.("&gt;");
+            var colour = Online?.colourCss?.[player?.colour] || "#ffffff";
+            // (the black team's is lighter, to be read on the dark)
+            if(player?.colour == "black")
+            {
+               colour = "#9a9a9a";
+            }
+            var parts = dialogue?.(line)?.toUpperCase?.()?.split?.("%S");
+            this.showMessage?.(parts?.join?.("<font color=\"" + colour + "\">" + name + "</font>"), true);
          };
          this.popup = function ()
          {
