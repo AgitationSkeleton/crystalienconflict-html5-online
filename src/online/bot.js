@@ -230,7 +230,8 @@ export class Bot {
     const bh = this.slot('BH');
     if (cur('BH') === 0 && this.canBuild(bh) && this.canPower(bh) && this.affordable(bh)) offer(bh, MEDIUM);
     if (this.count(bl) < 4 && this.canBuild(bl) && this.canPower(bl) && this.affordable(bl)) offer(bl, this.settings.mode === 'pizza' ? CRITICAL : MEDIUM);
-    const bj = 'BJ_' + this.player.faction;
+    // (Santa's Sleigh, the Aliens' building, is anyone's who has found a present.)
+    const bj = 'BJ_evil';
     if (this.count(bj) < 1 && this.canBuild(bj) && this.affordable(bj)) offer(bj, MEDIUM);
     const extra = this.extra();
     if (extra && this.canBuild(extra) && this.canPower(extra) && this.affordable(extra)) offer(extra, MEDIUM);

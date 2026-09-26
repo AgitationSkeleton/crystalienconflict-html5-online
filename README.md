@@ -21,7 +21,8 @@ or in **Pizza Mode** by collecting your own pizza: buy one at your headquarters 
 somewhere random, in your colour, and shows on every radar), then get a unit to it before
 the enemy parks on it. Headquarters can't be destroyed in Pizza Mode, and everyone gets
 $400 a minute. In **Capture the Flag**, drive a vehicle onto an enemy's flag and bring it to
-your own flag's home to knock them out.
+your own flag's home to knock them out. With **crates** on, drive over one for a free unit
+(a crystal box), $10,000 (an Alien capsule) or, at Christmas, a present: Santa's Sleigh.
 
 The game fills the window. How far it is enlarged is the interface size (in the settings);
 past that, a bigger window shows more of the map and a taller sidebar. It runs at the

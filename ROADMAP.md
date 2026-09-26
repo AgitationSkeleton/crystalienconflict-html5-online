@@ -115,7 +115,7 @@ As listed, plus later additions:
   flat tops inside rocky rims, as the story's hills do. LEGO bridge sites are ground; islands
   a LEGO player reached by boat get a causeway across the narrowest water so every base can
   reach every other. `tools/render_maps.py` draws them all for review (`work/map-renders/`).
-- **5. Game modes: under way.** Destroy All and Destroy Structures, and **Pizza Mode**, by
+- **5. Game modes: done.** Destroy All and Destroy Structures, and **Pizza Mode**, by
   the C&C mod's rules: any player can buy a pizza at their headquarters (the lobby sets its
   price; it takes as long as the original's), which is delivered to a random reachable spot
   in the buyer's colour (the box only; the pizza stays a pizza). The buyer's team sees the
@@ -131,7 +131,14 @@ As listed, plus later additions:
   tutorial's), and bringing it to its own flag's home puts the flag's owner out of the game.
   A lost carrier drops the flag; the owner always sees where their flag goes. Computer
   players carry flags home, chase whoever has theirs, send their fastest vehicle for the
-  nearest enemy flag, guard their own and build their guns by it. Crates are next.
+  nearest enemy flag, guard their own and build their guns by it.
+  **Crates**, by the mod's rules: one per player at the start on open ground, topped back up
+  one at a time every one to three minutes (the lobby makes that rarer or more often; the
+  mod meant to, but its code never did). A crystal box holds a free unit, of either side, by
+  the mod's table as it works out; an Alien capsule is $10,000; with the Christmas crate on, a
+  present lets its finder build Santa's Sleigh, and with it Santa and his Reindeer (another
+  present is $10,000). Crates belong to nobody; computer players send a vehicle for the
+  nearest.
 - **4. Bots: done.** Computer players (`src/online/bot.js`) think the way the C&C mod's
   opponent does, as set out in `docs/cnc-ai-spec.md`: a build plan by urgency, the four
   wants, the missions (guard, hunt, attack, harvest and so on), raids on the weakest or

@@ -78,6 +78,15 @@ SCENARIOS = {
                      "prebuilt:true,shroud:true,superweapons:true,palette:'mars',specops:'on',players:[{name:'Me',faction:'good',colour:'cyan',"
                      "control:'local'},{name:'B',faction:'evil',colour:'tan',control:'bot',difficulty:'hard'},{name:'C',faction:'good',colour:'black',"
                      "control:'bot',difficulty:'medium'}]})", 'step 30', SOAK, 'shot end'],
+    # Crates, often, with the Christmas crate: boxes, capsules and presents placed, collected by
+    # the bots, topped up.
+    'skirmish-crates': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'cnc-scm96ea',mode:'all',cash:10000,units:3,"
+                        "prebuilt:true,shroud:true,superweapons:true,palette:'mars',specops:'on',crates:true,christmas:true,crateRate:'often',"
+                        "players:[{name:'Me',faction:'good',colour:'blue',control:'local'},{name:'B',faction:'evil',colour:'red',control:'bot',"
+                        "difficulty:'hard'},{name:'C',faction:'good',colour:'green',control:'bot',difficulty:'hard'}]})", 'step 30',
+                        "eval (() => { const lv = player.levels[1].panel.game.level; const n = lv.units.filter((u) => u.active && u.stats.pickup === true).length;"
+                        " return lv.crateTarget === 3 && n === 3 ? [] : ['crates: target ' + lv.crateTarget + ', on the ground ' + n]; })()",
+                        'step 2760', SOAK, 'shot end'],
     # Pizza Mode, rich enough that pizzas are bought, fetched and eaten within the soak.
     'skirmish-pizza': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'lego-mp01',mode:'pizza',pizzaCost:25000,cash:40000,units:3,"
                        "prebuilt:true,shroud:true,superweapons:true,palette:'snowy',specops:'on',players:[{name:'Me',faction:'evil',colour:'purple',"

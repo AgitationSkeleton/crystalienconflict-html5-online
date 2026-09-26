@@ -45,6 +45,7 @@ def main():
     ap.add_argument('--software', action='store_true')
     ap.add_argument('--zoom', type=float, default=None)
     ap.add_argument('--scroll', action='store_true')
+    ap.add_argument('--settings', default=None, help='JSON merged into the match settings, e.g. {"crates": true}')
     ap.add_argument('--trace', default=None, help='write a Chromium trace of the run (all processes) to this file')
     ap.add_argument('--exp', default=None, help='instead of running the clock, evaluate this JS file (a function) and print what it returns')
     ap.add_argument('--probe', action='store_true', help='time the images drawn, by kind and size (probe_sources.js)')
@@ -61,6 +62,8 @@ def main():
                         'control': 'bot', 'difficulty': 'hard'})
     settings = {'map': args.map, 'mode': args.mode, 'cash': 30000, 'units': 3, 'prebuilt': True, 'shroud': True,
                 'superweapons': True, 'palette': args.palette, 'specops': 'on', 'pizzaCost': 50000, 'players': players}
+    if args.settings:
+        settings.update(json.loads(args.settings))
 
     with sync_playwright() as pw:
         if args.software:

@@ -2608,6 +2608,11 @@
          this.shortcuts = {};
          this.options = new Array();
          var _loc11_ = new Array("A", "B", "C", "D", "E", "F", "R", "G", "H", "I", "J", "K", "L", "P", "Q");
+         // Online: and Santa's Sleigh's Santa and Reindeer (a skirmish's present).
+         if(this.parent?.skirmish)
+         {
+            _loc11_.push("M", "N");
+         }
          var _loc14_ = 0;
          var _loc3_;
          while(_loc14_ < _loc11_?.length)
@@ -5128,6 +5133,12 @@
          this.team = !team?.isPlayer ? team : this.owner?.faction;
          this.friend = this.owner == this.parent?.localPlayer;
          this.stats = new UnitStats(this);
+         // Online: a skirmish's crate belongs to nobody (Level.placeCrate).
+         if(team == "nobody")
+         {
+            this.owner = undefined;
+            this.friend = false;
+         }
          if(this.owner?.bot && !this.stats?.boomerang && !this.stats?.pickup)
          {
             this.hal = this.owner.bot.hal(this);
@@ -5572,6 +5583,27 @@
             var _loc3_;
             var _loc4_;
             var _loc5_;
+            // Online: a present (a skirmish's Christmas crate) lets its finder build Santa's
+            // Sleigh; one who already can gets 10,000 instead.  A free unit with nowhere to stand
+            // is 2,000 (spec 7.4).
+            if(this.freeInside == "present")
+            {
+               _loc5_ = collectee?.owner;
+               if(_loc5_ && !_loc5_.sleigh)
+               {
+                  _loc5_.sleigh = true;
+                  if(_loc5_ == this.parent?.localPlayer)
+                  {
+                     this.parent?.parent?.hud?.showMessage?.(dialogue?.("int_present"));
+                  }
+                  return undefined;
+               }
+               this.freeInside = 10000;
+            }
+            if(this.freeInside && typeof this.freeInside == "string" && this.parent?.skirmish && !this.parent?.arena?.closestAvailable?.(this.tilePos))
+            {
+               this.freeInside = false;
+            }
             if(!this.freeInside || typeof this.freeInside == "number")
             {
                _loc3_ = 2000;
@@ -8231,6 +8263,7 @@
             {
                this.plantFlags?.();
             }
+            this.setupCrates?.();
             if(settings?.palette == "snowy")
             {
                this.arena?.doSnow?.();
@@ -8327,6 +8360,7 @@
          {
             this.pizzaStipend?.();
             this.handleFlags?.();
+            this.crateTick?.();
             if(!this.active || this.count % 23)
             {
                return undefined;
@@ -8879,6 +8913,103 @@
             }
             return found.reverse();
          };
+         // Crates (spec 7): with them on, one for every player at the start, and when there are
+         // fewer on the ground than that, one more every one to three minutes -- the mod's intent
+         // (its code never topped them up) -- sooner or later as the lobby says.
+         this.setupCrates = function ()
+         {
+            this.crateTarget = 0;
+            if(!this.skirmish?.crates)
+            {
+               return undefined;
+            }
+            var index = 0;
+            while(index < this.players?.length)
+            {
+               if(!this.players[index]?.spectator)
+               {
+                  this.crateTarget++;
+               }
+               index++;
+            }
+            index = 0;
+            while(index < this.crateTarget)
+            {
+               this.placeCrate?.();
+               index++;
+            }
+            this.crateTimer = this.crateInterval?.();
+         };
+         this.crateInterval = function ()
+         {
+            var factor = {rare:2,normal:1,often:0.5}[this.skirmish?.crateRate] || 1;
+            return Math.round((random?.(3) + 1) * 1380 * factor);
+         };
+         this.crateTick = function ()
+         {
+            if(!this.crateTarget || --this.crateTimer > 0)
+            {
+               return undefined;
+            }
+            this.crateTimer = this.crateInterval?.();
+            var onGround = 0;
+            for(var index of __as.keys(this.units))
+            {
+               if(this.units?.[index]?.active && this.units?.[index]?.stats?.pickup === true)
+               {
+                  onGround++;
+               }
+            }
+            if(onGround < this.crateTarget)
+            {
+               this.placeCrate?.();
+            }
+         };
+         // A crate on a random cell of open ground (as a pizza's), of a kind rolled 1 to 9: with
+         // the Christmas crate on, 1 a present, 2-3 an Alien capsule, else a crystal box; with it
+         // off, 1-3 a capsule, else a box.
+         this.placeCrate = function ()
+         {
+            var site = this.randomPickupSite?.();
+            if(!site)
+            {
+               return undefined;
+            }
+            var roll = random?.(9) + 1;
+            var crate;
+            if(roll == 1 && this.skirmish?.christmas)
+            {
+               crate = new Unit(this, "UO_evil", site.x, site.y, 0.5, "nobody", undefined, undefined, "present");
+            }
+            else if(roll <= 3)
+            {
+               crate = new Unit(this, "UI_evil", site.x, site.y, 0.5, "nobody", undefined, undefined, 10000);
+            }
+            else
+            {
+               crate = new Unit(this, "UI_good", site.x, site.y, 0.5, "nobody", undefined, undefined, this.crateUnit?.());
+            }
+            this.units?.push?.(crate);
+            return crate;
+         };
+         // What a crystal box holds: the mod's 52 entries as they work out (its aircraft never
+         // appear, and the Jet Pack's entries fall through to the Saboteur's).  Either side's.
+         this.crateUnit = function ()
+         {
+            var table = new Array(["UE_evil",9], ["UF_good",9], ["UB_evil",10], ["UA_evil",7], ["UD_evil",5], ["UE_good",3], ["UF_evil",3], ["UA_good",2], ["UB_good",2], ["UD_good",1], ["UR_good",1]);
+            var pick = random?.(52);
+            var index = 0;
+            while(index < table.length)
+            {
+               pick -= table[index][1];
+               if(pick < 0)
+               {
+                  return table[index][0];
+               }
+               index++;
+            }
+            return "UE_evil";
+         };
          // A pizza, bought: it turns up on a random cell of open ground (spec 5.1).  Its buyer's
          // team sees the ground around it; everyone else hears the alarm.  If no cell will do,
          // the money is lost, as in the mod.
@@ -9275,6 +9406,10 @@
                {
                   tech.BK_good = tech.BK_evil = tech.BL_good = tech.UP_good = tech.UP_evil = tech.UR_good = tech.UQ_evil = false;
                }
+               // A present's Sleigh (the Aliens' in the story; whoever finds a present here), and
+               // from it Santa and his Reindeer.
+               tech.BJ_evil = !!owner?.sleigh;
+               tech.UM_evil = tech.UN_evil = has("BJ_evil");
                // Pizza Mode's pizza, from a headquarters.
                tech.UJ_good = this.skirmish?.mode == "pizza" && has("BA_good");
                tech.UJ_evil = this.skirmish?.mode == "pizza" && has("BA_evil");
