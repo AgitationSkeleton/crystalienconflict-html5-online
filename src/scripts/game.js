@@ -2550,6 +2550,19 @@
                      piece = this.MC?.attachMovie?.("terrain", "terrain_" + tx + "_" + ty, -20 - tx * 16 - ty);
                      __as.set(piece, "_x", tx * 2880);
                      __as.set(piece, "_y", ty * 2880);
+                     // (every other piece across, and down, the mirror image of its neighbour, so
+                     // that the pieces meet without a seam: the original's ground was never meant
+                     // to repeat, and its edges do not match)
+                     if(tx % 2)
+                     {
+                        __as.set(piece, "_xscale", -100);
+                        __as.set(piece, "_x", (tx + 1) * 2880);
+                     }
+                     if(ty % 2)
+                     {
+                        __as.set(piece, "_yscale", -100);
+                        __as.set(piece, "_y", (ty + 1) * 2880);
+                     }
                      this.terrainMCs?.push?.(piece);
                   }
                   ty++;
