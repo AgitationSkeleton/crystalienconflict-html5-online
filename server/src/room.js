@@ -43,7 +43,12 @@ const FRAME_MS = 1000 / 23;
 const LATE_MS = 250;            // how long a turn waits for a player behind the rest
 const GRACE_MS = 20000;         // how long a disconnected player's seat is kept
 const EMPTY_MS = 60000;         // how long a room with nobody in it lasts
-const HEARTBEAT_MS = 30000;     // how often a listed room tells the master server it is there
+const HEARTBEAT_MS = 15000;     // how often a listed room tells the master server it is there
+// A member not heard from for this long -- a page pings every 2 s; one in a hidden tab, whose
+// timers the browser may slow to once a minute, still does -- is gone, its connection dead
+// though never closed (a network lost, a computer asleep): dropped as a closed one is.
+const SILENT_MS = 120000;
+const SWEEP_MS = 15000;
 const COLOURS = ['orange', 'green', 'red', 'blue', 'purple', 'black', 'tan', 'cyan', 'yellow'];
 
 export function newCode() {
@@ -192,6 +197,7 @@ export class Room extends DurableObject {
   }
 
   onMessage(conn, m) {
+    if (conn.member) conn.member.heard = Date.now();
     if (!m || typeof m.type !== 'string') return;
     if (m.type === 'ping') return this.send(conn.ws, { type: 'pong', t: m.t });
     if (!conn.member) {
@@ -337,6 +343,7 @@ export class Room extends DurableObject {
     }
     mem.ws = conn.ws;
     mem.connected = true;
+    mem.heard = Date.now();
     conn.member = mem;
     if (this.timers.grace && this.timers.grace[mem.id]) {
       clearTimeout(this.timers.grace[mem.id]);
@@ -447,6 +454,8 @@ export class Room extends DurableObject {
     this.game = null;
     clearInterval(this.timers.heartbeat);
     this.timers.heartbeat = null;
+    clearInterval(this.timers.sweep);
+    this.timers.sweep = null;
     if (this.room) this.tellLobby(true);
     this.room = null;
   }
@@ -455,6 +464,22 @@ export class Room extends DurableObject {
   startHeartbeat() {
     if (this.timers.heartbeat) return;
     this.timers.heartbeat = setInterval(() => this.tellLobby(), HEARTBEAT_MS);
+    this.timers.sweep = setInterval(() => this.sweep(), SWEEP_MS);
+  }
+
+  // Members whose connection has gone silent, dropped (see SILENT_MS).
+  sweep() {
+    const now = Date.now();
+    for (const mem of [...this.members.values()]) {
+      if (!mem.connected || !mem.ws || now - (mem.heard || mem.joined) < SILENT_MS) continue;
+      const ws = mem.ws;
+      try {
+        ws.close(4004, 'silent');
+      } catch (e) {
+        // (already gone)
+      }
+      this.onClose({ member: mem, ws });
+    }
   }
 
   tellLobby(closed) {

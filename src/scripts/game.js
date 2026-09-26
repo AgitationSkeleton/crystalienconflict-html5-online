@@ -2914,7 +2914,7 @@
          };
          // Online: numbers in the bottom corners of the options' pictures: on the right, how many
          // of a unit are being made and wait their turn (the host's Unit queue); on the left, how
-         // many of a thing this player has (a setting of theirs, "Show how many you have").
+         // many of a thing this player has (a setting of theirs, "Show Unit/Building Count").
          this.showCounts = function ()
          {
             var production = this.production?.();

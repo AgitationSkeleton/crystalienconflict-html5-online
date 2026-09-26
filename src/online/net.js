@@ -72,13 +72,14 @@ export class Net {
     return (await r.json()).rooms || [];
   }
 
-  // How long a room takes to answer (its Durable Object lives near whoever made it).
+  // How long a room takes to answer (its Durable Object lives near whoever made it); null if it
+  // answers that it is gone (the list can still carry a room for a few seconds after it is).
   async ping(code) {
     const t = performance.now();
     const r = await fetch(this.root + '/rooms/' + code, { cache: 'no-store' });
     if (!r.ok) throw new Error(String(r.status));
-    await r.json();
-    return Math.round(performance.now() - t);
+    const info = await r.json();
+    return info.exists === false ? null : Math.round(performance.now() - t);
   }
 
   async create(opts) {

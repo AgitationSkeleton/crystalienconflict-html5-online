@@ -199,7 +199,15 @@ export class OnlineUI {
     this.showAddress(name === 'room' && this.net && this.net.code);
     if (name === 'lobby') this.renderLobby();
     if (name === 'settings') this.renderSettings();
-    if (name === 'online') this.refreshRooms();
+    // (the list of games kept current while it is looked at)
+    clearInterval(this.roomTimer);
+    if (name === 'online') {
+      this.refreshRooms();
+      this.roomTimer = setInterval(() => {
+        if (this.screens.online.classList.contains('active')) this.refreshRooms(true);
+        else clearInterval(this.roomTimer);
+      }, 10000);
+    }
     if (name === 'room') this.renderRoom();
     const first = this.screens[name] && this.screens[name].querySelector('button:not(:disabled), select, input');
     if (first) first.focus({ preventScroll: true });
@@ -567,10 +575,11 @@ export class OnlineUI {
     this.root.append(s);
   }
 
-  async refreshRooms() {
+  // (quiet: the list refreshed by itself, without "Looking for games..." each time)
+  async refreshRooms(quiet) {
     if (!this.net) return;
     const mine = (this.refreshes = (this.refreshes || 0) + 1);
-    this.onlineNotice.textContent = 'Looking for games...';
+    if (!quiet) this.onlineNotice.textContent = 'Looking for games...';
     let rooms;
     try {
       rooms = await this.net.list();
@@ -583,17 +592,28 @@ export class OnlineUI {
     if (mine !== this.refreshes) return;
     this.onlineNotice.textContent = rooms.length ? '' : 'No games right now: host one!';
     const maps = Object.fromEntries(this.maps().map((m) => [m.id, m.name]));
+    this.pings = this.pings || {};
     this.roomList.replaceChildren(...rooms.map((r) => {
-      const ping = el('span', { class: 'ping', text: '...' });
-      this.net.ping(r.code).then((ms) => { ping.textContent = ms + 'ms'; }, () => { ping.textContent = '?'; });
+      const ping = el('span', { class: 'ping', text: this.pings[r.code] ? this.pings[r.code] + 'ms' : '...' });
       const label = (r.host || 'Someone') + ' - ' + (MODE_NAMES[r.mode] || r.mode) + ' - ' + (maps[String(r.map)] || 'Eclipse');
-      return el('div', { class: 'roomrow' + (r.phase === 'playing' ? ' playing' : '') },
+      const row = el('div', { class: 'roomrow' + (r.phase === 'playing' ? ' playing' : '') },
         el('span', { class: 'lock', title: r.access === 'password' ? 'Needs a password' : '', text: r.access === 'password' ? '\u{1F512}' : '' }),
         el('span', { class: 'label', text: label }),
         el('span', { class: 'count', text: r.players + '/' + r.slots }),
         ping,
         el('span', { class: 'phase', text: r.phase === 'playing' ? 'Playing' : 'In lobby' }),
         el('button', { class: 'btn small', onclick: () => this.joinRoom(r.code, r.access) }, r.phase === 'playing' ? 'Watch' : 'Join'));
+      // (a room that says it is gone -- its server restarted, say -- is taken off the list)
+      this.net.ping(r.code).then((ms) => {
+        if (ms !== null) {
+          this.pings[r.code] = ms;
+          ping.textContent = ms + 'ms';
+          return;
+        }
+        row.remove();
+        if (mine === this.refreshes && !this.roomList.children.length) this.onlineNotice.textContent = 'No games right now: host one!';
+      }, () => { ping.textContent = '?'; });
+      return row;
     }));
   }
 
@@ -993,7 +1013,7 @@ export class OnlineUI {
       el('label', { text: 'Interface size' }), size,
       el('label', { text: 'Scroll at the edges' }), onOff('edgeScroll', 'Scroll at the edges'),
       el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
-      el('label', { text: 'Show how many you have' }), onOff('ownedCounts', 'Show how many you have'),
+      el('label', { text: 'Show Unit/Building Count' }), onOff('ownedCounts', 'Show Unit/Building Count'),
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface' }), slider('ui'),
