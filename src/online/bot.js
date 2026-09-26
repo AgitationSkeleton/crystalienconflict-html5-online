@@ -451,7 +451,8 @@ export class Bot {
 
   chooseVehicle(n) {
     // §3.3: miners first.
-    const want = this.ownBuildings((b) => b.type === this.mine('BA')).length ? this.profile.miners : 0;
+    // (none more while the map has no crystals worth the trip, as a mined-out map has not)
+    const want = this.ownBuildings((b) => b.type === this.mine('BA')).length && this.crystalsLeft() ? this.profile.miners : 0;
     if (want > this.miners()) {
       const miner = this.buildable('UD')[0];
       if (miner) { this.want.vehicle = miner; return; }
@@ -658,30 +659,72 @@ export class Bot {
     }
   }
 
-  // A miner with nothing to do goes to the crystals nearest its home, as a player would click
-  // it there; after that the engine's own loop carries it back and forth.
+  // A miner with nothing to do goes to the nearest crystals it can reach, as a player would
+  // click it there; after that the engine's own loop carries it back and forth.  Rich crystals
+  // (over 25) first; if there are none -- a busy map mines them down, and a tile keeps a little
+  // however it is mined, and shows it -- the nearest of any.  One whose crystals have run low is
+  // sent to rich ones, once it has unloaded, if there are any (the engine takes it back to where
+  // it last mined, and looks for more only a little way round that).  A field it cannot reach
+  // -- over water, walled in -- is passed over for the next nearest, and remembered.
   harvest(u) {
     const nav = u.nav;
-    // (A new miner that found no crystals nearby is marked as heading home; with nothing
-    // aboard, that means nothing.)
-    if ((nav.path && nav.path.length > 1) || nav.npath || nav.feeding || (nav.lastFed && nav.lastFed.x) || u.cargo) return;
-    const home = u.stats.home;
-    const from = (home && home.stats && home.stats.dockPos) || u.tilePos;
-    const field = this.nearestCrystal(from);
-    if (field) nav.voyage((field.x - 0.5) * CELL, (field.y - 0.5) * CELL, false);
+    const arena = this.arena;
+    // (with a load, the engine takes it home; a new miner that found no crystals nearby is
+    // marked as heading home too, but with nothing aboard that means nothing)
+    if (u.cargo) return;
+    const fed = nav.lastFed && nav.lastFed.x ? nav.lastFed : null;
+    const amount = (t) => (arena.baits[t.x] && arena.baits[t.x][t.y]) || 0;
+    if (fed && amount(fed) > 25) return;
+    const moving = (nav.path && nav.path.length > 1) || nav.npath;
+    // (on its way, as a new miner is, to crystals the engine found for it)
+    if (!fed && (moving || nav.feeding)) return;
+    // (mining a thin field, or on its way back to one: only for rich crystals elsewhere)
+    const least = fed ? 25 : 0;
+    if (!u.botFarFields) u.botFarFields = new Set();
+    for (let tries = 0; tries < 6; tries++) {
+      const field = this.nearestCrystal(u.tilePos, u.botFarFields, 25) || (least ? null : this.nearestCrystal(u.tilePos, u.botFarFields, 0));
+      if (!field) {
+        if (!least) u.botFarFields.clear();         // (try them all again, another time)
+        return;
+      }
+      nav.voyage((field.x - 0.5) * CELL, (field.y - 0.5) * CELL, false);
+      const end = nav.npath && nav.npath[nav.npath.length - 1];
+      if (end && amount(end) > 0) {
+        // (where it mines now: the engine brings it back here after unloading)
+        nav.feeding = true;
+        nav.lastFed = { x: end.x, y: end.y };
+        return;
+      }
+      // (the way there ends short of it: out of reach)
+      delete nav.npath;
+      u.botFarFields.add(field.x + ',' + field.y);
+    }
   }
 
-  nearestCrystal(from) {
+  // The crystals nearest a tile, of more than `over` (25 unless said), not among those skipped.
+  nearestCrystal(from, skip, over) {
     const arena = this.arena;
+    const least = over === undefined ? 25 : over;
     let best = null, bestD = Infinity;
     for (let x = 1; x <= arena.cols; x++) {
       for (let y = 1; y <= arena.rows; y++) {
-        if (!(arena.baits[x] && arena.baits[x][y] > 25) || (arena.tiles[x] && arena.tiles[x][y])) continue;
+        if (!(arena.baits[x] && arena.baits[x][y] > least) || (arena.tiles[x] && arena.tiles[x][y])) continue;
+        if (skip && skip.has(x + ',' + y)) continue;
         const d = (x - from.x) * (x - from.x) + (y - from.y) * (y - from.y);
         if (d < bestD) { bestD = d; best = { x, y }; }
       }
     }
     return best;
+  }
+
+  // Whether any crystals are worth mining anywhere: more than 10 on a tile (a tile mined out
+  // keeps 1).  Looked at every 3 s.
+  crystalsLeft() {
+    if (this.crystalsSeenAt === undefined || this.tick - this.crystalsSeenAt >= 45) {
+      this.crystalsSeenAt = this.tick;
+      this.crystalsSeen = !!this.nearestCrystal({ x: 0, y: 0 }, null, 10);
+    }
+    return this.crystalsSeen;
   }
 
   // ---- §4.1 aggression -------------------------------------------------------------------------
