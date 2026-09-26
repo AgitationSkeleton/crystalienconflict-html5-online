@@ -290,11 +290,22 @@ export class OnlineUI {
     this.lobbyNotice = el('div', { class: 'notice' });
     this.matchForm = el('div', { class: 'form two' });
     this.startButton = el('button', { class: 'btn small primary', onclick: () => this.start() }, 'Start');
+    // Open to others: this lobby, its settings and computer players, becomes a room on the
+    // server (as Online's Host does), for people to join by the list, a password, or the link.
+    this.lobbyAccess = el('select', { 'aria-label': 'Who can join', onchange: () => this.renderLobbyAccess() },
+      el('option', { value: 'offline', text: 'Just me (offline)' }),
+      el('option', { value: 'public', text: 'Anyone (listed)' }),
+      el('option', { value: 'password', text: 'With a password (listed)' }),
+      el('option', { value: 'invite', text: 'Only with the code or link' }));
+    this.lobbyPassword = el('input', { type: 'text', maxlength: 32, placeholder: 'Password', 'aria-label': 'Password', disabled: true });
+    this.lobbyHostButton = el('button', { class: 'btn small', disabled: true, onclick: () => this.hostLobby() }, 'Host');
+    this.lobbyHostNote = el('div', { class: 'footnote' });
     const s = el('section', { class: 'screen lobby' },
       el('div', { class: 'titlebar' }, el('h1', { text: 'Skirmish' }), el('div', { class: 'spacer' }),
         el('button', { class: 'btn small', onclick: () => { this.sound('INT_cursor_select'); this.show('main'); } }, 'Back'),
         this.startButton),
-      el('div', { class: 'lobby-grid' },
+      // (laid out as a room is: the players, beside them playing with others, the match below)
+      el('div', { class: 'room-grid' },
         el('div', { class: 'panel' }, el('h2', { text: 'Players' }),
           el('div', { class: 'body' },
             el('div', { class: 'mapcard' }, this.mapPreview,
@@ -306,12 +317,57 @@ export class OnlineUI {
             this.slotList,
             el('div', { class: 'footnote', text: 'Players of the same colour are one team: allies with separate bases.' }),
             this.lobbyNotice)),
-        el('div', { class: 'panel' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.matchForm))));
+        el('div', { class: 'panel' }, el('h2', { text: 'Play with others' }),
+          el('div', { class: 'body' },
+            el('div', { class: 'form' },
+              el('label', { text: 'Who can join' }), this.lobbyAccess,
+              el('label', { text: 'Password' }), this.lobbyPassword),
+            el('div', { class: 'actions' }, this.lobbyHostButton),
+            this.lobbyHostNote)),
+        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.matchForm))));
     this.screens.lobby = s;
     this.root.append(s);
   }
 
+  renderLobbyAccess() {
+    const access = this.lobbyAccess.value;
+    this.lobbyPassword.disabled = access !== 'password';
+    this.lobbyHostButton.disabled = access === 'offline' || !this.net;
+    this.lobbyHostNote.textContent = !this.net ? 'Playing with others needs the server, which this page cannot reach.'
+      : access === 'offline' ? 'Start plays here, against the computer.'
+      : 'Host makes this a game others can join, with these settings and computer players.';
+  }
+
+  // The skirmish lobby, opened to others: a room made with its settings, slots and computer
+  // players.  (If no slot would be open for someone to come in, the first after this player's is.)
+  async hostLobby() {
+    const access = this.lobbyAccess.value;
+    const password = access === 'password' ? this.lobbyPassword.value : undefined;
+    if (access === 'password' && !password) {
+      this.lobbyHostNote.textContent = 'Choose a password for the game first.';
+      return;
+    }
+    const ok = await this.hostWith(access, password, (msg) => { this.lobbyHostNote.textContent = msg; });
+    if (!ok) return;
+    const count = Math.min(this.match.slots, 6);
+    const slots = this.slots.slice(0, count);
+    let open = false;
+    slots.forEach((slot, i) => {
+      if (i === 0) {
+        if (slot.faction === 'spectate') this.net.spectate();
+        else this.net.setSlot(0, { faction: slot.faction, colour: slot.colour });
+        return;
+      }
+      if (slot.kind === 'bot') this.net.setSlot(i, { kind: 'bot', faction: slot.faction, colour: slot.colour, difficulty: slot.difficulty });
+      else if (slot.kind === 'closed') this.net.setSlot(i, { kind: 'closed' });
+      else open = true;
+    });
+    if (!open && count > 1) this.net.setSlot(1, { kind: 'open' });
+    this.show('room');
+  }
+
   renderLobby() {
+    this.renderLobbyAccess();
     const maps = this.maps();
     const groups = { undefined: 'CrystAlien Conflict', cnc: 'Command & Conquer', lego: 'LEGO Battles' };
     const byGroup = {};
@@ -585,20 +641,24 @@ export class OnlineUI {
       this.onlineNotice.textContent = 'Choose a password for the game first.';
       return;
     }
-    this.onlineNotice.textContent = 'Making a game...';
+    if (await this.hostWith(access, password, (msg) => { this.onlineNotice.textContent = msg; })) this.show('room');
+  }
+
+  // A room made on the server, and this page in it, with this player's last lobby's settings.
+  async hostWith(access, password, say) {
+    say('Making a game...');
     try {
       const code = await this.net.create({ access, password, name: this.settings.name + "'s game" });
       await this.net.join(code, this.who(password));
     } catch (e) {
-      this.onlineNotice.textContent = "Couldn't make a game (" + e.message + ').';
-      return;
+      say("Couldn't make a game (" + e.message + ').');
+      return false;
     }
-    // The room starts with this player's last lobby's settings.
     const m = Object.assign({}, this.match);
     this.net.setMatch(m);
     this.net.setCount(Math.min(m.slots, 6));
     this.chatLines = [];
-    this.show('room');
+    return true;
   }
 
   // ---- online: a room --------------------------------------------------------------------------
@@ -658,7 +718,7 @@ export class OnlineUI {
               el('button', { class: 'btn small', onclick: () => { this.roomCodeShown = !this.roomCodeShown; this.renderRoom(); } }, 'Show'),
               el('button', { class: 'btn small', onclick: () => this.copyInvite() }, 'Copy link')),
             this.roomAccessRow)),
-        el('div', { class: 'panel' }, el('h2', { text: 'Chat' }), el('div', { class: 'body chat' }, this.chatLog, this.chatInput)),
+        el('div', { class: 'panel chatpanel' }, el('h2', { text: 'Chat' }), el('div', { class: 'body chat' }, this.chatLog, this.chatInput)),
         el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.roomMatchForm))));
     this.screens.room = s;
     this.root.append(s);

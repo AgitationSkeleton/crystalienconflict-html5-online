@@ -288,8 +288,10 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 .coderow { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .coderow .code { font: 700 18px/1 monospace; letter-spacing: 0.25em; color: #fff; min-width: 7ch; }
 .form.access { margin-top: 4px; }
-.chat { display: flex; flex-direction: column; gap: 8px; }
-.chatlog { height: 150px; overflow-y: auto; font-size: 13px; text-transform: none; letter-spacing: 0; line-height: 1.35; }
+/* (the chat fills its panel, however tall the column makes it: the log grows, the bar stays at the foot) */
+.chatpanel { display: flex; flex-direction: column; }
+.chat { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+.chatlog { flex: 1; min-height: 150px; height: 0; overflow-y: auto; font-size: 13px; text-transform: none; letter-spacing: 0; line-height: 1.35; }
 .chatlog b { color: var(--orange-hi); font-weight: 600; }
 .toast {
   position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; max-width: min(560px, calc(100vw - 24px));
