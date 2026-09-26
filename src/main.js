@@ -6,6 +6,7 @@
 import { Player } from './flash/player.js';
 import { Library } from './flash/library.js';
 import { OnlineUI } from './online/ui.js';
+import { loadSettings, UI_SCALES } from './online/settings.js';
 import { Bot } from './online/bot.js';
 
 const FLASHVARS = { xmlurl: 'data/dialogue.xml', asseturl: '', serviceurl: '', gamename: 'CrystAlienConflict' };
@@ -25,9 +26,9 @@ function loadScript(src) {
   });
 }
 
-// Online: sidebar pictures the game never had (tools/make_icons.py), as library bitmaps under
-// ids of their own.
-const ICONS = { BK_evil: 990001 };
+// Online: sidebar pictures the game never had (tools/make_icons.py: the C&C mod's), as library
+// bitmaps under ids of their own -- the Alien Hive, and Santa's Sleigh, Santa and the Reindeer.
+const ICONS = { BK_evil: 990001, BJ_evil: 990002, UM_evil: 990003, UN_evil: 990004 };
 async function loadIcons(lib) {
   await Promise.all(Object.entries(ICONS).map(async ([type, id]) => {
     const r = await fetch(`assets/online/icons/${type}.png`);
@@ -68,9 +69,12 @@ globalThis.__step = (n = 1) => {
   return player.frame;
 };
 
-// ---- the stage fills the window: 400 units tall, and as wide as the window's shape --------
-// The game lays itself out across the width (Stage.width); the loader keeps its 600x400
-// and is centred.
+// ---- the stage fills the window, of its shape, enlarged as far as the interface size allows --
+// The game lays itself out across what it gets (Stage.width, height); the loader keeps its
+// 600x400 and is centred.  (?test keeps the whole window to the game, as before.)
+function setSize(size) {
+  player.renderer.maxScale = TEST && !params.has('menus') ? Infinity : UI_SCALES[size] || UI_SCALES.medium;
+}
 function resize() {
   const r = canvas.getBoundingClientRect();
   player.renderer.resize(r.width, r.height, window.devicePixelRatio || 1);
@@ -79,7 +83,10 @@ function resize() {
 }
 function centreLoader() {
   const loader = player.levels[0];
-  if (loader) loader._x = Math.round((player.renderer.stageW - 600) / 2);
+  if (loader) {
+    loader._x = Math.round((player.renderer.stageW - 600) / 2);
+    loader._y = Math.round((player.renderer.stageH - 400) / 2);
+  }
 }
 addEventListener('resize', resize);
 
@@ -210,6 +217,7 @@ async function start() {
   await loadMaps();
   const loader = openMovie('loader');
   await loader.ready;
+  setSize(loadSettings().size);
   resize();
   await player.loadLevel(0, loader.lib);
   centreLoader();
@@ -217,7 +225,7 @@ async function start() {
   if (!TEST) requestAnimationFrame(loop);
   // Online: the menus, over the game once it has loaded (?test keeps the game's own, for the
   // regression scenarios, unless ?menus asks for them).
-  const ui = new OnlineUI(player, { setSpeed: (f) => { STEP = 1000 / (FPS * (f || 1)); } });
+  const ui = new OnlineUI(player, { setSpeed: (f) => { STEP = 1000 / (FPS * (f || 1)); }, setSize: (s) => { setSize(s); resize(); } });
   globalThis.onlineUI = ui;
   if (!TEST || params.has('menus')) {
     const waitForGame = () => {

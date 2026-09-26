@@ -73,6 +73,11 @@ SCENARIOS = {
                       "prebuilt:true,shroud:true,superweapons:true,palette:'mars',players:[{name:'Me',faction:'good',colour:'orange',"
                       "control:'local'},{name:'B',faction:'evil',colour:'green',control:'bot'},{name:'C',faction:'good',colour:'red',control:'bot'}]})",
                       'step 30', SOAK, 'shot end'],
+    # Capture the Flag: three players, two of them computers going for the flags.
+    'skirmish-ctf': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'lego-mp01',mode:'ctf',cash:20000,units:3,"
+                     "prebuilt:true,shroud:true,superweapons:true,palette:'mars',specops:'on',players:[{name:'Me',faction:'good',colour:'cyan',"
+                     "control:'local'},{name:'B',faction:'evil',colour:'tan',control:'bot',difficulty:'hard'},{name:'C',faction:'good',colour:'black',"
+                     "control:'bot',difficulty:'medium'}]})", 'step 30', SOAK, 'shot end'],
     # Pizza Mode, rich enough that pizzas are bought, fetched and eaten within the soak.
     'skirmish-pizza': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'lego-mp01',mode:'pizza',pizzaCost:25000,cash:40000,units:3,"
                        "prebuilt:true,shroud:true,superweapons:true,palette:'snowy',specops:'on',players:[{name:'Me',faction:'evil',colour:'purple',"

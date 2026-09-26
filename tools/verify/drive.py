@@ -95,13 +95,13 @@ def main():
 
         def to_page(x, y, menu=False):
             # Stage coordinates -> CSS pixels, through the player's fit of the stage (which is
-            # wider than 600 when the window is); menu coordinates are 600x400 ones, centred.
+            # bigger than 600x400 when the window is); menu coordinates are 600x400 ones, centred.
             # The reference page has no player object: its 600x400 fills the viewport the same way.
             return page.evaluate("""([x, y, menu]) => {
                 if (window.player && player.renderer.stageW) {
                     const r = player.renderer, b = r.canvas.getBoundingClientRect();
                     const d = r.canvas.width / Math.max(1, b.width);
-                    if (menu) x += Math.round((r.stageW - 600) / 2);
+                    if (menu) { x += Math.round((r.stageW - 600) / 2); y += Math.round((r.stageH - 400) / 2); }
                     return [b.left + (r.offsetX + x * r.scale) / d, b.top + (r.offsetY + y * r.scale) / d];
                 }
                 const W = innerWidth, H = innerHeight, k = Math.min(W / 600, H / 400);

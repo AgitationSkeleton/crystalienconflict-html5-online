@@ -17,7 +17,9 @@ colour is the one the art is already painted in (orange for the Astros, green fo
 which needs no repainting.  The baseplates are grey, with no accent: they are coloured all
 over (hue -1).  Pickups and the seasonal and one-off pieces keep their own colours, apart from
 the pizza's box, which is its buyer's (Pizza Mode): its entry adds the pixels to leave alone,
-the pizza in the box, as rows of [y, first x, last x].
+the pizza in the box, as rows of [y, first x, last x].  The Amaze level's flag, which Capture
+the Flag gives every player, has a white cloth and no accent: hue -2 colours its pale pixels.
+The tutorial's arrows, which Capture the Flag puts over a flag's carrier, are coloured too.
 """
 
 import colorsys
@@ -50,6 +52,8 @@ NOT_TEAM = {'UI_good', 'UI_evil', 'UJ_good', 'UJ_evil', 'UM_evil', 'UN_evil', 'U
             'BI_good', 'BJ_evil', 'BX_good'}
 
 HUD_BITMAPS = {4511: 'good', 4567: 'evil'}   # the sidebar's frame art, and the Aliens' top bar
+ARROWS = {4529: 'good', 4532: 'evil'}          # the tutorial's arrows (the indicator's 'arrow')
+FLAG = 4448                                    # the flag, a tile of the Amaze level
 
 # The pizza's box is a pure red (hues 356-4, fully saturated); the pizza in it is everything
 # else -- crust, cheese and pepperoni, some of which are the box's reds too, so the pizza is
@@ -184,6 +188,10 @@ def main():
         record('baseplate:' + label, sorted(ids), '', hue=-1.0)
     for bid, side in HUD_BITMAPS.items():
         record('hud:%d' % bid, [bid], 'orange' if side == 'good' else 'green')
+    for bid, side in ARROWS.items():
+        record('arrow:%d' % bid, [bid], 'orange' if side == 'good' else 'green')
+    out[str(FLAG)] = [-2.0, 'white']
+    report.append('%-12s %-6s %5.1f  (the cloth)' % ('flag:%d' % FLAG, 'white', -2.0))
     ids = set()
     for cid in label_contents('unit', PIZZA, ('unit',)):
         bitmaps(cid, ids, set())

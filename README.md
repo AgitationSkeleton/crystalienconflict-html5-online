@@ -20,7 +20,11 @@ A skirmish is won by destroying everything the other teams have, or only their b
 or in **Pizza Mode** by collecting your own pizza: buy one at your headquarters (it lands
 somewhere random, in your colour, and shows on every radar), then get a unit to it before
 the enemy parks on it. Headquarters can't be destroyed in Pizza Mode, and everyone gets
-$400 a minute.
+$400 a minute. In **Capture the Flag**, drive a vehicle onto an enemy's flag and bring it to
+your own flag's home to knock them out.
+
+The game fills the window. How far it is enlarged is the interface size (in the settings);
+past that, a bigger window shows more of the map and a taller sidebar.
 
 | Control | Action |
 | --- | --- |

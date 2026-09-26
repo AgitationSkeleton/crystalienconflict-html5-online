@@ -41,11 +41,15 @@ ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 OPEN, ROCK, POOL, CRYSTAL = 0, 1, 2, 3
 
 # The story's pieces, by the eight neighbours: N NE E SE S SW W NW, 1 for blocked.  Edges
-# and outer corners by which sides are open; inner corners by which diagonal is.
-ROCK_TILES = {'interior': (12, 13, 16), 'N': 1, 'E': 2, 'S': 3, 'W': 4, 'NE': 5, 'SE': 6, 'SW': 7, 'NW': 8,
+# and outer corners by which sides are open; inner corners by which diagonal is.  Inside a
+# rock mass is its flat top (9), as the story draws its hills -- a piece the story leaves open,
+# so the map lists those cells as solid (the game keeps them rock).
+ROCK_TILES = {'interior': (9,), 'N': 1, 'E': 2, 'S': 3, 'W': 4, 'NE': 5, 'SE': 6, 'SW': 7, 'NW': 8,
               'in_NE': 11, 'in_SE': 12, 'in_SW': 13, 'in_NW': 14, 'in_SE_NW': 15, 'in_NE_SW': 16,
               'tip_S': 17, 'tip_N': 22, 'tip_E': 23, 'tip_W': 19, 'alone': 20}
-POOL_TILES = {'interior': (37, 37, 37, 37, 37, 37, 37, 38), 'N': 29, 'E': 30, 'S': 31, 'W': 32, 'NE': 33, 'SE': 34, 'SW': 35, 'NW': 36,
+# Open water is the plain green sea (37), as the story's seas are (the Aliens' level 6); the piece
+# with rocks standing in it (38) reads as rock, so it is left out.
+POOL_TILES = {'interior': (37,), 'N': 29, 'E': 30, 'S': 31, 'W': 32, 'NE': 33, 'SE': 34, 'SW': 35, 'NW': 36,
               'in_NE': 39, 'in_SE': 40, 'in_SW': 41, 'in_NW': 42, 'in_SE_NW': 44, 'in_NE_SW': 43}
 CRYSTAL_TILE = 47
 
@@ -244,6 +248,7 @@ def convert(path, source, table):
             break
     report_unreachable(grid, w, h, starts, os.path.basename(path))
     ids = []
+    solid = []                  # cells drawn open that are rock all the same, as runs [start, length]
     for y in range(h):
         for x in range(w):
             c = grid[y][x]
@@ -253,17 +258,21 @@ def convert(path, source, table):
                 key = piece(grid, w, h, x, y)
                 tiles = POOL_TILES if c == POOL else ROCK_TILES
                 tile = tiles.get(key, tiles['interior'])
-                # Solid rock (the story has none big enough to need it) is its fullest pieces,
-                # varied by position so that it does not repeat.
                 if isinstance(tile, tuple):
                     tile = tile[(x * 7 + y * 13) % len(tile)]
                 ids.append(tile)
+                if c == ROCK and tile in ROCK_TILES['interior']:
+                    at = y * w + x
+                    if solid and solid[-1][0] + solid[-1][1] == at:
+                        solid[-1][1] += 1
+                    else:
+                        solid.append([at, 1])
             else:
                 ids.append(0)
     encoded = table[w] + table[h] + ''.join(table[i] for i in ids)
     bases = [{'x': s['x'] + 1, 'y': s['y'] + 1} for s in src.get('starts', [])]
     return {'name': tidy(src.get('name', os.path.splitext(os.path.basename(path))[0])), 'source': source,
-            'cols': w, 'rows': h, 'map': encoded, 'bases': bases, 'players': len(bases)}
+            'cols': w, 'rows': h, 'map': encoded, 'bases': bases, 'players': len(bases), 'solid': solid}
 
 
 def main():

@@ -23,11 +23,18 @@ export const TEAM_COLOURS = {
   black: { h: 0, s: 0.08, v: 0.35, plate: 0 },
   tan: { h: 36, s: 0.4, v: 1, plate: 0.25 },
   cyan: { h: 185, s: 1, v: 1, plate: 0.45 },
+  gray: { h: 0, s: 0, v: 0.9, plate: 0 },          // a spectator's sidebar
 };
 const TEAM_BAND = 22;             // degrees either side of the art's accent
+// Command & Conquer's team key: the green the C&C mod moves each sprite's accent to, and which
+// the game's client then turns to the owner's colour -- along with every other pixel of that
+// green, such as the Alien riders on the Mothership, whatever the sprite's own accent.  The
+// same happens here, so that a sprite is coloured as the mod's is.
+const TEAM_KEY = 114;
 const TEAM_MIN_SAT = 0.30;        // below this a pixel is neutral, and left alone
 const TEAM_MIN_VAL = 0.15;
-const MIN_STAGE_W = 600;       // the narrowest stage: the original 600x400, menus and all
+const MIN_STAGE_W = 600;       // the smallest stage: the original 600x400, menus and all
+const MIN_STAGE_H = 400;
 
 // A colour through a Flash colour matrix: 4 rows of [r, g, b, a, offset], offsets in 0..255.
 function cmApply(cm, c) {
@@ -47,6 +54,7 @@ export class Renderer {
     this.player = player;
     this.stageW = 600;
     this.stageH = 400;
+    this.maxScale = Infinity;         // CSS pixels a stage unit may be enlarged to (the interface size)
     this.scale = 1;
     this.offsetX = 0;
     this.offsetY = 0;
@@ -67,16 +75,17 @@ export class Renderer {
     this.fcacheIds = 1;
   }
 
-  // The stage is always 400 units tall, filling the window's height, and as wide as the
-  // window's shape allows: the game widens its view to use it (Stage.width).  A window
-  // narrower than 600x400's shape gets the original stage, letterboxed.
+  // The stage fills the window, at least the original's 600x400 and of the window's shape:
+  // enlarged to fit, but no more than maxScale CSS pixels a unit -- a bigger window than that
+  // shows more instead.  The game lays itself out across what it gets (Stage.width, height).
   resize(cssW, cssH, dpr) {
     const w = Math.max(1, Math.round(cssW * dpr));
     const h = Math.max(1, Math.round(cssH * dpr));
     if (this.canvas.width !== w) this.canvas.width = w;
     if (this.canvas.height !== h) this.canvas.height = h;
-    this.stageH = 400;
-    this.stageW = Math.max(MIN_STAGE_W, Math.floor(w / (h / this.stageH)));
+    const k = Math.max(1e-3, Math.min(cssW / MIN_STAGE_W, cssH / MIN_STAGE_H, this.maxScale || Infinity));
+    this.stageW = Math.max(MIN_STAGE_W, Math.floor(cssW / k));
+    this.stageH = Math.max(MIN_STAGE_H, Math.floor(cssH / k));
     this.scale = Math.min(w / this.stageW, h / this.stageH);
     this.offsetX = (w - this.stageW * this.scale) / 2;
     this.offsetY = (h - this.stageH * this.scale) / 2;
@@ -395,8 +404,10 @@ export class Renderer {
 
   // Online: a library bitmap in a player's colour.  Pixels of the art's accent (its hue, from
   // tools/team_accents.py, within TEAM_BAND and saturated enough to be a colour at all) take
-  // the colour's hue and keep their own saturation and value, so the shading stays; a grey
-  // baseplate (accent -1) is coloured all over.  Art already in that colour, and art with no
+  // the colour's hue and keep their own saturation and value, so the shading stays; pixels of
+  // the C&C key green (TEAM_KEY) turn with them, keeping their offset from it; a grey
+  // baseplate (accent -1) is coloured all over, and a white cloth (-2, the flag's) where it
+  // is pale.  Art already in that colour, and art with no
   // accent, is left alone, as are the pixels an accent keeps (rows of [y, first x, last x]: the
   // pizza in the pizza box).  Returns [image, cache key], in the tints cache.
   teamed(key, img, id, lib, team) {
@@ -419,7 +430,8 @@ export class Renderer {
     if (w && h) {
       const d = g.getImageData(0, 0, w, h);
       const p = d.data;
-      const plate = accent[0] < 0;
+      const plate = accent[0] === -1;
+      const cloth = accent[0] === -2;
       const centre = accent[0];
       const keep = new Map();
       for (const [ky, x0, x1] of accent[2] || []) keep.set(ky, [x0, x1]);
@@ -436,6 +448,10 @@ export class Renderer {
         const val = max;
         if (plate) {
           sat = colour.plate;
+        } else if (cloth) {
+          if (val < 0.45 || (max ? delta / max : 0) > 0.25) continue;
+          sat = Math.min(1, 0.8 * colour.s);
+          hue = colour.h;
         } else {
           sat = max ? delta / max : 0;
           if (sat < TEAM_MIN_SAT || val < TEAM_MIN_VAL || !delta) continue;
@@ -444,13 +460,18 @@ export class Renderer {
           else hue = 60 * ((r - gr) / delta + 4);
           if (hue < 0) hue += 360;
           const off = Math.abs(hue - centre) % 360;
-          if (Math.min(off, 360 - off) > TEAM_BAND) continue;
+          let turn = hue - TEAM_KEY;
+          if (turn > 180) turn -= 360;
+          if (Math.min(off, 360 - off) <= TEAM_BAND) turn = 0;
+          else if (Math.abs(turn) > TEAM_BAND) continue;
+          hue = (colour.h + turn + 360) % 360;
           sat *= colour.s;
         }
+        if (plate) hue = colour.h;
         const v = Math.min(1, val * colour.v);
         const s = Math.min(1, sat);
-        // HSV back to RGB, at the colour's hue.
-        const hh = colour.h / 60, f = hh - Math.floor(hh);
+        // HSV back to RGB, at the new hue.
+        const hh = hue / 60, f = hh - Math.floor(hh);
         const pp = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
         let rr, gg, bb;
         switch (Math.floor(hh) % 6) {

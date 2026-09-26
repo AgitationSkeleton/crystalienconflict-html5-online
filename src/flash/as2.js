@@ -728,6 +728,41 @@ function makeFlashPackage(player) {
     ctx.restore();
     this.$version++;
   };
+  // threshold(): the pixels of a source rectangle whose (value & mask) passes the test against
+  // (threshold & mask) become color, at destPoint; the others are the source's if copySource,
+  // else left as they were.  Returns how many passed.  (Colours are ARGB, not premultiplied.)
+  BitmapData.prototype.threshold = function (source, rect, point, operation, threshold, color, mask, copySource) {
+    if (!source || !rect) return 0;
+    const x0 = Math.trunc(+rect.x), y0 = Math.trunc(+rect.y);
+    const w = Math.trunc(+rect.width), h = Math.trunc(+rect.height);
+    const dx = Math.trunc(+(point && point.x) || 0), dy = Math.trunc(+(point && point.y) || 0);
+    if (w <= 0 || h <= 0) return 0;
+    const m = mask === undefined ? 0xffffffff : (+mask) >>> 0;
+    const t = (((+threshold) >>> 0) & m) >>> 0;
+    const c = color === undefined ? 0 : (+color) >>> 0;
+    const test = {
+      '<': (v) => v < t, '<=': (v) => v <= t, '>': (v) => v > t, '>=': (v) => v >= t,
+      '==': (v) => v === t, '!=': (v) => v !== t,
+    }[String(operation)];
+    if (!test) return 0;
+    const src = source.$ctx.getImageData(x0, y0, w, h);
+    const dst = this.$ctx.getImageData(dx, dy, w, h);
+    const s = src.data, d = dst.data;
+    let n = 0;
+    for (let i = 0; i < s.length; i += 4) {
+      const v = (((s[i + 3] << 24) | (s[i] << 16) | (s[i + 1] << 8) | s[i + 2]) & m) >>> 0;
+      if (test(v)) {
+        d[i] = (c >>> 16) & 255; d[i + 1] = (c >>> 8) & 255; d[i + 2] = c & 255;
+        d[i + 3] = this.transparent ? c >>> 24 : 255;
+        n++;
+      } else if (copySource) {
+        d[i] = s[i]; d[i + 1] = s[i + 1]; d[i + 2] = s[i + 2]; d[i + 3] = s[i + 3];
+      }
+    }
+    this.$ctx.putImageData(dst, dx, dy);
+    this.$version++;
+    return n;
+  };
   BitmapData.prototype.draw = function (source, matrix, cxform, blend, clip, smoothing) {
     if (!source) return;
     const m = matrix ? [+matrix.a, +matrix.b, +matrix.c, +matrix.d, +matrix.tx, +matrix.ty] : [1, 0, 0, 1, 0, 0];

@@ -4,14 +4,14 @@
 
 import { COLOURS, COLOUR_CSS, loadSettings, saveSettings } from './settings.js';
 
-const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random' };
+const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
 // The match settings, with the choices the lobby offers.  `ready` says whether the game does
 // anything with a setting yet; the rest are shown, and marked as coming.  `when` says which
 // other settings a setting depends on (the pizza's cost is only for Pizza Mode).
 const MATCH = [
-  { key: 'mode', label: 'Game mode', ready: true, choices: [['all', 'Destroy all'], ['structures', 'Destroy structures'], ['pizza', 'Pizza mode'], ['ctf', 'Capture the flag']], only: { ctf: false } },
+  { key: 'mode', label: 'Game mode', ready: true, choices: [['all', 'Destroy all'], ['structures', 'Destroy structures'], ['pizza', 'Pizza mode'], ['ctf', 'Capture the flag']] },
   { key: 'cash', label: 'Starting money', ready: true, choices: [[2500, '$2,500'], [5000, '$5,000'], [7500, '$7,500'], [10000, '$10,000'], [15000, '$15,000'], [20000, '$20,000'], [30000, '$30,000'], [50000, '$50,000']] },
   { key: 'units', label: 'Starting units', ready: true, choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']] },
   { key: 'prebuilt', label: 'Base', ready: true, choices: [[false, 'HQ only'], [true, 'HQ, power, barracks']] },
@@ -24,7 +24,7 @@ const MATCH = [
   { key: 'speed', label: 'Game speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Fastest']] },
   { key: 'shroud', label: 'Shroud', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'superweapons', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
-  { key: 'factions', label: 'Factions', ready: true, choices: [['all', 'Astro and Alien'], ['good', 'Astro only'], ['evil', 'Alien only']] },
+  { key: 'factions', label: 'Factions', ready: true, choices: [['all', 'Astro and Alien'], ['good', 'Astro only'], ['evil', 'Alien only'], ['random', 'All random']] },
   { key: 'regrowth', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
   { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy']] },
 ];
@@ -172,7 +172,7 @@ export class OnlineUI {
     for (let i = 0; i < 6; i++) {
       const s = saved && saved[i];
       if (i === 0) {
-        slots.push({ kind: 'you', name: me.name, faction: me.faction, colour: me.colour });
+        slots.push({ kind: 'you', name: me.name, faction: s && s.faction === 'spectate' ? 'spectate' : me.faction, colour: me.colour });
       } else if (s && (s.kind === 'bot' || s.kind === 'closed')) {
         slots.push({ kind: s.kind, faction: FACTIONS[s.faction] ? s.faction : 'random', colour: COLOURS.includes(s.colour) ? s.colour : COLOURS[i], difficulty: DIFFICULTIES[s.difficulty] ? s.difficulty : 'medium' });
       } else {
@@ -237,26 +237,29 @@ export class OnlineUI {
     const me = this.slots[0];
     me.name = this.settings.name;
     const factionChoices = this.match.factions === 'all' ? ['good', 'evil', 'random'] : [this.match.factions];
+    const spectating = (slot) => slot.kind === 'you' && slot.faction === 'spectate';
     const rows = [];
     for (let i = 0; i < this.match.slots; i++) {
       const slot = this.slots[i];
       const over = i >= map.bases;
-      if (!factionChoices.includes(slot.faction)) slot.faction = factionChoices[0];
+      if (!factionChoices.includes(slot.faction) && !(i === 0 && slot.faction === 'spectate')) slot.faction = factionChoices[0];
       const kind = i === 0
         ? el('div', { class: 'who' }, el('span', { class: 'name', text: slot.name }))
         : el('select', { 'aria-label': 'Slot ' + (i + 1), onchange: (e) => { slot.kind = e.target.value; this.renderLobby(); } },
           el('option', { value: 'bot', text: 'Computer', selected: slot.kind === 'bot' }),
           el('option', { value: 'closed', text: 'Closed', selected: slot.kind === 'closed' }));
-      const faction = el('select', { 'aria-label': 'Faction', disabled: slot.kind === 'closed', onchange: (e) => { slot.faction = e.target.value; if (i === 0) this.remember({ faction: slot.faction }); } },
-        ...factionChoices.filter((f) => i > 0 || f !== 'random').map((f) => el('option', { value: f, text: FACTIONS[f], selected: slot.faction === f })));
-      const colour = el('select', { 'aria-label': 'Colour', disabled: slot.kind === 'closed', onchange: (e) => { slot.colour = e.target.value; if (i === 0) this.remember({ colour: slot.colour }); this.renderLobby(); } },
+      const out = slot.kind === 'closed';
+      const choices = i === 0 ? [...factionChoices, 'spectate'] : factionChoices;
+      const faction = el('select', { 'aria-label': 'Faction', disabled: out, onchange: (e) => { slot.faction = e.target.value; if (i === 0 && slot.faction !== 'spectate') this.remember({ faction: slot.faction }); this.renderLobby(); } },
+        ...choices.map((f) => el('option', { value: f, text: FACTIONS[f], selected: slot.faction === f })));
+      const colour = el('select', { 'aria-label': 'Colour', disabled: out || spectating(slot), onchange: (e) => { slot.colour = e.target.value; if (i === 0) this.remember({ colour: slot.colour }); this.renderLobby(); } },
         ...COLOURS.map((c) => el('option', { value: c, text: c[0].toUpperCase() + c.slice(1), selected: slot.colour === c })));
       const extra = i === 0
         ? el('div', { class: 'who', text: 'You' })
         : el('select', { 'aria-label': 'Difficulty', disabled: slot.kind !== 'bot', onchange: (e) => { slot.difficulty = e.target.value; } },
           ...Object.entries(DIFFICULTIES).map(([k, v]) => el('option', { value: k, text: v, selected: slot.difficulty === k })));
-      rows.push(el('div', { class: 'slot' + (slot.kind === 'closed' ? ' closed' : '') + (over ? ' over' : '') },
-        el('div', { class: 'num' }, el('span', { class: 'swatch', style: 'background:' + COLOUR_CSS[slot.colour], title: slot.colour })),
+      rows.push(el('div', { class: 'slot' + (out ? ' closed' : '') + (over ? ' over' : '') },
+        el('div', { class: 'num' }, el('span', { class: 'swatch', style: 'background:' + (spectating(slot) ? '#8a8a8a' : COLOUR_CSS[slot.colour]), title: spectating(slot) ? 'spectator' : slot.colour })),
         kind, faction, colour, extra));
     }
     this.slotList.replaceChildren(...rows);
@@ -278,7 +281,7 @@ export class OnlineUI {
   // Why the match cannot start, if it cannot.
   problem() {
     const map = this.mapInfo();
-    const inUse = this.slots.slice(0, this.match.slots).filter((s) => s.kind !== 'closed');
+    const inUse = this.slots.slice(0, this.match.slots).filter((s) => s.kind !== 'closed' && s.faction !== 'spectate');
     if (this.match.slots > map.bases) return map.name + ' has room for ' + map.bases + ' players: set the slots to ' + map.bases + ' or fewer, or pick a bigger map.';
     if (inUse.length < 2) return 'A match needs at least two players.';
     const teams = new Set(inUse.map((s) => s.colour));
@@ -313,6 +316,11 @@ export class OnlineUI {
           g.fillRect(x * 4, y * 2, 4, 2);
         }
       }
+      // (A converted map's flat hill tops are rock all the same.)
+      g.fillStyle = '#3d1c0b';
+      for (const [start, length] of (online && online.solid) || []) {
+        for (let i = start; i < start + length; i++) g.fillRect((i % cols) * 4, Math.floor(i / cols) * 2, 4, 2);
+      }
     }
     const bases = (map.info && map.info.bases) || [];
     bases.forEach((b, i) => {
@@ -337,8 +345,8 @@ export class OnlineUI {
     this.sound('INT_construction');
     const players = [];
     this.slots.slice(0, this.match.slots).forEach((s, i) => {
-      if (s.kind === 'closed') return;
-      let faction = s.faction;
+      if (s.kind === 'closed' || s.faction === 'spectate') return;
+      let faction = m.factions === 'random' ? 'random' : s.faction;
       if (faction === 'random') faction = Math.random() < 0.5 ? 'good' : 'evil';
       players.push({
         name: i === 0 ? this.settings.name : 'Computer ' + (i + 1),
@@ -359,6 +367,8 @@ export class OnlineUI {
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       players,
     };
+    // Watching: a grey sidebar, with nothing on it to build.
+    if (this.slots[0].faction === 'spectate') settings.spectator = { name: this.settings.name, faction: 'good' };
     // A player's base is the marker their slot is on.
     const bases = (this.mapInfo().info && this.mapInfo().info.bases) || [];
     players.forEach((pl) => { pl.base = bases[pl.slot]; });
@@ -387,7 +397,8 @@ export class OnlineUI {
     const name = el('input', { type: 'text', maxlength: 16, value: st.name, 'aria-label': 'Name', oninput: (e) => { st.name = e.target.value.trim() || 'Player'; save(); } });
     const faction = el('select', { 'aria-label': 'Faction', onchange: (e) => { st.faction = e.target.value; this.slots[0].faction = st.faction; save(); } },
       el('option', { value: 'good', text: 'Astro', selected: st.faction === 'good' }),
-      el('option', { value: 'evil', text: 'Alien', selected: st.faction === 'evil' }));
+      el('option', { value: 'evil', text: 'Alien', selected: st.faction === 'evil' }),
+      el('option', { value: 'random', text: 'Random', selected: st.faction === 'random' }));
     const colours = el('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour' },
       ...COLOURS.map((c) => el('span', { class: 'swatch' + (st.colour === c ? ' on' : ''), role: 'radio', 'aria-checked': st.colour === c ? 'true' : 'false', tabindex: 0, title: c, style: 'background:' + COLOUR_CSS[c],
         onclick: () => { st.colour = c; this.slots[0].colour = c; save(); this.sound('INT_cursor_select'); this.renderSettings(); },
@@ -396,6 +407,11 @@ export class OnlineUI {
       el('option', { value: 'all', text: 'As the host chooses', selected: st.palette === 'all' }),
       el('option', { value: 'mars', text: 'Always Mars', selected: st.palette === 'mars' }),
       el('option', { value: 'snowy', text: 'Always Snowy', selected: st.palette === 'snowy' }));
+    const size = el('select', { 'aria-label': 'Interface size', onchange: (e) => { st.size = e.target.value; save(); if (this.hooks.setSize) this.hooks.setSize(st.size); } },
+      el('option', { value: 'small', text: 'Small: see more', selected: st.size === 'small' }),
+      el('option', { value: 'medium', text: 'Medium', selected: st.size === 'medium' }),
+      el('option', { value: 'large', text: 'Large', selected: st.size === 'large' }),
+      el('option', { value: 'fill', text: 'Fill the window', selected: st.size === 'fill' }));
     const slider = (key) => el('input', { type: 'range', min: 0, max: 100, value: Math.round(st[key] * 100), 'aria-label': key,
       oninput: (e) => { st[key] = Number(e.target.value) / 100; save(); },
       onchange: () => { if (key !== 'music') this.sound(key === 'ui' ? 'INT_cursor_select' : 'INT_collect'); } });
@@ -404,6 +420,7 @@ export class OnlineUI {
       el('label', { text: 'Faction' }), faction,
       el('label', { text: 'Colour' }), colours,
       el('label', { text: 'Map palette' }), palette,
+      el('label', { text: 'Interface size' }), size,
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface' }), slider('ui'),

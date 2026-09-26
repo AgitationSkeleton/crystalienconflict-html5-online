@@ -110,6 +110,8 @@ export class Bot {
     if ((t + this.id) % (this.underAttack() ? 180 : 450) === 0) this.raid();
     if (!this.underAttack() && this.every(this.difficulty === 'easy' ? 600 : 300, 13 * this.id)) this.patrol();
     if (this.every(7)) this.repair();
+    if (this.settings.mode === 'ctf' && this.every(7)) this.flagRun();
+    if (this.settings.mode === 'ctf' && this.every(30)) this.flagGuard();
     if (this.every(15, 5 * this.id)) this.scout();
     if (this.every(15, 11 * this.id)) this.airlift();
     if (this.every(15, 7 * this.id)) this.infiltrate();
@@ -288,6 +290,13 @@ export class Bot {
     const code = type.substr(0, 2);
     if (code === 'BL') return this.crystalSite(type, c);
     const armed = !!this.statsOf(type).weapon;
+    // §2.8 step 2: in Capture the Flag, guns go by the flag (where it lies, or its home).
+    if (this.settings.mode === 'ctf' && (code === 'BD' || code === 'BK') && level.flagOf) {
+      const flag = level.flagOf(this.player);
+      const cell = flag && (flag.carrier ? flag.home : flag.cell);
+      const site = cell && level.siteNear(type, this.player, cell, 5);
+      if (site) return site;
+    }
     // Zones: the core, and four sectors from R to 4R out (§2.8 step 3).  Guns go where there
     // are fewest guns; everything else to a random side.
     const zones = ['north', 'east', 'south', 'west'];
@@ -964,6 +973,77 @@ export class Bot {
         if (m.kind === 'capture' || m.kind === 'enter') continue;
         if (m.kind === 'guard_area' && at(m.anchor, theirs)) { posted++; continue; }
         this.order(u, 'guard_area', { anchor: { x: theirs.posX, y: theirs.posY }, camp: true });
+        posted++;
+      }
+    }
+  }
+
+  // ---- §5.2 CAC_AI_Flag: carry flags home, chase a thief, send a runner ----------------------
+  flagRun() {
+    const flags = this.level.flags || [];
+    const mine = flags.find((f) => f.owner === this.player);
+    const centreOf = (cell) => ({ x: (cell.x - 0.5) * CELL, y: (cell.y - 0.5) * CELL });
+    const at = (spot, cell) => spot && cells(spot.x, spot.y, (cell.x - 0.5) * CELL, (cell.y - 0.5) * CELL) < 1;
+    // 1. Carriers go home, unless there already or on the way.
+    if (mine) {
+      for (const u of this.own((x) => x.flag)) {
+        if (u.tilePos.x === mine.home.x && u.tilePos.y === mine.home.y) continue;
+        if (u.mission && u.mission.kind === 'move' && at(u.mission.dest, mine.home)) continue;
+        this.order(u, 'move', { dest: centreOf(mine.home), carry: true });
+      }
+    }
+    // 2. Armed vehicles after whoever has our flag.
+    if (mine && mine.carrier && this.hostile(mine.carrier)) {
+      for (const u of this.own((x) => this.vehicle(x) && this.armed(x) && !this.isMiner(x) && !x.flag && x.target !== mine.carrier)) {
+        this.order(u, 'attack', { target: mine.carrier });
+      }
+    }
+    // 3. The enemy flag lying nearest our base: the fastest free vehicle goes for it.
+    const c = this.baseCentre();
+    if (!c) return;
+    let best = null, bestD = Infinity;
+    for (const f of flags) {
+      if (f.carrier || !this.level.hostile(f.owner, this.player)) continue;
+      const d = cells(c.x * CELL, c.y * CELL, (f.cell.x - 0.5) * CELL, (f.cell.y - 0.5) * CELL);
+      if (d < bestD) { bestD = d; best = f; }
+    }
+    if (!best) return;
+    if (this.own((u) => this.vehicle(u) && u.mission && u.mission.kind === 'move' && at(u.mission.dest, best.cell)).length) return;
+    let runner = null;
+    for (const u of this.own((x) => this.vehicle(x) && !this.isMiner(x) && !x.flag && !(x.mission && x.mission.errand) && x.posX >= 0)) {
+      if (!runner || (u.stats.speed || 0) > (runner.stats.speed || 0)) runner = u;
+    }
+    if (runner) this.order(runner, 'move', { dest: centreOf(best.cell), flagRun: true });
+  }
+
+  // ---- §5.2 CAC_AI_Flag_Guard: guards on our flag --------------------------------------------
+  flagGuard() {
+    const mine = (this.level.flags || []).find((f) => f.owner === this.player);
+    if (!mine || mine.carrier) return;
+    const spot = { x: (mine.cell.x - 0.5) * CELL, y: (mine.cell.y - 0.5) * CELL };
+    // The fastest vehicle is never posted: it stays free to go for flags.
+    let spare = null;
+    for (const u of this.own((x) => this.vehicle(x) && !this.isMiner(x))) {
+      if (!spare || (u.stats.speed || 0) > (spare.stats.speed || 0)) spare = u;
+    }
+    const armed = this.own((x) => (this.vehicle(x) && this.armed(x) && !this.isMiner(x))
+      || (this.infantry(x) && this.armed(x) && !this.isEngineer(x) && !this.isDecoy(x))).length;
+    const want = Math.max(2, Math.floor(armed / 3));
+    const first = (x) => this.code(x) === 'UQ' || this.code(x) === 'UM';
+    const passes = [
+      this.own((x) => this.infantry(x) && first(x)),
+      this.own((x) => this.infantry(x) && !first(x) && this.armed(x) && !this.isEngineer(x) && !this.isDecoy(x)),
+      this.own((x) => this.vehicle(x) && this.armed(x) && !this.isMiner(x) && !x.flag && x !== spare),
+    ];
+    let posted = 0;
+    for (const list of passes) {
+      for (const u of list) {
+        if (posted >= want) return;
+        if (u.posX < 0) continue;
+        const m = this.missionOf(u);
+        if (m.kind === 'guard_area' && m.anchor && cells(m.anchor.x, m.anchor.y, spot.x, spot.y) < 1) { posted++; continue; }
+        if (u.target || m.errand) continue;
+        this.order(u, 'guard_area', { anchor: spot, flagGuard: true });
         posted++;
       }
     }

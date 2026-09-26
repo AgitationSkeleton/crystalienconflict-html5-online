@@ -83,17 +83,30 @@ As listed, plus later additions:
   step: the match's random seed and the determinism the online game needs.
 - **3. Team colours: done.** Each player's units and buildings wear their colour in place of
   the faction's (the C&C mod's method: the faction's accent hue is repainted, keeping the
-  art's shading; `tools/team_accents.py`), baseplates are coloured all over, the radar shows
-  each player in their colour, and the sidebar takes the player's.
+  art's shading; `tools/team_accents.py`), and so does anything in the C&C key green the mod
+  recolours with it, such as the Aliens riding the Mothership, so a sprite is coloured as the
+  mod's is. Baseplates are coloured all over, the radar shows each player in their colour,
+  and the sidebar takes the player's.
 - **7. Menus and settings: under way.** A new main menu (Skirmish, Online, Story, Settings)
-  in the game's fonts and the Astro sidebar's orange and metal; a skirmish lobby with the
-  slots and every match setting (those the game does not use yet are marked as coming); and
-  settings kept in the browser (name, faction, colour, palette, and music, sound and
-  interface volumes). The story is reached through the original menus.
+  in the game's fonts and the Astro sidebar's orange and metal, with the Engineer and the
+  Saboteur running from the cutscenes (`tools/make_menu_figures.py`); a skirmish lobby with
+  the slots and every match setting (those the game does not use yet are marked as coming);
+  and settings kept in the browser (name, faction, colour, palette, interface size, and
+  music, sound and interface volumes). The game is enlarged to fit the window only as far as
+  the interface size allows; a bigger window shows more of the map, and the sidebar grows to
+  its height (more rows in its lists, a longer power meter). The Hive, Santa's Sleigh, Santa
+  and the Reindeer have the C&C mod's sidebar pictures (`tools/make_icons.py`). A skirmish
+  ends when one team is left: its players are told they are victorious, and everyone goes
+  back to the lobby (not the original's play-again screens); a player who is out before that
+  is told so and watches the rest. In the lobby your faction can be Random, or Spectator to
+  watch the match (a grey sidebar, nothing to build), and the host can make every faction
+  random. The story is reached through the original menus.
 - **6. Maps: done.** 34 Command & Conquer skirmish maps and LEGO Battles' 30 free-play maps,
   extracted (`tools/maps/`) and drawn with CrystAlien's own rock, acid-pool and crystal tiles
-  (`tools/convert_maps.py`). LEGO bridge sites are ground; islands a LEGO player reached by
-  boat get a causeway across the narrowest water so every base can reach every other.
+  (`tools/convert_maps.py`). Open water is the story's plain green sea, and rock masses have
+  flat tops inside rocky rims, as the story's hills do. LEGO bridge sites are ground; islands
+  a LEGO player reached by boat get a causeway across the narrowest water so every base can
+  reach every other. `tools/render_maps.py` draws them all for review (`work/map-renders/`).
 - **5. Game modes: under way.** Destroy All and Destroy Structures, and **Pizza Mode**, by
   the C&C mod's rules: any player can buy a pizza at their headquarters (the lobby sets its
   price; it takes as long as the original's), which is delivered to a random reachable spot
@@ -102,7 +115,15 @@ As listed, plus later additions:
   shroud. The team that collects its own pizza wins; anyone else's units leave it alone.
   Headquarters take no harm and cannot be sold or infiltrated, and every player gets $400
   a minute. Computer players buy one when they can afford it, send their fastest unit for
-  it, and post four armed units on the enemy's. Capture the Flag and crates are next.
+  it, and post four armed units on the enemy's (and on bigger maps its surroundings are seen
+  as far as the mod's; on smaller ones proportionally less).
+  **Capture the Flag**, by the mod's rules: every player's flag (the Amaze level's, in their
+  colour) stands by their headquarters. A vehicle can pick up an enemy's flag by driving onto
+  it; it carries it overhead, without its shadow, under an arrow in the flag's colour (the
+  tutorial's), and bringing it to its own flag's home puts the flag's owner out of the game.
+  A lost carrier drops the flag; the owner always sees where their flag goes. Computer
+  players carry flags home, chase whoever has theirs, send their fastest vehicle for the
+  nearest enemy flag, guard their own and build their guns by it. Crates are next.
 - **4. Bots: done.** Computer players (`src/online/bot.js`) think the way the C&C mod's
   opponent does, as set out in `docs/cnc-ai-spec.md`: a build plan by urgency, the four
   wants, the missions (guard, hunt, attack, harvest and so on), raids on the weakest or

@@ -13,14 +13,20 @@ export const COLOUR_CSS = {
   purple: '#9a3ee0', black: '#303030', tan: '#d2b48c', cyan: '#20d0e0',
 };
 
+// How far the game may be enlarged to fill the window, in CSS pixels to one of the stage's
+// units (the original's 600x400): beyond that a bigger window shows more of the map and a
+// taller sidebar instead.  'fill' enlarges it all the way.
+export const UI_SCALES = { small: 1.5, medium: 2, large: 2.5, fill: Infinity };
+
 export const DEFAULTS = {
   name: 'Player',
-  faction: 'good',          // 'good' (Astro) or 'evil' (Alien)
+  faction: 'good',          // 'good' (Astro), 'evil' (Alien) or 'random'
   colour: 'orange',
   palette: 'all',           // 'all' (as the host chose), 'mars' or 'snowy'
   music: 0.8,
   sound: 0.9,
   ui: 0.9,
+  size: 'medium',           // the interface size: a key of UI_SCALES
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -34,9 +40,10 @@ export function loadSettings() {
   const s = Object.assign({}, DEFAULTS, saved && typeof saved === 'object' ? saved : {});
   if (typeof s.name !== 'string' || !s.name.trim()) s.name = DEFAULTS.name;
   s.name = s.name.slice(0, 16);
-  if (s.faction !== 'good' && s.faction !== 'evil') s.faction = DEFAULTS.faction;
+  if (!['good', 'evil', 'random'].includes(s.faction)) s.faction = DEFAULTS.faction;
   if (!COLOURS.includes(s.colour)) s.colour = DEFAULTS.colour;
   if (!['all', 'mars', 'snowy'].includes(s.palette)) s.palette = DEFAULTS.palette;
+  if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);
     s[k] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULTS[k];

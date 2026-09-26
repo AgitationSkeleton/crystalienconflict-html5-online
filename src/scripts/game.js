@@ -2336,14 +2336,29 @@
                }
                _loc3_ = _loc3_ + 1;
             }
+            // Online: a converted map draws the tops of its rock masses flat, as the story draws
+            // its hills, with a piece the story leaves open; they stay rock (tools/convert_maps.py).
+            var solid = Online?.maps?.[this.parent?.mapLevel]?.solid;
+            var run = 0;
+            var cell;
+            while(run < solid?.length)
+            {
+               cell = solid[run][0];
+               while(cell < solid[run][0] + solid[run][1])
+               {
+                  __as.set(this.tiles?.[cell % this.cols + 1], Math.floor(cell / this.cols) + 1, true);
+                  cell++;
+               }
+               run++;
+            }
             this.width = this.cols * this.tileSize;
             this.height = this.rows * this.tileSize2;
             this.pathFinder = new PathFinder(this, this.tiles, this.baits);
-            // Online: a map bigger than the story's (thirty tiles square at most) gets a search
-            // budget to match.
-            if(this.cols * this.rows > 900)
+            // Online: a skirmish's map gets a search budget to match its size, so that a unit
+            // finds its way round (the story's levels keep the original's).
+            if(this.parent?.skirmish || this.cols * this.rows > 900)
             {
-               this.pathFinder.safety = Math.round(this.cols * this.rows / 2);
+               this.pathFinder.safety = Math.max(450, Math.round(this.cols * this.rows / 2));
             }
             this.fitView();
             this.radar = new Radar(this);
@@ -2566,8 +2581,19 @@
                }
             }
          };
+         // Online: as many rows as the sidebar has room for (six on the original's 400).
+         this.fitRows = function ()
+         {
+            var rows = 6 + Math.max(0, Math.floor((SCREENY - 400) / this.mugshotHeight));
+            if(rows != this.maxOnScreen)
+            {
+               this.maxOnScreen = rows;
+               __as.set(this.mask, "_height", this.mugshotHeight * rows);
+            }
+         };
          this.handle = function ()
          {
+            this.fitRows?.();
             if(this.doPrereq)
             {
                this.doPrerequisites?.();
@@ -2745,7 +2771,8 @@
                   __as.set(MC, "_y", (this[_loc4_] - 1) * this.mugshotHeight);
                   // (Online: the Aliens' pizza has the Astros' picture; there is only the one.)
                   MC?.option?.gotoAndStop?.(_loc3_?.type == "UJ_evil" ? "UJ_good" : _loc3_?.type);
-                  // (And the Hive, which was never on the sidebar, has one made for it.)
+                  // (And what was never on the sidebar -- the Hive, Santa's Sleigh and its crew --
+                  // has the C&C mod's.)
                   if(Online?.icons?.[_loc3_?.type])
                   {
                      MC?.option?.createEmptyMovieClip?.("picture", 1000)?.attachBitmap?.(flash.display.BitmapData?.loadBitmap?.("#" + Online.icons[_loc3_.type]), 1);
@@ -7381,9 +7408,14 @@
             this.levelUpCounter++;
             if(this.levelUpCounter == 1)
             {
-               if(this.victory)
+               if(this.skirmish)
                {
-                  this.parent?.hud?.showMessage?.(dialogue?.(this.victoryLine || "int_level" + this.level + "_complete"));
+                  var colour = String(this.leader?.colour || "");
+                  this.parent?.hud?.showMessage?.(this.victory ? dialogue?.("int_victorious") : dialogue?.("int_team_victorious")?.split?.("%s")?.join?.(colour.charAt(0).toUpperCase() + colour.substr(1)));
+               }
+               else if(this.victory)
+               {
+                  this.parent?.hud?.showMessage?.(dialogue?.("int_level" + this.level + "_complete"));
                }
                else
                {
@@ -7400,7 +7432,7 @@
             if(this.levelUpCounter == this.levelUpCounterMax && this.skirmish)
             {
                Mouse.show();
-               this.parent?.parent?.gameOver?.(!!this.victory);
+               this.parent?.parent?.skirmishOver?.();
                return undefined;
             }
             if(this.levelUpCounter == this.levelUpCounterMax)
@@ -7826,7 +7858,9 @@
                      }
                   }
                }
-               if(target && this.hal && !(target?.isBuilding && target?.stats?.weapon))
+               // (Online: a computer player's unit on an errand -- a flag, a pizza -- fires as it
+               // goes, as C&C's MOVE mission does, but does not stop for it.)
+               if(target && this.hal && !(target?.isBuilding && target?.stats?.weapon) && this.mission?.kind != "move")
                {
                   this.target = target;
                }
@@ -7954,6 +7988,11 @@
             while(index < this.players?.length)
             {
                player = this.players?.[index];
+               if(player?.spectator)
+               {
+                  index++;
+                  continue;
+               }
                base = player?.base || bases?.[index];
                player.cash = settings?.cash;
                hq = this.placeNear?.("BA_" + player?.faction, player, base);
@@ -7980,6 +8019,11 @@
                }
                index++;
             }
+            this.flags = new Array();
+            if(settings?.mode == "ctf")
+            {
+               this.plantFlags?.();
+            }
             if(settings?.palette == "snowy")
             {
                this.arena?.doSnow?.();
@@ -7992,6 +8036,13 @@
             if(!settings?.shroud)
             {
                this.arena?.shroud?.clear?.();
+            }
+            // Watching: everything in view, from the first headquarters.
+            if(this.localPlayer?.spectator)
+            {
+               this.spectating = true;
+               this.arena?.shroud?.clear?.();
+               __as.set(this.camera, "focus", this.findBuilding?.("BA_" + this.players?.[0]?.faction, this.players?.[0]));
             }
             this.jukebox = random?.(4) + 1;
          };
@@ -8068,6 +8119,7 @@
          this.skirmishOutcome = function ()
          {
             this.pizzaStipend?.();
+            this.handleFlags?.();
             if(!this.active || this.count % 23)
             {
                return undefined;
@@ -8088,23 +8140,42 @@
                if(!this.holdsOn?.(player))
                {
                   this.defeat?.(player);
-                  if(player == this.localPlayer)
-                  {
-                     this.lose?.();
-                     return undefined;
-                  }
                   continue;
                }
                if(!standing[player?.team])
                {
                   standing[player?.team] = true;
                   teams++;
+                  this.leader = player;
                }
             }
-            if(teams < 2 && standing[this.localPlayer?.team])
+            if(this.localPlayer?.defeated && !this.spectating)
             {
-               this.win?.();
+               this.conquered?.();
             }
+            if(teams < 2)
+            {
+               this.matchOver?.();
+            }
+         };
+         // Out while the match goes on: told so, and then watching, the whole map in view.
+         this.conquered = function ()
+         {
+            this.spectating = true;
+            this.parent?.hud?.showMessage?.(dialogue?.("int_levelLose"));
+            this.parent?.sfx?.play?.("INT_optionsremove");
+            this.arena?.shroud?.clear?.();
+         };
+         // One team left: the match is over.  Its players are told they have won, anyone
+         // watching which team it was; then back to the lobby (outtro).
+         this.matchOver = function ()
+         {
+            this.active = false;
+            this.victory = !this.localPlayer?.defeated;
+            this.levelUpCounterMax = 115;
+            this.parent?.sfx?.play?.("music_ingame_" + this.jukebox + "_stop");
+            this.parent?.sfx?.play?.(this.victory ? "INT_optionsadd" : "INT_optionsremove");
+            this.arena?.shroud?.clear?.();
          };
          // A skirmish's passive income: so much a minute to every player still in, paid by the
          // second.
@@ -8160,11 +8231,327 @@
          this.defeat = function (player)
          {
             player.defeated = true;
+            this.removeFlag?.(player);
             for(var index of __as.keys(this.units))
             {
                if(this.units?.[index]?.active && this.units?.[index]?.owner == player)
                {
                   this.units?.[index]?.destroy?.();
+               }
+            }
+         };
+         // ---- Capture the Flag (the C&C mod's rules) -----------------------------------------
+         // Every player has a flag, the Amaze level's in their colour, by their headquarters: its
+         // home.  A vehicle can pick up an enemy's flag (not its own team's) by driving onto it,
+         // and carries it, the flag over it without its shadow and an arrow in the flag's colour
+         // over that; a carrier that reaches its own home puts the flag's owner out of the game.
+         // A carrier lost drops the flag where it was.
+         this.flags = new Array();
+         this.flagOf = function (player)
+         {
+            var index = 0;
+            while(index < this.flags?.length)
+            {
+               if(this.flags[index].owner == player)
+               {
+                  return this.flags[index];
+               }
+               index++;
+            }
+            return undefined;
+         };
+         this.plantFlags = function ()
+         {
+            var index = 0;
+            var player;
+            var hq;
+            var site;
+            var flag;
+            while(index < this.players?.length)
+            {
+               player = this.players[index];
+               index++;
+               hq = this.findBuilding?.("BA_" + player?.faction, player) || this.findBuilding?.("BK_" + player?.faction, player);
+               site = hq ? this.flagSite?.(hq.tilePos) : undefined;
+               if(site)
+               {
+                  flag = {owner:player,home:{x:site.x,y:site.y},cell:{x:site.x,y:site.y},carrier:undefined};
+                  this.flags.push(flag);
+                  this.showFlag?.(flag);
+               }
+            }
+         };
+         // The nearest free cell to a headquarters, a ring at a time, six at most.
+         this.flagSite = function (centre)
+         {
+            var r = 1;
+            var dx;
+            var dy;
+            while(r <= 6)
+            {
+               dy = - r;
+               while(dy <= r)
+               {
+                  dx = - r;
+                  while(dx <= r)
+                  {
+                     if(Math.max(Math.abs(dx), Math.abs(dy)) == r && this.flagGround?.(centre.x + dx, centre.y + dy))
+                     {
+                        return {x:centre.x + dx,y:centre.y + dy};
+                     }
+                     dx++;
+                  }
+                  dy++;
+               }
+               r++;
+            }
+            return undefined;
+         };
+         // Open ground with nothing on it: no rock, crystal, building, unit or flag.
+         this.flagGround = function (x, y)
+         {
+            if(x < 1 || y < 1 || x > this.arena?.cols || y > this.arena?.rows || this.arena?.tiles?.[x]?.[y] || this.arena?.baits?.[x]?.[y])
+            {
+               return false;
+            }
+            var index;
+            var it;
+            for(index of __as.keys(this.buildings))
+            {
+               it = this.buildings[index];
+               if(it?.active && !(x < it.stats?.topLeftX) && x < it.stats?.topLeftX + it.stats?.width && !(y < it.stats?.topLeftY) && y < it.stats?.topLeftY + it.stats?.height)
+               {
+                  return false;
+               }
+            }
+            for(index of __as.keys(this.units))
+            {
+               it = this.units[index];
+               if(it?.active && it.tilePos?.x == x && it.tilePos?.y == y)
+               {
+                  return false;
+               }
+            }
+            for(index of __as.keys(this.flags))
+            {
+               it = this.flags[index];
+               if(it.home.x == x && it.home.y == y || it.cell.x == x && it.cell.y == y)
+               {
+                  return false;
+               }
+            }
+            return true;
+         };
+         // A flag on the ground, among the units.
+         this.showFlag = function (flag)
+         {
+            flag.MC?.removeMovieClip?.();
+            flag.MC = this.arena?.MC?.attachMovie?.("tile", "flag_" + flag.owner?.index, this.arena?.MC?.getNextHighestDepth?.());
+            flag.MC?.gotoAndStop?.(49);
+            __as.set(flag.MC, "teamColour", flag.owner?.colour);
+            __as.set(flag.MC, "_x", (flag.cell.x - 1) * this.arena?.tileSize);
+            __as.set(flag.MC, "_y", (flag.cell.y - 1) * this.arena?.tileSize2);
+            flag.MC?.swapDepths?.(this.arena?.getZ?.(flag.cell.x * this.arena?.tileSize, flag.cell.y * this.arena?.tileSize));
+         };
+         // The flag as its carrier holds it up: its shadow (the half-transparent part) gone.
+         this.heldFlags = {};
+         this.heldFlagArt = function (colour)
+         {
+            var art = this.heldFlags[colour];
+            if(!art)
+            {
+               art = flash.display.BitmapData?.loadBitmap?.("#4448", colour);
+               art?.threshold?.(art, art?.rectangle, new flash.geom.Point(0, 0), "<", 0xC8000000, 0, 0xFF000000, false);
+               this.heldFlags[colour] = art;
+            }
+            return art;
+         };
+         this.isVehicle = function (unit)
+         {
+            var code = unit?.type?.substr?.(0, 2);
+            return code == "UD" || code == "UE" || code == "UF" || code == "UR";
+         };
+         this.handleFlags = function ()
+         {
+            if(!this.active || this.skirmish?.mode != "ctf")
+            {
+               return undefined;
+            }
+            var index = 0;
+            var flag;
+            while(index < this.flags?.length)
+            {
+               flag = this.flags[index];
+               index++;
+               if(flag.carrier)
+               {
+                  this.carryFlag?.(flag);
+               }
+               else
+               {
+                  this.pickUpFlag?.(flag);
+               }
+            }
+            // Every six seconds a unit standing still on a flag's home is moved off it.
+            if(this.count % 138 == 0)
+            {
+               this.clearFlagHomes?.();
+            }
+         };
+         this.pickUpFlag = function (flag)
+         {
+            var index;
+            var unit;
+            for(index of __as.keys(this.units))
+            {
+               unit = this.units[index];
+               if(unit?.active && !unit.flag && !(unit.posX < 0) && unit.tilePos?.x == flag.cell.x && unit.tilePos?.y == flag.cell.y && this.isVehicle?.(unit) && this.hostile?.(unit, flag.owner))
+               {
+                  this.takeFlag?.(flag, unit);
+                  return undefined;
+               }
+            }
+         };
+         this.takeFlag = function (flag, unit)
+         {
+            flag.carrier = unit;
+            __as.set(unit, "flag", flag);
+            flag.MC?.removeMovieClip?.();
+            flag.MC = undefined;
+            var held = unit.MC?.createEmptyMovieClip?.("flagHeld", 40);
+            held?.attachBitmap?.(this.heldFlagArt?.(flag.owner?.colour), 1, "auto", false);
+            __as.set(held, "_x", -48);
+            __as.set(held, "_y", - Math.round((unit.stats?.altitude || 0) + unit.stats?.size2 + 40));
+            flag.arrow = this.arena?.MC?.attachMovie?.("indicator", "flagArrow_" + flag.owner?.index, 9999980 + flag.owner?.index);
+            __as.set(flag.arrow, "teamColour", flag.owner?.colour);
+            __as.set(flag.arrow, "_xscale", 55);
+            __as.set(flag.arrow, "_yscale", 55);
+            flag.arrow?.arrow?.gotoAndStop?.("good");
+            __as.set(flag.arrow?.arrow, "message", "");
+            if(this.allied?.(flag.owner))
+            {
+               this.parent?.sfx?.play?.("INT_powerwarning");
+               this.parent?.hud?.showMessage?.(dialogue?.("int_flag_stolen"));
+            }
+            else if(this.allied?.(unit.owner))
+            {
+               this.parent?.sfx?.play?.("INT_collect");
+               this.parent?.hud?.showMessage?.(dialogue?.("int_flag_taken"));
+            }
+         };
+         this.carryFlag = function (flag)
+         {
+            var carrier = flag.carrier;
+            if(!carrier?.active || carrier?.posX < 0 || carrier?.owner?.defeated)
+            {
+               this.dropFlag?.(flag);
+               return undefined;
+            }
+            flag.cell = {x:carrier.tilePos.x,y:carrier.tilePos.y};
+            var own = this.flagOf?.(carrier.owner);
+            if(own && carrier.tilePos.x == own.home.x && carrier.tilePos.y == own.home.y)
+            {
+               this.captureFlag?.(flag, carrier);
+               return undefined;
+            }
+            // Whoever the flag belongs to sees where it goes.
+            if(this.allied?.(flag.owner))
+            {
+               this.arena?.shroud?.reveal?.(carrier.tilePos.x, carrier.tilePos.y, 2);
+            }
+            __as.set(flag.arrow, "_x", carrier.MC?._x);
+            __as.set(flag.arrow, "_y", carrier.MC?._y - (carrier.stats?.altitude || 0) - carrier.stats?.size2 - 42);
+         };
+         this.dropFlag = function (flag)
+         {
+            flag.carrier?.MC?.flagHeld?.removeMovieClip?.();
+            __as.set(flag.carrier, "flag", undefined);
+            flag.carrier = undefined;
+            flag.arrow?.removeMovieClip?.();
+            flag.arrow = undefined;
+            this.showFlag?.(flag);
+         };
+         // Home with an enemy's flag: its owner is out.
+         this.captureFlag = function (flag, carrier)
+         {
+            var victim = flag.owner;
+            this.dropFlag?.(flag);
+            if(this.allied?.(carrier.owner) && !this.allied?.(victim))
+            {
+               this.parent?.sfx?.play?.("INT_optionsadd");
+               this.parent?.hud?.showMessage?.(dialogue?.("int_flag_captured"));
+            }
+            this.knockOut?.(victim);
+         };
+         // A player out of the game at once: everything of theirs goes.
+         this.knockOut = function (player)
+         {
+            if(!player || player.defeated)
+            {
+               return undefined;
+            }
+            for(var at of __as.keys(this.buildings))
+            {
+               if(this.buildings?.[at]?.active && this.buildings?.[at]?.owner == player)
+               {
+                  this.buildings?.[at]?.destroy?.();
+               }
+            }
+            this.defeat?.(player);
+         };
+         this.removeFlag = function (player)
+         {
+            var index = 0;
+            var flag;
+            while(index < this.flags?.length)
+            {
+               flag = this.flags[index];
+               if(flag.owner == player)
+               {
+                  flag.carrier?.MC?.flagHeld?.removeMovieClip?.();
+                  __as.set(flag.carrier, "flag", undefined);
+                  flag.arrow?.removeMovieClip?.();
+                  flag.MC?.removeMovieClip?.();
+                  this.flags.splice(index, 1);
+               }
+               else
+               {
+                  index++;
+               }
+            }
+         };
+         this.clearFlagHomes = function ()
+         {
+            var steps = new Array({x:1,y:0}, {x:0,y:1}, {x:-1,y:0}, {x:0,y:-1}, {x:1,y:1}, {x:-1,y:1}, {x:-1,y:-1}, {x:1,y:-1});
+            var index = 0;
+            var home;
+            var unit;
+            var step;
+            var x;
+            var y;
+            while(index < this.flags?.length)
+            {
+               home = this.flags[index].home;
+               index++;
+               for(var at of __as.keys(this.units))
+               {
+                  unit = this.units[at];
+                  if(!unit?.active || unit.flag || unit.posX < 0 || unit.tilePos?.x != home.x || unit.tilePos?.y != home.y || unit.nav?.path?.length > 1 || unit.stats?.pickup)
+                  {
+                     continue;
+                  }
+                  step = 0;
+                  while(step < steps.length)
+                  {
+                     x = home.x + steps[step].x;
+                     y = home.y + steps[step].y;
+                     if(x >= 1 && y >= 1 && !(x > this.arena?.cols) && !(y > this.arena?.rows) && !this.arena?.tiles?.[x]?.[y] && !this.arena?.useds?.[x]?.[y])
+                     {
+                        unit.nav?.voyage?.((x - 0.5) * this.arena?.tileSize, (y - 0.5) * this.arena?.tileSize, false);
+                        break;
+                     }
+                     step++;
+                  }
                }
             }
          };
@@ -8270,15 +8657,6 @@
                   }
                }
                this.defeat?.(player);
-            }
-            if(this.localPlayer?.defeated)
-            {
-               this.lose?.();
-            }
-            else
-            {
-               this.victoryLine = "int_level21_complete";
-               this.win?.();
             }
          };
          // Somewhere for a pickup (spec 7.1): up to a hundred random cells, the first that is
@@ -8727,6 +9105,15 @@
                   this.localPlayer = this.players?.[index];
                }
                index++;
+            }
+            // Online: this browser's player may only watch: a player of no team, out of the
+            // game from the start (see setupSkirmish).
+            if(!this.localPlayer && this.skirmish)
+            {
+               this.localPlayer = new Player(this, index, {name:this.skirmish?.spectator?.name,faction:this.skirmish?.spectator?.faction || "good",control:"local",team:"spectators"});
+               this.localPlayer.spectator = true;
+               this.localPlayer.defeated = true;
+               this.players?.push?.(this.localPlayer);
             }
             index = 0;
             while(index < this.players?.length)
@@ -9630,33 +10017,63 @@
          __as.set(this.MC, "parent", this);
          this.displayCash = 0;
          // Online: the frame art (the sidebar, and the scanlines and shading over the arena) is
-         // one 600x400 bitmap.  It is redrawn at the stage's width: the sidebar and the arena's
-         // edges as they are, the rest of the arena part stretched between them.
+         // one 600x400 bitmap.  (The Aliens' green top is another, laid over it, which stays as it
+         // is.)  It is redrawn at the stage's size: the sidebar and the arena's edges as they
+         // are, the rest of the arena part stretched between them; and on a stage taller than
+         // 400, the art grows in its middle -- the sidebar's lists and power meter, and the
+         // arena's sides -- by repeating a pair of its rows (its scanlines are two rows apart).
          this.frameArt = flash.display.BitmapData?.loadBitmap?.("#4511", this.parent?.localColour);
          __as.set(this.MC, "teamColour", this.parent?.localColour);
          this.frameMC = this.MC?.createEmptyMovieClip?.("frame", -16358);    // replaces the timeline's art at depth 26
          this.layoutWidth = 0;
+         this.layoutHeight = 0;
          this.layout = function ()
          {
-            if(this.layoutWidth == SCREENX)
+            if(this.layoutWidth == SCREENX && this.layoutHeight == SCREENY)
             {
                return undefined;
             }
             this.layoutWidth = SCREENX;
+            this.layoutHeight = SCREENY;
             var edge = 12;
             var middle = SCREENX - 150 - 2 * edge;
             var stretch = middle / (450 - 2 * edge);
-            var art = new flash.display.BitmapData(SCREENX, 400, true, 0);
-            art?.draw?.(this.frameArt, new flash.geom.Matrix(), null, null, new flash.geom.Rectangle(0, 0, 150 + edge, 400));
-            art?.draw?.(this.frameArt, new flash.geom.Matrix(stretch, 0, 0, 1, (150 + edge) * (1 - stretch), 0), null, null, new flash.geom.Rectangle(150 + edge, 0, middle, 400));
-            art?.draw?.(this.frameArt, new flash.geom.Matrix(1, 0, 0, 1, SCREENX - 600, 0), null, null, new flash.geom.Rectangle(SCREENX - edge, 0, edge, 400));
+            var extra = SCREENY - 400;
+            var art = new flash.display.BitmapData(SCREENX, SCREENY, true, 0);
+            var frameArt = this.frameArt;
+            // The art's rows from y0, so many of them, drawn dy lower.
+            var rows = function (y0, count, dy)
+            {
+               art?.draw?.(frameArt, new flash.geom.Matrix(1, 0, 0, 1, 0, dy), null, null, new flash.geom.Rectangle(0, y0 + dy, 150 + edge, count));
+               art?.draw?.(frameArt, new flash.geom.Matrix(stretch, 0, 0, 1, (150 + edge) * (1 - stretch), dy), null, null, new flash.geom.Rectangle(150 + edge, y0 + dy, middle, count));
+               art?.draw?.(frameArt, new flash.geom.Matrix(1, 0, 0, 1, SCREENX - 600, dy), null, null, new flash.geom.Rectangle(SCREENX - edge, y0 + dy, edge, count));
+            };
+            rows(0, 300, 0);
+            rows(300, 100, extra);
+            var done = Math.min(2, extra);
+            rows(300, done, 0);
+            var more;
+            while(done < extra)
+            {
+               more = Math.min(done, extra - done);
+               art?.draw?.(art, new flash.geom.Matrix(1, 0, 0, 1, 0, done), null, null, new flash.geom.Rectangle(0, 300 + done, SCREENX, more));
+               done += more;
+            }
             this.frameMC?.attachBitmap?.(art, 1, "never", false);
             var centre = 150 + (SCREENX - 150) / 2;
             __as.set(this.MC?.messageUp, "_x", centre);
+            __as.set(this.MC?.messageUp, "_y", 340 + extra);
             __as.set(this.MC?.$childAt?.(44 - 16384), "_x", centre - 198);
             __as.set(this.MC?.$childAt?.(38 - 16384), "_x", SCREENX - 171);
+            __as.set(this.MC?.$childAt?.(38 - 16384), "_y", 380 + extra);
+            __as.set(this.MC?.$childAt?.(3 - 16384), "_yscale", SCREENY / 4);     // the sidebar's backing
             __as.set(this.MC?.flasher, "_xscale", SCREENX);
+            __as.set(this.MC?.flasher, "_yscale", SCREENY);
+            // The power meter stands on the sidebar's floor, as tall as the lists beside it.
+            __as.set(this.MC?.power, "_y", 390 + extra);
+            __as.set(this.MC?.power, "_yscale", 210 + extra);
             __as.set(this.MC?.popup, "_x", Math.round((SCREENX - 600) / 2));
+            __as.set(this.MC?.popup, "_y", Math.round(extra / 2));
          };
          this.layout();
          // The pause popup's two dimming layers (timeline depths 1 and 2) are stretched across
@@ -9669,10 +10086,12 @@
             while(depth <= 2)
             {
                dim = popup?.$childAt?.(depth - 16384);
-               if(dim && dim._xscale != SCREENX / 6)
+               if(dim && (dim._xscale != SCREENX / 6 || dim._yscale != SCREENY / 4))
                {
                   __as.set(dim, "_x", - popup?._x);
                   __as.set(dim, "_xscale", SCREENX / 6);
+                  __as.set(dim, "_y", - popup?._y);
+                  __as.set(dim, "_yscale", SCREENY / 4);
                }
                depth++;
             }
@@ -9893,16 +10312,25 @@
                this.localColour = this.parent?.skirmish?.players?.[slot]?.colour;
             }
          }
+         // (Someone watching has a grey one.)
+         if(this.parent?.skirmish?.spectator)
+         {
+            this.localColour = "gray";
+         }
          this.hud = new Hud(this);
-         // Online: the mask and the flash follow the stage's width, paused or not.
+         // Online: the mask and the flash follow the stage's size, paused or not.
          this.stageWidth = SCREENX;
+         this.stageHeight = SCREENY;
          this.fitStage = function ()
          {
-            if(this.stageWidth != SCREENX)
+            if(this.stageWidth != SCREENX || this.stageHeight != SCREENY)
             {
                __as.set(this.mask, "_width", SCREENX);
+               __as.set(this.mask, "_height", SCREENY);
                __as.set(this.flasher, "_xscale", this.flasher?._xscale * SCREENX / this.stageWidth);
+               __as.set(this.flasher, "_yscale", this.flasher?._yscale * SCREENY / this.stageHeight);
                this.stageWidth = SCREENX;
+               this.stageHeight = SCREENY;
             }
             this.hud?.layout?.();
             this.hud?.fitPopup?.();
@@ -10090,30 +10518,38 @@
          this.sfx = new SFX(this);
          this.sfx?.play?.("music_intro_start");
          __as.set(this.MC, "title", dialogue?.("game_title")?.toUpperCase?.());
-         // Online: the menus keep their 600x400 layout, centred on the wider stage.
+         // Online: the menus keep their 600x400 layout, centred on the stage, black around them.
          this.fitStage = function ()
          {
             var left = Math.round((SCREENX - 600) / 2);
-            if(this.MC?._x == left && this.stageWidth == SCREENX)
+            var top = Math.round((SCREENY - 400) / 2);
+            if(this.MC?._x == left && this.MC?._y == top && this.stageWidth == SCREENX && this.stageHeight == SCREENY)
             {
                return undefined;
             }
             this.stageWidth = SCREENX;
+            this.stageHeight = SCREENY;
             __as.set(this.MC, "_x", left);
+            __as.set(this.MC, "_y", top);
             this.MC?.clear?.();
-            if(left > 0)
+            var box = function (mc, x0, y0, x1, y1)
+            {
+               if(x1 > x0 && y1 > y0)
+               {
+                  mc?.moveTo?.(x0, y0);
+                  mc?.lineTo?.(x1, y0);
+                  mc?.lineTo?.(x1, y1);
+                  mc?.lineTo?.(x0, y1);
+                  mc?.lineTo?.(x0, y0);
+               }
+            };
+            if(left > 0 || top > 0)
             {
                this.MC?.beginFill?.(0, 100);
-               this.MC?.moveTo?.(- left, 0);
-               this.MC?.lineTo?.(0, 0);
-               this.MC?.lineTo?.(0, SCREENY);
-               this.MC?.lineTo?.(- left, SCREENY);
-               this.MC?.lineTo?.(- left, 0);
-               this.MC?.moveTo?.(600, 0);
-               this.MC?.lineTo?.(SCREENX - left, 0);
-               this.MC?.lineTo?.(SCREENX - left, SCREENY);
-               this.MC?.lineTo?.(600, SCREENY);
-               this.MC?.lineTo?.(600, 0);
+               box(this.MC, - left, - top, 0, SCREENY - top);
+               box(this.MC, 600, - top, SCREENX - left, SCREENY - top);
+               box(this.MC, 0, - top, 600, 0);
+               box(this.MC, 0, 400, 600, SCREENY - top);
                this.MC?.endFill?.();
             }
          };
@@ -10263,6 +10699,18 @@
             }
             this.state = "hidden";
             this.game = new Game(this, this.team, this.level);
+         };
+         // Online: a skirmish over: back to its lobby (the page's), or else the menus.
+         this.skirmishOver = function ()
+         {
+            this.game?.destroy?.();
+            delete this.game;
+            this.sfx?.play?.("music_intro_start");
+            this.state = "splash";
+            if(Online?.menu)
+            {
+               Online.menu("lobby");
+            }
          };
          this.pressSplash = function ()
          {

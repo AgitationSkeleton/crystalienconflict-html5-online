@@ -94,7 +94,7 @@
 }
 
 .chars { position: absolute; inset: auto 0 0 0; height: 0; pointer-events: none; }
-.chars img { position: fixed; bottom: 2vh; height: min(34vh, 256px); filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.7)); }
+.chars img { position: fixed; bottom: 2vh; height: min(38vh, 320px); filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.7)); }
 .chars .astro { left: max(2vw, 8px); }
 .chars .alien { right: max(2vw, 8px); }
 @media (max-width: 720px), (max-height: 520px) { .chars { display: none; } }
