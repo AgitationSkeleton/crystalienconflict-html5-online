@@ -6,6 +6,7 @@
 import { Player } from './flash/player.js';
 import { Library } from './flash/library.js';
 import { OnlineUI } from './online/ui.js';
+import { Bot } from './online/bot.js';
 
 const FLASHVARS = { xmlurl: 'data/dialogue.xml', asseturl: '', serviceurl: '', gamename: 'CrystAlienConflict' };
 const MOVIES = { 'game.swf': 'game' };     // loadMovieNum's file names -> converted movies
@@ -41,6 +42,7 @@ const player = new Player(canvas, {
   openMovie: (file) => (MOVIES[file] ? openMovie(MOVIES[file]) : null),
 });
 globalThis.player = player;                // for the console and the verification harness
+player.online.Bot = Bot;                   // the computer players (the game makes them)
 
 // ?test stops the clock: frames advance only when __step() is called, so a test decides
 // exactly when each click lands.  ?seed=N makes the random numbers repeatable.

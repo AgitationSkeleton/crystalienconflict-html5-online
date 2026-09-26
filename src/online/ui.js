@@ -14,7 +14,7 @@ const MATCH = [
   { key: 'cash', label: 'Starting money', ready: true, choices: [[2500, '$2,500'], [5000, '$5,000'], [7500, '$7,500'], [10000, '$10,000'], [15000, '$15,000'], [20000, '$20,000'], [30000, '$30,000'], [50000, '$50,000']] },
   { key: 'units', label: 'Starting units', ready: true, choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']] },
   { key: 'prebuilt', label: 'Base', ready: true, choices: [[false, 'HQ only'], [true, 'HQ, power, barracks']] },
-  { key: 'specops', label: 'Special Ops', ready: false, choices: [['on', 'On'], ['tech', 'Need the tech centre'], ['off', 'Off']] },
+  { key: 'specops', label: 'Special Ops', ready: true, choices: [['on', 'On'], ['tech', 'Need the tech centre'], ['off', 'Off']] },
   { key: 'crates', label: 'Crates', ready: false, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'christmas', label: 'Christmas crate', ready: false, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'crateRate', label: 'Crates appear', ready: false, choices: [['rare', 'Rarely'], ['normal', 'Normally'], ['often', 'Often']] },

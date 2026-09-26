@@ -2434,7 +2434,7 @@
          this.MC = this.parent?.parent?.hud?.MC?.construction;
          this.shortcuts = {};
          this.options = new Array();
-         var _loc11_ = new Array("A", "B", "C", "D", "E", "F", "R", "G", "H", "I", "J", "K", "L", "P");
+         var _loc11_ = new Array("A", "B", "C", "D", "E", "F", "R", "G", "H", "I", "J", "K", "L", "P", "Q");
          var _loc14_ = 0;
          var _loc3_;
          while(_loc14_ < _loc11_?.length)
@@ -3150,10 +3150,10 @@
          // settings allow it (the story allowed it only in its two Conflict levels).
          this.skirmishRules = function ()
          {
-            if(!this.parent?.skirmish?.superweapons)
+            var tech = this.parent?.techFor?.(this.parent?.localPlayer);
+            for(var type of __as.keys(this.shortcuts))
             {
-               __as.set(this.shortcuts?.UK_good, "active", false);
-               __as.set(this.shortcuts?.UK_evil, "active", false);
+               __as.set(this.shortcuts[type], "active", !!tech?.[type]);
             }
          };
          this.resetTotals = function ()
@@ -3710,6 +3710,7 @@
             var _loc3_;
             if(weapon?.dmg)
             {
+               this.owner?.bot?.damaged?.(this, weapon?.shooter);
                this.health -= weapon?.dmg;
                _loc3_ = new Array("UD_good_pain_1", "UD_good_pain_2", "UE_good_pain_1", "UE_good_pain_1", "UH_good_pain_1", "UH_good_pain_1");
                this.parent?.parent?.sfx?.play?.(_loc3_?.[random?.(6) + 1]);
@@ -4857,7 +4858,11 @@
          this.team = !team?.isPlayer ? team : this.owner?.faction;
          this.friend = this.owner == this.parent?.localPlayer;
          this.stats = new UnitStats(this);
-         if(this.owner?.ai)
+         if(this.owner?.bot && !this.stats?.boomerang)
+         {
+            this.hal = this.owner.bot.hal(this);
+         }
+         else if(this.owner?.ai)
          {
             if(!target)
             {
@@ -5082,6 +5087,7 @@
             if(weapon?.dmg)
             {
                this.makeNoise?.(this.type + "_pain_" + (random?.(2) + 1));
+               this.owner?.bot?.damaged?.(this, weapon?.shooter);
                this.health -= weapon?.dmg;
                if(this.hal?.type == "still")
                {
@@ -7176,178 +7182,6 @@
             return false;
          };
       };
-      // Online: a computer player.  It plays by the player's rules -- a Production of its own,
-      // its buildings placed where the building site would allow them -- and thinks once a
-      // second (think), staggered so that several computers do not all think on one frame.
-      Bot = function Bot(level, player)
-      {
-         this.level = level;
-         this.player = player;
-         this.production = new Production(level, player);
-         this.difficulty = player?.difficulty || "medium";
-         this.count = player?.index * 5;
-         this.waitingToPlace = 0;
-         this.handle = function ()
-         {
-            this.count++;
-            this.placeBuilding?.();
-            if(!(this.count % 23))
-            {
-               this.think?.();
-            }
-         };
-         this.think = function ()
-         {
-            this.mine?.();
-         };
-         this.owned = function (test)
-         {
-            var found = new Array();
-            var index = 0;
-            while(index < this.level?.units?.length)
-            {
-               if(this.level.units[index]?.active && this.level.units[index]?.owner == this.player && (!test || test(this.level.units[index])))
-               {
-                  found.push(this.level.units[index]);
-               }
-               index++;
-            }
-            return found;
-         };
-         this.ownedBuildings = function (test)
-         {
-            var found = new Array();
-            var index = 0;
-            while(index < this.level?.buildings?.length)
-            {
-               if(this.level.buildings[index]?.active && this.level.buildings[index]?.owner == this.player && (!test || test(this.level.buildings[index])))
-               {
-                  found.push(this.level.buildings[index]);
-               }
-               index++;
-            }
-            return found;
-         };
-         this.hq = function ()
-         {
-            var hqs = this.ownedBuildings?.((b) => b?.stats?.isHQ);
-            return hqs?.[0];
-         };
-         // A miner with nothing to do -- standing still, never yet sent to crystals -- is sent
-         // to the crystal field nearest its home, as a player would click it there.  (After
-         // that the miner's own loop, the original's, takes it back and forth.)
-         this.mine = function ()
-         {
-            var miners = this.owned?.((u) => u?.stats?.miner);
-            var index = 0;
-            var miner;
-            var from;
-            var field;
-            while(index < miners?.length)
-            {
-               miner = miners[index];
-               index++;
-               if(miner?.nav?.path?.length > 1 || miner?.nav?.npath || miner?.nav?.feeding || miner?.nav?.lastFed?.x || miner?.cargo)
-               {
-                  continue;
-               }
-               from = miner?.stats?.home?.stats?.dockPos || miner?.tilePos;
-               field = this.nearestCrystal?.(from);
-               if(field)
-               {
-                  miner?.nav?.voyage?.((field.x - 0.5) * this.level?.arena?.tileSize, (field.y - 0.5) * this.level?.arena?.tileSize, false);
-               }
-            }
-         };
-         this.nearestCrystal = function (from)
-         {
-            var arena = this.level?.arena;
-            var best;
-            var bestDistance = Infinity;
-            var x = 1;
-            var y;
-            var d;
-            while(!(x > arena?.cols))
-            {
-               y = 1;
-               while(!(y > arena?.rows))
-               {
-                  if(arena?.baits?.[x]?.[y] > 25 && !arena?.tiles?.[x]?.[y])
-                  {
-                     d = (x - from?.x) * (x - from?.x) + (y - from?.y) * (y - from?.y);
-                     if(d < bestDistance)
-                     {
-                        bestDistance = d;
-                        best = {x:x,y:y};
-                     }
-                  }
-                  y++;
-               }
-               x++;
-            }
-            return best;
-         };
-         // A finished building goes where the building site would allow it near the HQ (or
-         // any of its buildings), with a tile of room around it where there is room.  One that
-         // cannot be placed for half a minute is cancelled, with its money back.
-         this.placeBuilding = function ()
-         {
-            var type = this.production?.ready?.();
-            if(!type)
-            {
-               this.waitingToPlace = 0;
-               return undefined;
-            }
-            if(this.count % 5)
-            {
-               return undefined;
-            }
-            var site = this.siteFor?.(type);
-            if(site && this.production?.place?.(site.x, site.y))
-            {
-               this.waitingToPlace = 0;
-               return undefined;
-            }
-            this.waitingToPlace += 5;
-            if(this.waitingToPlace > 690)
-            {
-               this.production?.cancel?.(true);
-               this.waitingToPlace = 0;
-            }
-         };
-         this.siteFor = function (type)
-         {
-            var anchors = this.ownedBuildings?.();
-            var hq = this.hq?.();
-            if(hq)
-            {
-               anchors?.unshift?.(hq);
-            }
-            var index = 0;
-            var site;
-            var roomy;
-            while(index < anchors?.length)
-            {
-               roomy = this.level?.siteNear?.(type, this.player, anchors[index]?.tilePos, 6, (x, y) => this.level?.canPlace?.(type, x, y, 1));
-               if(roomy)
-               {
-                  return roomy;
-               }
-               index++;
-            }
-            index = 0;
-            while(index < anchors?.length)
-            {
-               site = this.level?.siteNear?.(type, this.player, anchors[index]?.tilePos, 6);
-               if(site)
-               {
-                  return site;
-               }
-               index++;
-            }
-            return undefined;
-         };
-      };
       Level = function Level(parent, level)
       {
          this.parent = parent;
@@ -7452,7 +7286,7 @@
                if(this.active && !this.players[index]?.defeated)
                {
                   this.players[index]?.production?.handle?.();
-                  this.players[index]?.bot?.handle?.();
+                  this.players[index]?.bot?.frame?.();
                }
                index++;
             }
@@ -8500,9 +8334,35 @@
                }
             }
             tech.BL_evil = false;
-            if(this.skirmish && !this.skirmish?.superweapons)
+            if(this.skirmish)
             {
-               tech.UK_good = tech.UK_evil = false;
+               // A skirmish's Special Ops (the C&C mod's rules): the Ops Ship or the Hive is
+               // bought with an HQ -- or, if the settings say so, an HQ and a Technology Centre
+               // -- and with it come the Driller, the Switch Fighter, the Reaper and the
+               // Commander.  Off, none of them.
+               index = 0;
+               while(index < factions?.length)
+               {
+                  f = factions?.[index];
+                  index++;
+                  var hq = has("BA_" + f) || has("BK_" + f);
+                  if(this.skirmish?.specops != "off" && (this.skirmish?.specops == "tech" ? hq && has("BG_" + f) : has("BA_" + f)))
+                  {
+                     tech["BK_" + f] = true;
+                  }
+                  if(has("BK_" + f) && f == "evil")
+                  {
+                     tech.UQ_evil = true;
+                  }
+               }
+               if(this.skirmish?.specops == "off")
+               {
+                  tech.BK_good = tech.BK_evil = tech.BL_good = tech.UP_good = tech.UP_evil = tech.UR_good = tech.UQ_evil = false;
+               }
+               if(!this.skirmish?.superweapons)
+               {
+                  tech.UK_good = tech.UK_evil = false;
+               }
             }
             return tech;
          };
@@ -8606,10 +8466,17 @@
             index = 0;
             while(index < this.players?.length)
             {
-               if(this.players[index]?.control == "bot")
+               if(this.players[index]?.control == "bot" && Online?.Bot)
                {
-                  this.players[index].bot = new Bot(this, this.players[index]);
-                  this.players[index].production = this.players[index].bot.production;
+                  // A computer player: the C&C mod's opponent (src/online/bot.js), building with
+                  // a Production of its own at its difficulty's speed.
+                  this.players[index].bot = new Online.Bot(this, this.players[index], function (n)
+                  {
+                     return random?.(n);
+                  });
+                  this.players[index].production = new Production(this, this.players[index]);
+                  this.players[index].production.speed = this.players[index].bot.speed;
+                  this.players[index].bot.production = this.players[index].production;
                }
                else if(this.skirmish)
                {
@@ -8649,6 +8516,16 @@
          this.allied = function (player)
          {
             return !!(player && this.localPlayer && player.team == this.localPlayer.team);
+         };
+         // The stats of a type, not of any one unit or building (costs, caps, power).
+         this.statsCache = {};
+         this.statsOfType = function (type)
+         {
+            if(!this.statsCache[type])
+            {
+               this.statsCache[type] = type?.charAt?.(0) == "B" ? new BuildingStats(type) : new UnitStats(type);
+            }
+            return this.statsCache[type];
          };
          this.countOwned = function (type, owner)
          {

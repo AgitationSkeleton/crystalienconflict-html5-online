@@ -94,8 +94,13 @@ As listed, plus later additions:
   extracted (`tools/maps/`) and drawn with CrystAlien's own rock, acid-pool and crystal tiles
   (`tools/convert_maps.py`). LEGO bridge sites are ground; islands a LEGO player reached by
   boat get a causeway across the narrowest water so every base can reach every other.
-- **4. Bots: under way.** The computer can build by the player's rules (tech tree,
-  production queue, building sites); its decision-making, ported from the C&C mod, is next.
+- **4. Bots: done.** Computer players (`src/online/bot.js`) think the way the C&C mod's
+  opponent does, as set out in `docs/cnc-ai-spec.md`: a build plan by urgency, the four
+  wants, the missions (guard, hunt, attack, harvest and so on), raids on the weakest or
+  richest enemy, patrols, repairs and sales, scouting, retaliation and base defence, and
+  superweapons. They play by the player's rules (tech tree, one building and one unit at a
+  time, building sites), at a pace set by their difficulty; Special Ops can be on, need the
+  Technology Centre, or be off.
 
 ## Order
 
