@@ -31,7 +31,7 @@ const MATCH = [
   { key: 'superweapons', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'factions', label: 'Factions', ready: true, choices: [['all', 'Astro and Alien'], ['good', 'Astro only'], ['evil', 'Alien only'], ['random', 'All random']] },
   { key: 'regrowth', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
-  { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy'], ['random', 'Random']] },
+  { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy'], ['hive', 'Hive'], ['random', 'Random']] },
 ];
 
 const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', hq: 'Destroy HQs', pizza: 'Pizza mode', ctf: 'Capture the flag' };
@@ -43,12 +43,13 @@ const MATCH_DEFAULTS = {
 };
 
 // The palette a match is seen in: the host's, unless this player prefers one; either may be
-// Random, Mars or Snowy for the match (the host's the same for everyone, by the match's seed:
-// the palette changes only how the map looks).
+// Random: Mars, Snowy or Hive for the match (the host's the same for everyone, by the match's
+// seed: the palette changes only how the map looks).
+const PALETTES = ['mars', 'snowy', 'hive'];
 function paletteFor(host, mine, seed) {
-  const pick = (p, n) => (p === 'random' ? (n % 2 ? 'snowy' : 'mars') : p);
-  if (mine && mine !== 'all') return pick(mine, Math.floor(Math.random() * 2));
-  return pick(host || 'mars', seed === undefined ? Math.floor(Math.random() * 2) : Math.abs(Math.trunc(seed)));
+  const pick = (p, n) => (p === 'random' ? PALETTES[n % PALETTES.length] : p);
+  if (mine && mine !== 'all') return pick(mine, Math.floor(Math.random() * PALETTES.length));
+  return pick(host || 'mars', seed === undefined ? Math.floor(Math.random() * PALETTES.length) : Math.abs(Math.trunc(seed)));
 }
 
 // Which base marker each player starts on (players given by colour, their team): the
@@ -885,6 +886,7 @@ export class OnlineUI {
       el('option', { value: 'all', text: 'As the host chooses', selected: st.palette === 'all' }),
       el('option', { value: 'mars', text: 'Always Mars', selected: st.palette === 'mars' }),
       el('option', { value: 'snowy', text: 'Always Snowy', selected: st.palette === 'snowy' }),
+      el('option', { value: 'hive', text: 'Always Hive', selected: st.palette === 'hive' }),
       el('option', { value: 'random', text: 'Random each match', selected: st.palette === 'random' }));
     const size = el('select', { 'aria-label': 'Interface size', onchange: (e) => { st.size = e.target.value; save(); if (this.hooks.setSize) this.hooks.setSize(st.size); } },
       el('option', { value: 'small', text: 'Small: see more', selected: st.size === 'small' }),

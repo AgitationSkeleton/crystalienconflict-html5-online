@@ -2596,6 +2596,45 @@
             this.snowy = true;
             this.radar?.redrawTiles?.(15202815);
          };
+         // Online: the Hive palette: the lime green of the Special Ops levels of B1er0l14m's
+         // Godot remake of CrystAlien Conflict (https://b1er0l14m.itch.io/cacr), whose palette
+         // it is.  The remake paints its themes as tile sets of their own; these are colour
+         // matrices fitted pixel for pixel from its Mars art to its Hive art -- the ground, the
+         // tiles (rocks and pools; the crystals keep their colours, as the snow leaves them),
+         // and the wind -- so that the original's art, drawn as it is, comes out as the Hive's.
+         this.doHive = function ()
+         {
+            var ground = new flash.filters.ColorMatrixFilter([-0.6531, 2.9987, 0.5272, 0, -101.47, 0.6762, -0.1945, 0.0497, 0, 78.49, 0.7242, -0.5075, 0.2067, 0, -50.73, 0, 0, 0, 1, 0]);
+            var tiles = new flash.filters.ColorMatrixFilter([1.0574, -0.0515, -0.085, 0, 1.87, 1.0234, 0.205, -0.4901, 0, 72.44, 0.1709, -0.1177, 0.7904, 0, 0.52, 0, 0, 0, 1, 0]);
+            var wind = new flash.filters.ColorMatrixFilter([0.3708, -0.8361, 1.3222, 0, 90.81, 0.106, 0.0887, -0.0516, 0, 229.72, -0.2886, 1.1967, -0.1121, 0, 79.34, 0, 0, 0, 1, 0]);
+            __as.set(this.terrainMC, "filters", new Array(ground));
+            for(var piece of __as.keys(this.terrainMCs))
+            {
+               __as.set(this.terrainMCs[piece], "filters", new Array(ground));
+            }
+            var windArt = this.windBitmap?.clone?.();
+            windArt?.applyFilter?.(windArt, windArt?.rectangle, new flash.geom.Point(0, 0), wind);
+            this.windBitmap = windArt;
+            var row = 0;
+            var col;
+            var handle;
+            while(!(row > this.rows + 1))
+            {
+               col = 0;
+               while(!(col > this.cols + 1))
+               {
+                  handle = this.tileHandles?.["_" + col + "_" + row];
+                  if(!handle?.bait)
+                  {
+                     __as.set(handle?.MC, "filters", new Array(tiles));
+                  }
+                  col = col + 1;
+               }
+               row = row + 1;
+            }
+            // (and the radar, over Hive ground: Mars ground, 0xC45D2E, through the ground's)
+            this.radar?.redrawTiles?.(4899638);
+         };
          this.layoutTiles?.();
          this.extendTerrain?.();
       };
@@ -8498,6 +8537,10 @@
             {
                this.arena?.doSnow?.();
             }
+            if(settings?.palette == "hive")
+            {
+               this.arena?.doHive?.();
+            }
             // Crystals grow back at the original's rate times the settings' (0: never).
             if(settings?.regrowth != undefined)
             {
@@ -10857,6 +10900,24 @@
                   __as.set(dim, "fittedTo", fit);
                }
                depth++;
+            }
+            // (and the bars the buttons sit on, drawn across the view beside the sidebar, however
+            // wide it is: the original's reach from near one edge of its 600 to the other.  The
+            // buttons keep their size, in the middle.)
+            var stretch = Math.max(1, (SCREENX - 150) * 0.9 / 500 / scale);
+            var bars = new Array(popup?.top, popup?.bottom);
+            var bar;
+            var index = 0;
+            while(index < bars.length)
+            {
+               bar = bars[index]?.$childAt?.(1 - 16384);
+               if(bar && bar.fittedTo != stretch)
+               {
+                  __as.set(bar, "_xscale", 100 * stretch);
+                  __as.set(bar, "_x", 300 - 300 * stretch);
+                  __as.set(bar, "fittedTo", stretch);
+               }
+               index++;
             }
          };
          this.handle = function ()

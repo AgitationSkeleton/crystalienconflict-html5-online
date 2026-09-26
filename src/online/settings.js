@@ -22,7 +22,7 @@ export const DEFAULTS = {
   name: 'Player',
   faction: 'good',          // 'good' (Astro), 'evil' (Alien) or 'random'
   colour: 'orange',
-  palette: 'all',           // 'all' (as the host chose), 'mars', 'snowy' or 'random' (each match)
+  palette: 'all',           // 'all' (as the host chose), 'mars', 'snowy', 'hive' or 'random' (each match)
   music: 0.8,
   sound: 0.9,
   ui: 0.9,
@@ -45,7 +45,7 @@ export function loadSettings() {
   s.name = s.name.slice(0, 16);
   if (!['good', 'evil', 'random'].includes(s.faction)) s.faction = DEFAULTS.faction;
   if (!COLOURS.includes(s.colour)) s.colour = DEFAULTS.colour;
-  if (!['all', 'mars', 'snowy', 'random'].includes(s.palette)) s.palette = DEFAULTS.palette;
+  if (!['all', 'mars', 'snowy', 'hive', 'random'].includes(s.palette)) s.palette = DEFAULTS.palette;
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
   for (const k of ['edgeScroll', 'autoMine', 'ownedCounts']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {

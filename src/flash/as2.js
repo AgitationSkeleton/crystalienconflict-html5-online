@@ -846,6 +846,28 @@ function makeFlashPackage(player) {
     this.$version++;
     return n;
   };
+  // Online: applyFilter(), for a colour matrix (the only filter a bitmap is given here): the
+  // source rectangle's pixels through it, at destPoint.  (Colours are not premultiplied.)
+  BitmapData.prototype.applyFilter = function (source, rect, point, filter) {
+    if (!source || !rect || !(filter instanceof ColorMatrixFilter)) return;
+    const x0 = Math.trunc(+rect.x), y0 = Math.trunc(+rect.y);
+    const w = Math.trunc(+rect.width), h = Math.trunc(+rect.height);
+    const dx = Math.trunc(+(point && point.x) || 0), dy = Math.trunc(+(point && point.y) || 0);
+    if (w <= 0 || h <= 0) return;
+    const m = filter.matrix.map(Number);
+    const img = source.$ctx.getImageData(x0, y0, w, h);
+    const d = img.data;
+    const clamp = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+      d[i] = clamp(m[0] * r + m[1] * g + m[2] * b + m[3] * a + m[4]);
+      d[i + 1] = clamp(m[5] * r + m[6] * g + m[7] * b + m[8] * a + m[9]);
+      d[i + 2] = clamp(m[10] * r + m[11] * g + m[12] * b + m[13] * a + m[14]);
+      d[i + 3] = clamp(m[15] * r + m[16] * g + m[17] * b + m[18] * a + m[19]);
+    }
+    this.$ctx.putImageData(img, dx, dy);
+    this.$version++;
+  };
   BitmapData.prototype.draw = function (source, matrix, cxform, blend, clip, smoothing) {
     if (!source) return;
     const m = matrix ? [+matrix.a, +matrix.b, +matrix.c, +matrix.d, +matrix.tx, +matrix.ty] : [1, 0, 0, 1, 0, 0];
