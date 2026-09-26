@@ -8213,7 +8213,8 @@
             this.powerLowOppo = this.players?.[1]?.powerLow;
             this.powerOffOppo = this.players?.[1]?.powerOff;
             __as.set(this.arena?.shroud, "active", !(_loc7_ && !this.powerLow));
-            __as.set(this.arena?.radar, "active", (_loc8_ || _loc7_) && !this.powerLow);
+            // (Online: anyone watching has it always.)
+            __as.set(this.arena?.radar, "active", (_loc8_ || _loc7_) && !this.powerLow || this.spectating || this.localPlayer?.spectator);
             if(!this.active)
             {
                return undefined;
@@ -8555,6 +8556,9 @@
             {
                this.spectating = true;
                this.arena?.shroud?.clear?.();
+               // (with the radar on from the start: no flash of its coming on, which here, in
+               // the first frame, would stop on the flash's white -- its first frame stops it)
+               __as.set(this.arena?.radar, "prevActive", true);
                __as.set(this.camera, "focus", this.findBuilding?.("BA_" + this.players?.[0]?.faction, this.players?.[0]));
             }
             this.jukebox = random?.(4) + 1;
@@ -9099,10 +9103,20 @@
             if(this.allied?.(carrier.owner) && !this.allied?.(victim))
             {
                this.parent?.sfx?.play?.("INT_optionsadd");
-               this.parent?.hud?.showMessage?.(dialogue?.("int_flag_captured"));
+            }
+            else if(this.allied?.(victim))
+            {
+               this.parent?.sfx?.play?.("INT_powerwarning");
             }
             victim.flagsLost = (victim.flagsLost || 0) + 1;
-            if(victim.flagsLost < (Number(this.skirmish?.captures) || 1))
+            // Online: everyone is told who took whose, the names in their colours, and (with a
+            // Capture limit) how many times that team's flag has gone of how many.
+            var limit = Number(this.skirmish?.captures) || 1;
+            var hud = this.parent?.hud;
+            var team = String(victim.colour || "");
+            var said = dialogue?.("int_flag_captured_by")?.toUpperCase?.()?.split?.("%S")?.join?.(hud?.inColour?.(carrier.owner?.name || "A player", carrier.owner?.colour))?.split?.("%T")?.join?.(hud?.inColour?.(team.charAt(0).toUpperCase() + team.substr(1), victim.colour));
+            hud?.showMessage?.(limit > 1 ? said + " " + victim.flagsLost + "/" + limit : said, true);
+            if(victim.flagsLost < limit)
             {
                flag.cell = {x:flag.home.x,y:flag.home.y};
                this.showFlag?.(flag);
@@ -11048,15 +11062,20 @@
          this.heldFrames = 0;
          this.showNamed = function (line, player)
          {
-            var name = String(player?.name || "A player")?.toUpperCase?.()?.split?.("&")?.join?.("&amp;")?.split?.("<")?.join?.("&lt;")?.split?.(">")?.join?.("&gt;");
-            var colour = Online?.colourCss?.[player?.colour] || "#ffffff";
-            // (the black team's is lighter, to be read on the dark)
-            if(player?.colour == "black")
-            {
-               colour = "#9a9a9a";
-            }
             var parts = dialogue?.(line)?.toUpperCase?.()?.split?.("%S");
-            this.showMessage?.(parts?.join?.("<font color=\"" + colour + "\">" + name + "</font>"), true);
+            this.showMessage?.(parts?.join?.(this.inColour?.(player?.name || "A player", player?.colour)), true);
+         };
+         // A name for a message, in a player's colour (escaped, as the message is HTML).
+         this.inColour = function (text, colour)
+         {
+            var name = String(text)?.toUpperCase?.()?.split?.("&")?.join?.("&amp;")?.split?.("<")?.join?.("&lt;")?.split?.(">")?.join?.("&gt;");
+            var css = Online?.colourCss?.[colour] || "#ffffff";
+            // (the black team's is lighter, to be read on the dark)
+            if(colour == "black")
+            {
+               css = "#9a9a9a";
+            }
+            return "<font color=\"" + css + "\">" + name + "</font>";
          };
          this.popup = function ()
          {
