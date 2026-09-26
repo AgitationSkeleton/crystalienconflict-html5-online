@@ -10,6 +10,7 @@ import { MovieClip, ShapeObj, MorphObj, TextObj, EditText, ButtonObj, BitmapObj 
 import { GLFilters, filterPadding, scaleBlur } from './filters.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
+const MIN_STAGE_W = 600;       // the narrowest stage: the original 600x400, menus and all
 
 // A colour through a Flash colour matrix: 4 rows of [r, g, b, a, offset], offsets in 0..255.
 function cmApply(cm, c) {
@@ -48,12 +49,16 @@ export class Renderer {
     this.fcacheIds = 1;
   }
 
-  // Fit the stage into the canvas, preserving aspect ratio (Flash's "showAll").
+  // The stage is always 400 units tall, filling the window's height, and as wide as the
+  // window's shape allows: the game widens its view to use it (Stage.width).  A window
+  // narrower than 600x400's shape gets the original stage, letterboxed.
   resize(cssW, cssH, dpr) {
     const w = Math.max(1, Math.round(cssW * dpr));
     const h = Math.max(1, Math.round(cssH * dpr));
     if (this.canvas.width !== w) this.canvas.width = w;
     if (this.canvas.height !== h) this.canvas.height = h;
+    this.stageH = 400;
+    this.stageW = Math.max(MIN_STAGE_W, Math.floor(w / (h / this.stageH)));
     this.scale = Math.min(w / this.stageW, h / this.stageH);
     this.offsetX = (w - this.stageW * this.scale) / 2;
     this.offsetY = (h - this.stageH * this.scale) / 2;

@@ -52,11 +52,18 @@ globalThis.__step = (n = 1) => {
   return player.frame;
 };
 
-// ---- the stage fills the window; the movie is fitted inside it ("showAll") -------------
+// ---- the stage fills the window: 400 units tall, and as wide as the window's shape --------
+// The game lays itself out across the width (Stage.width); the loader keeps its 600x400
+// and is centred.
 function resize() {
   const r = canvas.getBoundingClientRect();
   player.renderer.resize(r.width, r.height, window.devicePixelRatio || 1);
+  centreLoader();
   player.draw();
+}
+function centreLoader() {
+  const loader = player.levels[0];
+  if (loader) loader._x = Math.round((player.renderer.stageW - 600) / 2);
 }
 addEventListener('resize', resize);
 
@@ -102,9 +109,22 @@ canvas.addEventListener('auxclick', (ev) => ev.preventDefault());
 // The original replaced Flash's right-click menu with a single "www.lego.com" item; here
 // right-click does nothing rather than show the browser's menu over the game.
 canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
+// Flash on Windows reported wheel movement in lines, three per notch, up positive.  A
+// mouse wheel sends one event per notch; a touchpad sends a stream of small ones, which
+// add up to a notch every 100 pixels so that it zooms at a similar rate.
+let wheelPixels = 0;
 canvas.addEventListener('wheel', (ev) => {
-  // Flash on Windows reported wheel movement in lines, three per notch, up positive.
-  if (ev.deltaY) player.wheel(ev.deltaY < 0 ? 3 : -3);
+  const px = ev.deltaY * (ev.deltaMode === 1 ? 33 : ev.deltaMode === 2 ? 400 : 1);
+  if (Math.abs(px) >= 40) {
+    wheelPixels = 0;
+    player.wheel(px < 0 ? 3 : -3);
+  } else {
+    wheelPixels += px;
+    if (Math.abs(wheelPixels) >= 100) {
+      player.wheel(wheelPixels < 0 ? 3 : -3);
+      wheelPixels = 0;
+    }
+  }
   ev.preventDefault();
 }, { passive: false });
 
@@ -152,6 +172,7 @@ async function start() {
   await loader.ready;
   resize();
   await player.loadLevel(0, loader.lib);
+  centreLoader();
   player.draw();
   if (!TEST) requestAnimationFrame(loop);
 }

@@ -191,8 +191,9 @@ export function installBuiltins(player) {
   // ---- Stage / System / Selection ----------------------------------------------------------
   const stage = { scaleMode: 'showAll', align: '', showMenu: true, listeners: [] };
   Object.defineProperties(stage, {
-    width: { get: () => 600 },
-    height: { get: () => 400 },
+    // The stage's size in stage units, which in the online version follows the window.
+    width: { get: () => player.renderer.stageW },
+    height: { get: () => player.renderer.stageH },
     displayState: {
       get: () => (document.fullscreenElement ? 'fullScreen' : 'normal'),
       set: (v) => player.setFullscreen(String(v) === 'fullScreen'),
@@ -758,10 +759,13 @@ function makeFlashPackage(player) {
     return b;
   };
   BitmapData.loadBitmap = function (name) {
-    // A library bitmap by linkage name, as a BitmapData.
-    for (const l of player.levels) {
+    // A library bitmap by linkage name, as a BitmapData.  Online: "#id" names a bitmap the
+    // game movie never exported, by its character id; the topmost level's library has it.
+    name = String(name);
+    const byId = name.charAt(0) === '#';
+    for (const l of byId ? player.levels.slice().reverse() : player.levels) {
       if (!l) continue;
-      const id = l.$lib.exportId(String(name));
+      const id = byId ? +name.slice(1) : l.$lib.exportId(name);
       if (id === null) continue;
       const img = l.$lib.bitmaps.get(id);
       if (!img) continue;

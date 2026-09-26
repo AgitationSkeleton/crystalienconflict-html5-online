@@ -7,6 +7,20 @@ of the original Flash game, which stays unchanged at cac.viosarcade.xyz.
 
 Work in progress. See [ROADMAP.md](ROADMAP.md) for what is planned, in what order, and how.
 
+## Playing
+
+The game fills the window: a wider window shows more of the map instead of enlarging it.
+
+| Control | Action |
+| --- | --- |
+| Left click, drag | select units, give orders (as in the original) |
+| Mouse wheel | zoom in and out |
+| WASD, arrow keys, screen edges | scroll |
+| Space, right-click, middle-click, double click | deselect, cancel a building placement |
+| Esc | pause menu |
+| H | jump to your headquarters |
+| Q + number, number, W + number | assign, select, jump to a squad |
+
 ## Running it locally
 
 Serve the repository root over HTTP (browsers block `fetch` on `file://`):

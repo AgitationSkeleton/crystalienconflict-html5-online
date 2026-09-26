@@ -17,11 +17,12 @@ SOAK = 'eval ' + open(os.path.join(HERE, 'soak.js'), encoding='utf-8').read()
 ERRORS = "eval [...player.errors.keys()]"
 
 
-# The stage point at the centre of a map tile, from where the camera is now.
+# The stage point at the centre of a map tile, from where the camera is now (the map is
+# drawn at the arena's zoom, beside the 150-wide sidebar).
 TILE = '''((tx, ty) => {
   const lv = player.levels[1].panel.game.level;
-  const mc = lv.arena.MC, s = lv.arena.tileSize;
-  return [Math.round(150 + mc._x + (tx - 0.5) * s), Math.round(mc._y + ((ty - 0.5) * s) / 2)];
+  const mc = lv.arena.MC, s = lv.arena.tileSize, z = lv.arena.zoom || 1;
+  return [Math.round(150 + mc._x + (tx - 0.5) * s * z), Math.round(mc._y + ((ty - 0.5) * s) / 2 * z)];
 })'''
 
 # Mission 1 ends when its tutorial does: progress is saved and mission 2's movie starts.

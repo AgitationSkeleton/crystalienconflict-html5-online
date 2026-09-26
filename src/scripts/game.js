@@ -1121,8 +1121,12 @@
          this.MCshroud?.attachBitmap?.(this.shroudBitmap, 1, true, false);
          this.blurFilter = new flash.filters.BlurFilter(this.tileSize, this.tileSize, 2);
          this.MCportal = this.MC?.attachMovie?.("drag", "portal", 10);
-         __as.set(this.MCportal, "_width", this.parent?.viewWidth / this.parent?.tileSize * this.tileSize);
-         __as.set(this.MCportal, "_height", this.parent?.viewHeight * 2 / this.parent?.tileSize * this.tileSize);
+         this.fitPortal = function ()
+         {
+            __as.set(this.MCportal, "_width", this.parent?.viewWidth / this.parent?.tileSize * this.tileSize);
+            __as.set(this.MCportal, "_height", this.parent?.viewHeight * 2 / this.parent?.tileSize * this.tileSize);
+         };
+         this.fitPortal();
          this.tileBitmap = new flash.display.BitmapData(this.MCwidth, this.MCheight, false, 12868654);
          var _loc6_ = new flash.geom.Matrix();
          _loc6_?.scale?.(this.scaler, this.scaler * 2);
@@ -1821,21 +1825,22 @@
             }
             else
             {
+               var accelerate = this.accelerate / (this.parent?.arena?.zoom || 1);
                if(this.parent?.control?.UP)
                {
-                  this.dy -= this.accelerate;
+                  this.dy -= accelerate;
                }
                if(this.parent?.control?.RIGHT)
                {
-                  this.dx += this.accelerate;
+                  this.dx += accelerate;
                }
                if(this.parent?.control?.DOWN)
                {
-                  this.dy += this.accelerate;
+                  this.dy += accelerate;
                }
                if(this.parent?.control?.LEFT)
                {
-                  this.dx -= this.accelerate;
+                  this.dx -= accelerate;
                }
                this.dx *= this.friction;
                this.dy *= this.friction;
@@ -1986,6 +1991,57 @@
          this.posY = 0;
          this.count = 0;
          this.baitGrow = 0.02;
+         // Online: the view fills the stage beside the sidebar, and the map inside it zooms.
+         // viewWidth and viewHeight are in map units, as the camera and culling use them; the
+         // Px sizes are on screen.  posX and posY stay in map units; MC is scaled by zoom.
+         this.zoom = ZOOM;
+         this.zoomMax = 2;
+         this.fitView = function ()
+         {
+            this.viewWidthPx = SCREENX - 150;
+            this.viewHeightPx = SCREENY;
+            this.zoomMin = 0.35;
+            if(this.width)
+            {
+               this.zoomMin = Math.max(this.zoomMin, this.viewWidthPx / this.width, this.viewHeightPx / this.height);
+            }
+            var zoom = Math.min(Math.max(this.zoom, this.zoomMin), Math.max(this.zoomMax, this.zoomMin));
+            this.zoom = zoom;
+            if(this.viewZoom == zoom && this.viewStage == SCREENX + "x" + SCREENY)
+            {
+               return undefined;
+            }
+            this.viewZoom = zoom;
+            this.viewStage = SCREENX + "x" + SCREENY;
+            this.viewWidth = this.viewWidthPx / zoom;
+            this.viewHeight = this.viewHeightPx / zoom;
+            this.viewWidth2 = this.viewWidth / 2;
+            this.viewHeight2 = this.viewHeight / 2;
+            __as.set(this.mask, "_width", this.viewWidthPx);
+            __as.set(this.mask, "_height", this.viewHeightPx);
+            __as.set(this.MC, "_xscale", zoom * 100);
+            __as.set(this.MC, "_yscale", zoom * 100);
+            this.radar?.fitPortal?.();
+            this.snap = true;
+         };
+         // Zoom by factor, keeping the map point under stage point (x, y) where it is.
+         this.zoomBy = function (factor, x, y)
+         {
+            var camera = this.parent?.camera;
+            var before = this.zoom;
+            this.zoom = before * factor;
+            this.fitView();
+            if(this.zoom == before)
+            {
+               return undefined;
+            }
+            var dx = x - 150 - this.viewWidthPx / 2;
+            var dy = y - this.viewHeightPx / 2;
+            __as.op(camera, "posX", "+", dx / before - dx / this.zoom);
+            __as.op(camera, "posY", "+", 2 * (dy / before - dy / this.zoom));
+            ZOOM = this.zoom;
+         };
+         this.fitView();
          this.handle = function ()
          {
             this.count++;
@@ -1993,19 +2049,21 @@
             {
                this.count = 1;
             }
+            this.fitView();
             this.shroud?.handle?.();
             this.radar?.handle?.();
             this.posX = -this.parent?.camera?.posX + this.viewWidth2;
             this.posY = -this.parent?.camera?.posY / 2 + this.viewHeight2;
             var _loc4_ = 0.25;
             var _loc5_ = 1 - _loc4_;
-            if(!this.MC?._x && !this.MC?._y)
+            if(!this.MC?._x && !this.MC?._y || this.snap)
             {
-               __as.set(this.MC, "_x", this.posX);
-               __as.set(this.MC, "_y", this.posY);
+               __as.set(this.MC, "_x", Math.round(this.posX * this.zoom));
+               __as.set(this.MC, "_y", Math.round(this.posY * this.zoom));
+               this.snap = false;
             }
-            __as.set(this.MC, "_x", Math.round(_loc5_ * this.MC?._x + _loc4_ * this.posX));
-            __as.set(this.MC, "_y", Math.round(_loc5_ * this.MC?._y + _loc4_ * this.posY));
+            __as.set(this.MC, "_x", Math.round(_loc5_ * this.MC?._x + _loc4_ * this.posX * this.zoom));
+            __as.set(this.MC, "_y", Math.round(_loc5_ * this.MC?._y + _loc4_ * this.posY * this.zoom));
             var _loc2_;
             for(var _loc3_ of __as.keys(this.baitList))
             {
@@ -2021,12 +2079,12 @@
          this.drawWind = function ()
          {
             var _loc2_ = this.windMC;
-            __as.set(_loc2_, "_x", -this.MC?._x);
-            __as.set(_loc2_, "_y", -this.MC?._y);
+            __as.set(_loc2_, "_x", -this.MC?._x / this.zoom);
+            __as.set(_loc2_, "_y", -this.MC?._y / this.zoom);
             _loc2_?.clear?.();
             var _loc3_ = new flash.geom.Matrix();
             _loc3_?.rotate?.(-0.463);
-            _loc3_?.translate?.(this.MC?._x, this.MC?._y);
+            _loc3_?.translate?.(this.MC?._x / this.zoom, this.MC?._y / this.zoom);
             _loc3_?.translate?.(-this.count * 4, this.count * 2);
             _loc2_?.beginBitmapFill?.(this.windBitmap, _loc3_);
             _loc2_?.moveTo?.(0, 0);
@@ -2122,6 +2180,7 @@
             this.width = this.cols * this.tileSize;
             this.height = this.rows * this.tileSize2;
             this.pathFinder = new PathFinder(this, this.tiles, this.baits);
+            this.fitView();
             this.radar = new Radar(this);
             this.shroud = new Shroud(this);
          };
@@ -2169,8 +2228,8 @@
                y = _loc5_?.posY;
             }
             y *= 0.5;
-            var _loc4_ = -this.MC?._x;
-            var _loc3_ = -this.MC?._y;
+            var _loc4_ = -this.MC?._x / this.zoom;
+            var _loc3_ = -this.MC?._y / this.zoom;
             return x > _loc4_ && x < _loc4_ + this.viewWidth && y > _loc3_ && y < _loc3_ + this.viewHeight;
          };
          this.doSnow = function ()
@@ -7430,17 +7489,18 @@
                Mouse.show();
                return undefined;
             }
-            this.UP = Key.isDown(this.keyUP);
-            this.RIGHT = Key.isDown(this.keyRIGHT);
-            this.DOWN = Key.isDown(this.keyDOWN);
-            this.LEFT = Key.isDown(this.keyLEFT);
+            // Online: WASD scrolls too; W with a number still picks a squad (doSquads).
+            this.UP = Key.isDown(this.keyUP) || Key.isDown(87) && !this.numberDown?.();
+            this.RIGHT = Key.isDown(this.keyRIGHT) || Key.isDown(68);
+            this.DOWN = Key.isDown(this.keyDOWN) || Key.isDown(83);
+            this.LEFT = Key.isDown(this.keyLEFT) || Key.isDown(65);
             this.FIRE = Key.isDown(this.keyFIRE);
             if(Key.isDown(72))
             {
                __as.set(this.parent?.camera, "focus", this.parent?.findBuilding?.("BA_" + this.parent?.parent?.team, this.parent?.parent?.team) || this.parent?.findBuilding?.("BK_" + this.parent?.parent?.team, this.parent?.parent?.team));
             }
-            this.posX = Math.round(limit?.(_xmouse, SCREENX - this.parent?.arena?.viewWidth + 1, SCREENX) - this.parent?.arena?.posX - (SCREENX - this.parent?.arena?.viewWidth));
-            this.posY = Math.round(limit?.(_ymouse, 1, this.parent?.arena?.viewHeight) - this.parent?.arena?.posY) * 2;
+            this.posX = Math.round((limit?.(_xmouse, 151, SCREENX) - 150) / this.parent?.arena?.zoom - this.parent?.arena?.posX);
+            this.posY = Math.round(limit?.(_ymouse, 1, this.parent?.arena?.viewHeightPx) / this.parent?.arena?.zoom - this.parent?.arena?.posY) * 2;
             if(this.prevMouseX == _xmouse && this.prevMouseY == _ymouse && this.parent?.count > 20)
             {
                this.still++;
@@ -7460,12 +7520,12 @@
                }
                else
                {
-                  if(_xmouse < SCREENX - this.parent?.arena?.viewWidth + this.scrollMargin && _xmouse > SCREENX - this.parent?.arena?.viewWidth)
+                  if(_xmouse < 150 + this.scrollMargin && _xmouse > 150)
                   {
                      this.LEFT = true;
                   }
                }
-               if(_xmouse > SCREENX - this.parent?.arena?.viewWidth)
+               if(_xmouse > 150)
                {
                   if(_ymouse < this.scrollMargin && _ymouse > 0)
                   {
@@ -7473,20 +7533,25 @@
                   }
                   else
                   {
-                     if(_ymouse > this.parent?.arena?.viewHeight - this.scrollMargin && _ymouse < this.parent?.arena?.viewHeight)
+                     if(_ymouse > this.parent?.arena?.viewHeightPx - this.scrollMargin && _ymouse < this.parent?.arena?.viewHeightPx)
                      {
                         this.DOWN = true;
                      }
                   }
                }
             }
-            if(MOUSESCROLL > 0)
+            // Online: the wheel zooms about the pointer, or about the view's centre over the sidebar.
+            if(WHEELSTEPS)
             {
-               this.UP = true;
-            }
-            if(MOUSESCROLL < 0)
-            {
-               this.DOWN = true;
+               if(_xmouse > 150)
+               {
+                  this.parent?.arena?.zoomBy?.(Math.pow(1.12, WHEELSTEPS), _xmouse, _ymouse);
+               }
+               else
+               {
+                  this.parent?.arena?.zoomBy?.(Math.pow(1.12, WHEELSTEPS), 150 + this.parent?.arena?.viewWidthPx / 2, this.parent?.arena?.viewHeightPx / 2);
+               }
+               WHEELSTEPS = 0;
             }
             if(this.dblClickCount)
             {
@@ -7526,7 +7591,7 @@
                      this.mouseDownCount = 0;
                   }
                   this.cursorState = "standard";
-                  if(this.mouseDownCount < 2 && this.MOUSEDOWN && _xmouse > SCREENX - this.parent?.arena?.viewWidth && this.parent?.construction?.buildingSite?.breakGround?.())
+                  if(this.mouseDownCount < 2 && this.MOUSEDOWN && _xmouse > 150 && this.parent?.construction?.buildingSite?.breakGround?.())
                   {
                      delete this.parent?.construction?.buildingSite;
                      this.mouseDownCount = 0;
@@ -7571,17 +7636,33 @@
                   this.doSquads?.();
                }
             }
-            if(this.FIRE || ASnative?.(800, 2)?.(4))
+            // Online: a right-click deselects too, once per click.
+            var rightButton = ASnative?.(800, 2)?.(2);
+            if(this.FIRE || ASnative?.(800, 2)?.(4) || rightButton && !this.rightButton)
             {
                this.parent?.parent?.sfx?.play?.("INT_invalid");
                this.resetSelected?.();
             }
+            this.rightButton = rightButton;
             this.updateSelected?.();
-            if(_xmouse < SCREENX - this.parent?.arena?.viewWidth)
+            if(_xmouse < 150)
             {
                this.cursorState = "standard";
             }
             this.updateCursor?.();
+         };
+         this.numberDown = function ()
+         {
+            var key = 48;
+            while(key < 58)
+            {
+               if(Key.isDown(key))
+               {
+                  return true;
+               }
+               key++;
+            }
+            return false;
          };
          this.doCursor = function ()
          {
@@ -7788,7 +7869,7 @@
                MOUSEDOWN = false;
                return undefined;
             }
-            if(_xmouse < SCREENX - this.parent?.arena?.viewWidth)
+            if(_xmouse < 150)
             {
                MOUSEDOWN = false;
                return undefined;
@@ -8092,6 +8173,53 @@
          this.MC?.messageUp?.stop?.();
          __as.set(this.MC, "parent", this);
          this.displayCash = 0;
+         // Online: the frame art (the sidebar, and the scanlines and shading over the arena) is
+         // one 600x400 bitmap.  It is redrawn at the stage's width: the sidebar and the arena's
+         // edges as they are, the rest of the arena part stretched between them.
+         this.frameArt = flash.display.BitmapData?.loadBitmap?.("#4511");
+         this.frameMC = this.MC?.createEmptyMovieClip?.("frame", -16358);    // replaces the timeline's art at depth 26
+         this.layoutWidth = 0;
+         this.layout = function ()
+         {
+            if(this.layoutWidth == SCREENX)
+            {
+               return undefined;
+            }
+            this.layoutWidth = SCREENX;
+            var edge = 12;
+            var middle = SCREENX - 150 - 2 * edge;
+            var stretch = middle / (450 - 2 * edge);
+            var art = new flash.display.BitmapData(SCREENX, 400, true, 0);
+            art?.draw?.(this.frameArt, new flash.geom.Matrix(), null, null, new flash.geom.Rectangle(0, 0, 150 + edge, 400));
+            art?.draw?.(this.frameArt, new flash.geom.Matrix(stretch, 0, 0, 1, (150 + edge) * (1 - stretch), 0), null, null, new flash.geom.Rectangle(150 + edge, 0, middle, 400));
+            art?.draw?.(this.frameArt, new flash.geom.Matrix(1, 0, 0, 1, SCREENX - 600, 0), null, null, new flash.geom.Rectangle(SCREENX - edge, 0, edge, 400));
+            this.frameMC?.attachBitmap?.(art, 1, "never", false);
+            var centre = 150 + (SCREENX - 150) / 2;
+            __as.set(this.MC?.messageUp, "_x", centre);
+            __as.set(this.MC?.$childAt?.(44 - 16384), "_x", centre - 198);
+            __as.set(this.MC?.$childAt?.(38 - 16384), "_x", SCREENX - 171);
+            __as.set(this.MC?.flasher, "_xscale", SCREENX);
+            __as.set(this.MC?.popup, "_x", Math.round((SCREENX - 600) / 2));
+         };
+         this.layout();
+         // The pause popup's two dimming layers (timeline depths 1 and 2) are stretched across
+         // the whole stage whenever the popup places them.
+         this.fitPopup = function ()
+         {
+            var popup = this.MC?.popup;
+            var depth = 1;
+            var dim;
+            while(depth <= 2)
+            {
+               dim = popup?.$childAt?.(depth - 16384);
+               if(dim && dim._xscale != SCREENX / 6)
+               {
+                  __as.set(dim, "_x", - popup?._x);
+                  __as.set(dim, "_xscale", SCREENX / 6);
+               }
+               depth++;
+            }
+         };
          this.handle = function ()
          {
             this.doCash?.();
@@ -8293,6 +8421,20 @@
          __as.set(this.flasher, "_height", SCREENY);
          this.MC?.setMask?.(this.mask);
          this.hud = new Hud(this);
+         // Online: the mask and the flash follow the stage's width, paused or not.
+         this.stageWidth = SCREENX;
+         this.fitStage = function ()
+         {
+            if(this.stageWidth != SCREENX)
+            {
+               __as.set(this.mask, "_width", SCREENX);
+               __as.set(this.flasher, "_xscale", this.flasher?._xscale * SCREENX / this.stageWidth);
+               this.stageWidth = SCREENX;
+            }
+            this.hud?.layout?.();
+            this.hud?.fitPopup?.();
+            this.level?.arena?.fitView?.();
+         };
          this.sfx = this.parent?.sfx;
          this.currentLevel = level;
          this.data = {tiles:"0AAAAAAAA AAAAAAAAAAAAAAA    AAAAAAAAAAAAAAAAA 1A A"?.split?.("", 10000),map1:"++-1/-$$$$$.,0.#PPPPO%+,/,&PPPP%*+*+,&PP)/-$$.-'PP%+'  ('PP)0.     )&%,/   )&%,/**   %,/+**+   %+***+*"?.split?.("", 10000),map2:"00+-'            -'      PP   )!'      )&PP )/*       (1&P %**       P('  (5<                                                 E>B       P   PDJ?      PP    EMC      P)    DCP     PP%            P)/            P%+            O%*"?.split?.("", 10000),map3:"55O  ($.#         PDLK    P(1&         PDJ     P('         PPD                  PP                               PPP               PPPEB        )&     PE>K?      !!01&    PAGIC      $$1/#   PEM@CP        ($'  PPDCP                      )&P                 %#PP        )&      ('P         %,&                 %*#          )      %+#         )/      %*,&       P%+     )/**#       )/*     %+**#       %+*"?.split?.("", 10000),map4:"?0-$'     PP(.****,!/*,/***; PPP'       PPP(.************;  PP        PPPP($$.*****-.*-5             PPP   ($$.**#6<7               P       6<<7                                             )&                            (1&                            ('          )!!&                    )!!4 )/-$'P            EB    )/**;P($'PPP            AHB   %***;PP                EKF?  )/**+;                PPAFFHB %****;           PO  PPEKFFF?)/****;           )"?.split?.("", 10000),map5:"55     P%#                 )/#                 (.,&                 (.#                  %#         2:       %#        )/*       %#        %**      )/#P       %**      %-'PP     )/**      %#PPPPP )!/***      ('PPPP)!/*****!!&     PPPP%*******+*,!&    PPP($.***-$**+-'      PPP%**-'O+-$'        PP6<<7  $'                )!>B             )!!/*G?             %****F?             %****@C             %****"?.split?.("", 10000),map6:"22  ($$'EKF?('    O      AFF?             AGF?             AFFH>B           AFFFF?P          DJFI@LB      )&  PAF? A?     )0'  PAF? A?   ) ('   PD@L>MC   %      PPPAF?E>>B(       PPAFHM@JH>       PPDJF? AFF       PPPAF? AFF       PPPAFH>KFF        PEKFFFFGF        PAFFFFFFF      )&PAFFFFFFF"?.split?.("", 10000),map7:"7?           %#                    %#                    %#         PP)!&      %,&        PP%Q#      (.,&        )0$'      P(.#        ('        PP%,&               )!&P%*#             8!/*#P%*#             =***7 ($'             9$.*;                   ($'         )                )!!& %      )&)&      %**,!/      (10'      %*-$$.       ('       ($'  %                     %                    )/                    %+                    ($        )&    PP              %#  PPPPPP            ('  PPPEBP               PPE>MCPP     )&        PD@CPP      ('        PPPPPP                  PPP                             E>BP                  AGHB  )!&          O"?.split?.("", 10000),map8:"0?****#   %#  ($$*+*-'   %#     **-'    %#     $.#   )!/#      %#   %-$'  S   (1!& ('         %*#            %*#            ($'      )&             %#             (1!!            ($$&              #   )!&        #   %*#        '   %*#            %-'            %#   EBP       (1!& DLB        %*# PDL>BE     (.# PPAFHK      %# PPDJGF      %,& PPAFF      %*# PPAFF      %*# PEKFF      %-' PAFFG      %,& EKFI@     )0$' AGIC      %#   DJ?       %#    A? O"?.split?.("", 10000),map9:"0?*+*-'     %*******# )!!!&(.*****-'8/***# %*****7 =****# %*****; 9.***# %****-5  %***# %***$1&  (.*-' (.*- ('   %*#   %*#      ($')& ($'  )!!&   (' )& )!/**#)&  )!0' 0$$.-1/,&)/*#  #P)0'%**,/*+,& # %#P%+-$.-$.# ,!/,!0$'P%#O%,&****-'PP (1!/*,+***#PE>>B%******-$'PAFG?($.-$**#E>>KFFHB (' $$'AFFFFFF?  P)BPPAFFI@JILBPP%H>>KFIC DCAHBP(FFFFIC    AFHBPFFFF?     DJICPFFI@C     PDCPPFF?        PPPPFF? )& )&  PPPPFIC)0')0' )&PPPF? %# (' )/# PPF? %#    %*#PPP"?.split?.("", 10000),map10:"??O        DJFF?    (.*-$$$$$$$.          DJG?     (.#       %           D@CP     ('       %            PPPPP            %  PPPPPPP  PPPPEBP           %  P)!!!&PPPPPPPAHBPP         %  P%***#E>>>>>>KF?PP)&       %  P%***#AGFI@@JFF?PP%#       %  P($$$'D@@C  AGICPP%#       %  PPPPPPP     DJ?PPP%#       %   P         8&DCPP)/,&      %   P         =,!4 P%**#      %   PPPPPP    =**; P%**#     )/PPPP)!!&P    =**; P($$1!!&  %*!!!!/**#P    =**; PPPP%**,!!/**-$$.**#PPPP =**;    P%**-$$$$*#  ($$1!!&P =**;    P($$'PPPP-'     %**#P =**;    PPPPPPP  #      %**#P 9$.;         P   #      (.-'PPEB(5         P   #       %#PPPAHB     PPPPPPP  #       %#PPEKG?  E>>B)!!!&P  #       %#PPAFFH>>KFG?%***#P  #       ('PPAFI@@@@@@C%***#P  #         PPDJ?PPPPPPP($$$'P  #           PDCPPPP  PPPPPPP  #            PPPPP            #       )&     PE>B           #       %,&     AGHB          ,!!!!!!!/Q,&    AFFHB        O"?.split?.("", 10000),map11:".--.,0.,&P)/#%*#%+,/+,!/*#%*,/-$$.***-'(.*-'  (.*-'  %.#    %+#   %%#    ($'   (/#          )*#    )!!&  %*#    %-.# O%-1&)!!01/,&)/,/,0.*,/+*#%*-.-'(.****#%*"?.split?.("", 10000),map12:"./-$$.+-$'D@CDJ#PP($'P    OD,&PPPPP     E*#PPPP      D<7PPP                                 )            %            %&      2::3)/,!!&  )/**,/*.+*,!!/******%***********-/*-.*******-'"?.split?.("", 10000),map13:".,*#   %-$$$$$.*,!!!/#     %*-.***#     %-'%*+-'     %#P($$'      %# PPP )!!!!!/'   )!/+*+*+*B PP($.-$.+*+?PPPPP%,&%*-$?PPPP %*,/*#OHB)!!!/****,!"?.split?.("", 10000),map14:"+:-$'($$.**,#PP   ($.*#P      (.'        %&        %#        (,&       )*,!&     %***# P)4 (<<<7 P%;       )/;       %-5  B    67   ?  PPP P O?PPPEBPPPEHB PDCPPEKF?     PAFG?     EKFF?    EKIJIC    AGHKC2:::3D@JF)/***,!&D@%******,!!%*********%*********"?.split?.("", 10000),map15:"?+-$$$$.*;          AFF?($'($$$.#    %*;          D@J?       (#    %*;            DC       )# PP ($5  )&                 %#PPPP     %,&                %#PPPP     %*#                %# PP )!4  ($'          EB    %#    %*;       )&      A?    %#    %*;       %,&     AHB   (,!!!!/*;      )/*#   E>KF?)!!&"?.split?.("", 10000),map16:"77%-$$.****-$.*-$$$'($$./#OP%**-$' %+#       %*,!!/-$'   (.#       %*+-$$'      ('       %**#EBP E>>BP         %-$'AHBPAGF? EB       %'E>KF? AFFH>KHB      (>KFFF?PDJFFFFGHB )&  )FFFFF?P AFFFFFF? %#P %FFFGICP AI@JFFFHB%# )/FFIJ?PPPA?PAFFFF?%#P%-FILML>>>KH>KGFFIC(' %,F?DCAFFFFGFI@@J?P   %*FH>>KFFFFFF?)&AH>BP)/*FI@@@JFFFFF?('AFIC %*+@C   DJFFFFH>>KF?P %*-      DJFFFFFFFFHB (.#       AI@JFFI@@@C  (1       A?EMJF? )&PP  %       A?DLKF? ('P   %      EKH>KFF?PPPP )!0&     AFFFFFFHBPP )/*,"?.split?.("", 10000),map17:"?3-'=**#($.*************,!/****,# =**,&O(.****+***************# =***,!&%**********+*********# 9.****,0$$.*****-$.****-.*-.#  %*****#  %***-$' %*+**#6<7%#  ($$.**#  ($.*#   ($.**#   (#     ($$')&  ($'     %**#  )&#         ('          ($$'  ('#             P              )#            PNP             %#             P    )!&       %1&                 %*# )!&   %('    )!!4     )!& %*,!/*#   %&     %**;     %*,!/*****,4  %#   )!/**;   )!/**********;  %#)!!/***-52:3%***+****-.**; )/,/*+****,!/*,/**+**-$$1/*-5 %+*****-.**********+*#)&%+*,!!/-"?.split?.("", 10000),map18:"5?+*-$'($.*#%*-$$'(.***-'    %-'($'    ($$-'     ('          )'                  %                   %               EB  %               DLBP(           )!&PEK?PPPP  E>BP P)/*#PD@CPPBPPPAG?PPP(.*#PPPPPPHBPPD@L>BPP($'PPPPPP@CPPPEM@CPPPPPPPPPPEPPPPPDCPPPPPPPPP  PAPP   PP 8!!4      EKP       =**;     PAFB       =**;    E>KF?       9$$5    AFGF?P              DJFFHB )!& P    P )!&D@JFHB%*#P )!!& P%*# OAGF?%*# P%**#P %*# PAFIC6<7  %**#  6<7 EKF?P     %**#     EKFFHB     %**#     AFFI@C     %**#     D@JHB     8/**,4     PAF?P    =****;     EKGHB    =****;     DJFIC    9.**-5     EKJH>>>>>B($.#E>>>>>KF"?.split?.("", 10000),map19:"+?+,!/#%+,!&*-$$'($.*,-'     ($.'EB    EB(>K?    AHBJFH>>>>M@LAI@JFGICPDK?EM@@L>BP@LK?  DJHBBD@C   D@L?        AC        D                    )&        ('           EB )!&    DC ($'                       )!!&)&    ($$'('  &        E'        D           8!!!!!!4  =******;  9.****-5O!&%****#)!.#($$$$'%-"?.split?.("", 10000),map20:"??O        DJFF?    (.*-$$$$$$$.          DJG?     (.#       %           D@CP     ('       %            PPPPP            %  PPPPPPP  PPPPEBP           %  P)!!!&PPPPPPPAHBPP         %  P%***#E>>>>>>KF?PP)&       %  P%***#AGFI@@JFF?PP%#       %  P($$$'D@@C  AGICPP%#       %  PPPPPPP     DJ?PPP%#       %   P         8&DCPP)/,&      %   P         =,!4 P%**#      %   PPPPPP    =**; P%**#     )/PPPP)!!&P    =**; P($$1!!&  %*!!!!/**#P    =**; PPPP%**,!!/**-$$.**#PPPP =**;    P%**-$$$$*#  ($$1!!&P =**;    P($$'PPPP-'     %**#P =**;    PPPPPPP  #      %**#P 9$.;         P   #      (.-'PPEB(5         P   #       %#PPPAHB     PPPPPPP  #       %#PPEKG?  E>>B)!!!&P  #       %#PPAFFH>>KFG?%***#P  #       ('PPAFI@@@@@@C%***#P  #         PPDJ?PPPPPPP($$$'P  #           PDCPPPP  PPPPPPP  #            PPPPP            #       )&     PE>B           #       %,&     AGHB          ,!!!!!!!/Q,&    AFFHB        O"?.split?.("", 10000),map21:";>FFFFFFFFFI@@@@@@JFFFFFFFFFFFFFFFFI@C  O   D@JFFFFFFFFFFFFI@C          D@JFFFFFFFFFIC   )&    )&   DJFFFFFFFIC   )/,&  )/,&   DJFFFFFIC    (.-'P (.-'    DJFFFF?      ('P P ('      AFFFIC     P P P P P      DJFF?  )& P P P P P P  )&  AFIC )/,& P PPPPP P P)/,& DJ?  (.-'P PPPPPPP P (.-'  A?   ('P P PPPPPPP P ('   A?    P P PPE>BPP P P     A?     P P EKG?PPP P      A?   )& P EKGF?PP P P)&   A?  )/,& EKGGF?P P P)/,&  AHB (.-'EKGIJF?     (.-' EKG?  ('EKGICAF?      ('  AGGHB  EKGIC D@C         EKGFG? EKGIC       )&     AGFFGH>KGIC       )/,&   EKGFFFGGGIC    E>B (.-'  EKGFFFFFFIC     AG?  ('  EKGFFFFFFIC      AF?    E>KGFFFFFFIC   )&  AF?  E>KGGFFFFFFF?    ('  AFH>>KGGFFFFFFFFFH>>B     AFFGGGFFFFFFFFFFFFGGH>B   AFFFFFFFFFFFFFFFFFFFGGH>>>KFFFFFFFFFFFFFF"?.split?.("", 10000),map22:"51I@@@JFGFFFFFFGFI@@@J?   D@JFFFFFFI@C   A?     D@JGGI@C     A?      PD@@C       A?   )&P P)&   )&   A?   (' )!/,!& ('   AHB    P%****#     EKIC   P %****#     DJC  PP P%****#  PP  D& PPPP 6<)&<7 PPPP )#PPPPPP  %#  PPPPPP%#PPPPPP  %#  PPPPPP%# PPPP   %#   PPPP %#  PP   )/,&   PP  %#      )/**,&     O%,!!!!!!/****,!!!!!!/"?.split?.("", 10000),map23:"0?                    )!!!&          %***#          %***#          %+*+#      EB  %***#  EB  DLB %***# EMC   DC %+*+# DC       %***#          %***#          (.*-'           %*#            %*#            %*#        )&  %*#        %#  %*#  )&    %#  %*#  %#    %,!!/*#  %#    %Q-$.*# 8/#    (.# 6<7 9.#    )/#     )0'    %*#     (1&    %*,&     %#   )/**#     (1& B%***,4     %# ?%+***;     %# C(.+*-5   )!0'   ($$1!!!!0$'    E>B($$$$'      AFH>>>>>B   O"?.split?.("", 10000),map24:"8?********#     %****************,!&R)!/******************# %***-$.*****-$$$$$$$.# %-$$' ($$.**#       %# %#       %**# )!!!& %# %,!!!!!& %**# %-$.# %# ($$$$$.# %**# %# %# %#       %# %**# %# %# %,!!!!!& %# %**# %# (' ($$$$$$' %# %**# %#             %# %**,!/# )!!!!!!!!!!!/# %**-$$' ($$.-$$$$$$$$' %**#       %#          %**# )!!!& %# )!!!!!!!!/**# %-$.# %# ($$$$$$$$.**# %#N%# %#          %**# (' %# %,!!!!!!!!& %**#    %# ($$.-$$$$.# %**,!!!!/#    %#    %# %**-$$$$.# )& %# )& %# %**#   O%# %# %# %# %# %**# )!!/# %,!/# %# %# %**# ($$$' ($$$' %# (' %**#             %#    %**,!!!!!!!!!!!& %,!!!!/**************# %*******************-' (.*****************-'   (.****************#    O%*****"?.split?.("", 10000),map26:"??)&%-$$$$$$$$$.!!!!!!!!!!!!!!!&%#%#PPPPP P P%-.-$$.-.-$$.+++#%#%,4PEBPP P %,/,!!/,/,&O(.**,%#%+;PA?P P P%******-$.,!!/**-%#%*;PA?PP P %******# %******,%#%+;PA?P P P(.*****# %***-$$.%#%-5PDCPP P P($$$$$' ($$$'  %%#%#PPPPP P P P P P P        %%#%,!!!!!!!!!!!!!!!!& )!!!!& %%#($$$$.-$.*-.******# %-$.-' %%,!!!!!/,!/*,/******# %#O%#  %($$$.-$$$$$$$.******# %,!/,& %!!& %#       %*-$.*-' (.**-' %$.,!/#  EB   %-' (.#   %**#  %!/-$$' PDL>B %#   %#   %**#  %-.,!!& PEM@C (' P ('   %**,!!/#($$.#  DC     E>B     %*-$$.-# )&%#         D@C     %*#  %#,!/#%,!!!& )!!& P )&   %*#  %,-$.#(.***# %**#   %#   ($'  ($# %,!/-$.# ($.,& )/#      PE>>,!/***#O%#   %*,!/*# PP   PD@@-.-$$.,!/# )!/*****# EB )&  )!#%#P %***# %*******# DC %#  %*#%#  ($$$' ($$$$$$$'    %#  %*#%#                     %#  %*#%#  )!!!!!!&   )!!!!& )/,!!/-#%#P %******,& )/****,!/**-$.#,/,!!/*+++***# %**++*****+,!/#-$.-$$$.+++**# %**+++++++-$$$'"?.split?.("", 10000),map27:"++-$$$$$$$$.# P P P P%#P P P P %# P P P P%#P P P P %# P P P P%#P P P P %# P P P P%#P P P P %,!!!!!!!!/"?.split?.("", 10000),map28:"??.+#%*-$'8!!!/,!!!/#DJFF?%-$'%*/*#($'  =*********,&AFIC('  (.-$'     9$$$.******#AF?      %#      PE>>B%******#AF?)&    %'       AFF?%******#AG?('    %BP      AFG?%******#DJHB     (HBEB)&  AFF?%******,&AF?     )F?DC('  DJF?%*******#AF?P   )/@CP   )!&AF?%****-.*#AFHBP  %*!&    %+#AF?%****,/*#DJF?P  %*-'    ($'AF?%*******,&AF?)& (.#)& EB  PAF?($.****-$'AF?(1& %'(' DC  EKIC  %*-$$'E>KG?P(' %EB  PP  AF? P 6<7E>>KFI@C    %MC      AF? E>B  D@@JF?)&    %?     EBDJH>KG?  EBPAF?(')!& (C     DCPAFFFIC  A?PAF?  %+# )B      PEKI@@C)& DCPAF?  ($' %? 2::3  AF?  P(' PPPDJHB    )/C)/**,& AIC      PPPEKF?P   %* %****# A?P      PPPAFFHB EB(. %***-' AH>B      PPDJFICPDC)/ %***#P AFF? 2::3 PEBAF?EBP %* (.**#PPDJF? %**,4 A?AF?DC  (. )/**,&PPAF? (.**; DCAG?P    % %****#E>KG? 8/**;  PD@C     % %****#AFI@C =**-5           ( %****#AF?PPO=**,!&          ) ($$$$'AFHBPP9.***#)!!!&    )/B      AFF?)&)/***#%-$.,!&)!/*"?.split?.("", 10000),map29:"77******-.*-$$.*-.************#(.#  %-'%************# ('  (' %**********-$'        ($.*****-$.# )&      )& %-$.*-' (' %,!&  )!/# (' (.#     (.*#  %*-'     %,!&    (.#  %-'    )!/-$'     ('  ('     ($.#   )!&        )!&   %,!!!/*,!&    )!/*,!!!/-$$$.*-$'    ($.*-$$$.#   ($'        ($'   %,!&     )&  )&     )!/-$'    )/#  %,&    ($.#     )/*#  %*,&     %,& )& %-$'  ($.# )&O)/*,!/# ('      (' %,!/*****,!&        )!/**********# )&  )& %************#)/#  %,&%************,/*,!!/*,/******"?.split?.("", 10000),map31:"0?-$$.#%,/,/-$$.-# P('($$.-' O(1'       ('  )!/            %**2::3        (.*%**#        )/*/+*,4       %******;      P%**.*+-5       ($.%**#       P  %(.*#)&PEB EBP ( 6<7('EKH>MC  )& P PEKFGF? P %,!&P D@JI@CP  (*-' P PDCP  2:3*#   PPPP P)/*,*# )&PPPP )/***$' (' PPPP%****  P  PPPP (.**->B E>BEBPEB($.,J?PAGHKH>KH>B(.DCEKFFFFFFFILB(PEKIJFFFFFFHMCE>KFHKFFFFFFFH>KI@JFFFFFFI@JFFF? AFFFFFF? AFFFH>KFFGFFIL>KI@J@@JFI@JICDJF? A  DJ? A?  AFH>K  PAH>KHB AFFFI"?.split?.("", 10000),map32:"??GIC(.**-'($$.**-$$.#%,/,/-$$.-IC  %*+#    (.*# P('($$.-' O(1?   (.-'     ($'       ('  )!/C    ('    P               %**B     )&     )&2::3        (.*?     %,&  8!/#%**#        )/*?  )!!/-'  =**,/+*,4       %**C  ($$.#   9$.*****;      P%**B     (' P   ($.*+-5       ($.?2:3           %**#       P  %?%*#  2::3     (.*#)&PEB EBP (C%*# 8/**#2::3  6<7('EKH>MC  )!0$' =***#%**,!& P PEKFGF? P %*#   9.**,/****,!&P D@JI@CP  (*# )!!/*****+***-' P PDCP  2:3-' ($$$$.**-$.**#   PPPP P)/*,'       %**# %**# )&PPPP )/***&      )/*-' ($$' (' PPPP%****#)!!&  (.*#      P  PPPP (.**-,0$$'   6<7  E>>B E>BEBPEB($.,*#           D@J?PAGHKH>KH>B(.*#  )&         DCEKFFFFFFFILB(-' )/# P E>BP  PEKIJFFFFFFHMCE'P ($1&  AIC  E>KFHKFFGFFFFH>K&PPPP(' PDCP EKI@JFFGGFI@@JFFF'PPE>>BPPPP PDJ? AFFI@@LB AFFFBPPAI@LBPP PE>KH>KFF?  AH>KI@J?PEK? A?PP  AFI@@JFIC  D@JF? AHBAFH>K?P)&PAIC  DJ? EB  AFH>KF?AGFFFHB%,&A?   PAH>KHB AFFFI"?.split?.("", 10000),map33:"7?FFFFFFI@@JFFI@@JFFFFFFFFFFFF?PPD@@CPPAFFFFFFFFFFFF?PP   PPPAFFFFFFFFFFFF?PP    PPAFFFFFFFFFFI@CPP     PD@JFFFFFI@J?OEBPP    EB AI@JFIC DC AH>B  E>K? DC DJ?     DJF?  AFIC     AH>B    DJ?  AIC    E>KI@C     DC  DC     D@J?   )!&        )!&   AH>>B%*#)&    )&%*#E>>KI@@C%*#('    ('%*#D@@J?   ($'        ($'   AH>B     EB  EB     E>KI@C    EK?  AHB    D@J?     EKF?  AFHB     AHB EB AI@CP D@J? EBOEKFH>K? DC P P PDC AH>KFFFFFH>B   PPP  E>KFFFFFFFFFF? EBPPEB AFFFFFFFFFFFF? A?PPA? AFFFFFFFFFFFF? AH>>K? AFFFFFFI@@@@J? AFFFF? AI@@@@J?)!!4A? AFFFF? A?8!!&A?%**;DC AFFFF? DC=**#A?%**;   AFFFF?   =**#A?%**;E>>KFFFFH>>B=**#A?($$5AFFFFFFFFFF?9$$'AH>>>>KFFFFFFFFFFH>>>>K"?.split?.("", 10000),ending:0};
@@ -8313,6 +8455,7 @@
          }
          this.handle = function ()
          {
+            this.fitStage?.();
             if(!this.active)
             {
                return undefined;
@@ -8469,8 +8612,36 @@
          this.sfx = new SFX(this);
          this.sfx?.play?.("music_intro_start");
          __as.set(this.MC, "title", dialogue?.("game_title")?.toUpperCase?.());
+         // Online: the menus keep their 600x400 layout, centred on the wider stage.
+         this.fitStage = function ()
+         {
+            var left = Math.round((SCREENX - 600) / 2);
+            if(this.MC?._x == left && this.stageWidth == SCREENX)
+            {
+               return undefined;
+            }
+            this.stageWidth = SCREENX;
+            __as.set(this.MC, "_x", left);
+            this.MC?.clear?.();
+            if(left > 0)
+            {
+               this.MC?.beginFill?.(0, 100);
+               this.MC?.moveTo?.(- left, 0);
+               this.MC?.lineTo?.(0, 0);
+               this.MC?.lineTo?.(0, SCREENY);
+               this.MC?.lineTo?.(- left, SCREENY);
+               this.MC?.lineTo?.(- left, 0);
+               this.MC?.moveTo?.(600, 0);
+               this.MC?.lineTo?.(SCREENX - left, 0);
+               this.MC?.lineTo?.(SCREENX - left, SCREENY);
+               this.MC?.lineTo?.(600, SCREENY);
+               this.MC?.lineTo?.(600, 0);
+               this.MC?.endFill?.();
+            }
+         };
          this.handle = function ()
          {
+            this.fitStage?.();
             if(this.state != this.prevState)
             {
                this.count = 0;
@@ -8926,10 +9097,10 @@
       GAMEID = "legocrystalien";
       SEED = VID?.substr?.(VID?.length - 1, 1);
       RAD = 0.017453292519943295;
-      SCREENX = 600;
-      SCREENY = 400;
-      SCREENX2 = 300;
-      SCREENY2 = 200;
+      SCREENX = Stage.width;
+      SCREENY = Stage.height;
+      SCREENX2 = SCREENX / 2;
+      SCREENY2 = SCREENY / 2;
       CHEATMODE = false;
       if(BUILDMODE)
       {
@@ -8937,6 +9108,8 @@
       }
       MOUSEDOWN = false;
       MOUSESCROLL = 0;
+      WHEELSTEPS = 0;
+      ZOOM = 1;
       SO = SharedObject?.getLocal?.(GAMEID);
       if(SO?.data?.goodUnlocked > 4 || SO?.data?.conflictGoodUnlocked)
       {
@@ -8949,7 +9122,13 @@
       initDialogue?.();
       onEnterFrame = function ()
       {
+         // Online: the stage is as wide as the window's shape allows (at least 600).
+         SCREENX = Stage.width;
+         SCREENY = Stage.height;
+         SCREENX2 = SCREENX / 2;
+         SCREENY2 = SCREENY / 2;
          panel?.handle?.();
+         WHEELSTEPS = 0;
          if(MOUSESCROLL > 0)
          {
             MOUSESCROLL--;
@@ -8970,7 +9149,8 @@
       mouseListener = new Object();
       __as.set(mouseListener, "onMouseWheel", function (delta)
       {
-         MOUSESCROLL = delta * 2;
+         // Online: the wheel zooms the map (Control reads WHEELSTEPS) instead of scrolling it.
+         WHEELSTEPS += delta > 0 ? 1 : (delta < 0 ? -1 : 0);
       });
       Mouse.addListener(mouseListener);
       my_cm = new ContextMenu();

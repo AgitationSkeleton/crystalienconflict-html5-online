@@ -9,9 +9,14 @@ Actions (stage coordinates; the viewport is the 600x400 stage at 1:1 unless --sc
     frames N           wait until the player has run N more frames
     shot NAME          screenshot -> OUTDIR/NAME.png
     click X Y          left click, held for two frames
+    rclick X Y         right click, held for two frames
     clickjs JS         left click at the stage point [x, y] that JS evaluates to
     down X Y / up X Y  press / release
     move X Y           move the mouse
+    mclick X Y, mdown, mup, mmove
+                       the same, in the coordinates of the 600x400 menus and loader, which
+                       sit centred on a stage that is wider when the window is
+    wheel DY           turn the mouse wheel where the mouse is (DY < 0 is away from you)
     key NAME           press and release a key (Playwright names: Space, Enter, a, ...)
     keydown NAME       hold a key down (keyup NAME releases it)
     type TEXT          type text
@@ -87,13 +92,20 @@ def main():
             vw, vh = int(600 * s), int(400 * s)
         page = browser.new_page(viewport={'width': vw, 'height': vh}, device_scale_factor=args.dpr)
 
-        def to_page(x, y):
-            # Stage coordinates -> CSS pixels, through the letterboxed stage (the reference
-            # page has no player object, and fills the same viewport with the same fit).
-            return page.evaluate("""([x, y]) => {
+        def to_page(x, y, menu=False):
+            # Stage coordinates -> CSS pixels, through the player's fit of the stage (which is
+            # wider than 600 when the window is); menu coordinates are 600x400 ones, centred.
+            # The reference page has no player object: its 600x400 fills the viewport the same way.
+            return page.evaluate("""([x, y, menu]) => {
+                if (window.player && player.renderer.stageW) {
+                    const r = player.renderer, b = r.canvas.getBoundingClientRect();
+                    const d = r.canvas.width / Math.max(1, b.width);
+                    if (menu) x += Math.round((r.stageW - 600) / 2);
+                    return [b.left + (r.offsetX + x * r.scale) / d, b.top + (r.offsetY + y * r.scale) / d];
+                }
                 const W = innerWidth, H = innerHeight, k = Math.min(W / 600, H / 400);
                 return [(W - 600 * k) / 2 + x * k, (H - 400 * k) / 2 + y * k];
-            }""", [x, y])
+            }""", [x, y, menu])
         page.on('console', lambda m: log.append('[%s] %s' % (m.type, m.text)))
         page.on('pageerror', lambda e: log.append('[pageerror] %s' % e))
         # Chromium reports some of the parallel library downloads as net::ERR_ABORTED even
@@ -127,8 +139,19 @@ def main():
                 else:
                     page.wait_for_timeout(90)
                 page.mouse.up()
-            elif op in ('click', 'down', 'up', 'move'):
+            elif op == 'rclick':
                 x, y = to_page(*[float(v) for v in rest.split()])
+                page.mouse.move(x, y)
+                page.mouse.down(button='right')
+                if args.test:
+                    page.evaluate('() => __step(2)')
+                else:
+                    page.wait_for_timeout(90)
+                page.mouse.up(button='right')
+            elif op in ('click', 'down', 'up', 'move', 'mclick', 'mdown', 'mup', 'mmove'):
+                menu = op.startswith('m') and op != 'move'
+                op = op[1:] if menu else op
+                x, y = to_page(*[float(v) for v in rest.split()], menu=menu)
                 page.mouse.move(x, y)
                 if op == 'click':
                     # The game polls the mouse once a frame, so a click has to span frames,
@@ -143,6 +166,8 @@ def main():
                     page.mouse.down()
                 elif op == 'up':
                     page.mouse.up()
+            elif op == 'wheel':
+                page.mouse.wheel(0, float(rest))
             elif op == 'key':
                 page.keyboard.press(rest)
             elif op == 'keydown':
@@ -154,7 +179,7 @@ def main():
             elif op == 'boot' and args.test:
                 page.wait_for_function('() => window.player && player.levels[0]', timeout=60000)
                 page.evaluate('() => { while (player.levels[0].$cur < 15) __step(1); }')
-                page.mouse.click(*to_page(300, 373))
+                page.mouse.click(*to_page(300, 373, menu=True))
                 page.wait_for_function('() => player.levels[1] && !player.levels[1].$pending', timeout=180000)
                 page.evaluate('() => { let n = 0; while (player.levels[1].$cur !== 201 && n++ < 1000) __step(1); }')
                 # The game's first frame loads dialogue.xml and builds its Panel when it
@@ -162,7 +187,7 @@ def main():
                 page.wait_for_function('() => player.levels[1].panel', timeout=60000)
             elif op == 'boot':
                 page.wait_for_function('() => window.player && player.levels[0] && player.levels[0].$cur >= 15', timeout=60000)
-                page.mouse.click(*to_page(300, 373))
+                page.mouse.click(*to_page(300, 373, menu=True))
                 page.wait_for_function('() => player.levels[1] && !player.levels[1].$pending && player.levels[1].$cur === 201', timeout=180000)
             elif op == 'step':
                 page.evaluate('(n) => __step(n)', int(rest))
