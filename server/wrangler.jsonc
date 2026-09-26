@@ -24,8 +24,9 @@
   ],
 
   "vars": {
-    // Pages that may use the server (a trailing :* allows any port, for testing locally).
-    "ALLOWED_ORIGINS": "https://cac.viosarcade.xyz,https://caconline.viosarcade.xyz,http://localhost:*,http://127.0.0.1:*",
+    // Pages that may use the server (app://game is the offline client; a trailing :* allows any
+    // port, for testing locally).
+    "ALLOWED_ORIGINS": "https://cac.viosarcade.xyz,https://caconline.viosarcade.xyz,app://game,http://localhost:*,http://127.0.0.1:*",
     // The game's own score secret (it is in the SWF: game.js sendScore), to check a score's hash.
     "SCORE_SECRET": "6a8566530d02deedf2beecbd1868d45f068613ca"
   },

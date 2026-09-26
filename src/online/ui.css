@@ -306,3 +306,4 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
   color: #fff; font: 22px/1 system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); touch-action: manipulation;
 }
 .touchbar button:active { background: rgba(255, 138, 0, 0.7); }
+.note a { color: var(--orange-hi); } .form .note { font-size: 13px; color: var(--ink-dim); text-transform: none; letter-spacing: 0; }

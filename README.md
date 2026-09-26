@@ -51,6 +51,10 @@ On a phone or tablet, upright or on its side:
 | Pinch, two-finger drag | zoom, move the view |
 | ✕ ⌂ ≡ buttons | deselect, jump to your headquarters, menu |
 
+There is also **an app** for Windows, macOS and Linux (the settings page links to it, and so
+does the repository's Releases page): the same game without a browser, which keeps itself up to
+date. `client/` has it.
+
 ## Running it locally
 
 Serve the repository root over HTTP (browsers block `fetch` on `file://`):

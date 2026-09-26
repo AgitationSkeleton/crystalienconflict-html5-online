@@ -1,0 +1,45 @@
+# The offline client (client/): on a version tag (v1.2.3, the same as client/package.json's
+# version), build it for Windows, macOS and Linux and publish them as a GitHub release, which is
+# where the app looks for updates.
+name: App
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: A draft release for the builds to go in
+        run: gh release create "$GITHUB_REF_NAME" --draft --title "CrystAlien Conflict Online $GITHUB_REF_NAME" --notes "The game as an app, for Windows, macOS and Linux. Download the one for your computer below; it keeps itself up to date. (Windows may warn that it doesn't know the publisher; macOS wants a right-click and Open the first time.)" || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+  build:
+    needs: draft
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: client
+      - run: npx electron-builder --publish always
+        working-directory: client
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ github.token }}

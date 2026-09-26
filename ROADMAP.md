@@ -166,6 +166,11 @@ As listed, plus later additions:
   back to the room. The server is a Cloudflare Worker (`server/`, whose README says how to
   deploy it); `tools/verify/online.py` plays a match through it with two browsers and a
   latecomer.
+- **9. Offline client: done.** The game as an app (`client/`, Electron) for Windows, macOS and
+  Linux: the game's files come with it, online play and scores go to the same server, and it
+  updates itself from GitHub Releases. Pushing a version tag builds all three and publishes
+  them (`.github/workflows/app.yml`); the settings page links to the latest for browser
+  players. Unsigned for now (macOS then updates only by hand); `client/README.md` says more.
 - **4. Bots: done.** Computer players (`src/online/bot.js`) think the way the C&C mod's
   opponent does, as set out in `docs/cnc-ai-spec.md`: a build plan by urgency, the four
   wants, the missions (guard, hunt, attack, harvest and so on), raids on the weakest or

@@ -1,0 +1,40 @@
+{
+  "name": "crystalien-conflict-online",
+  "productName": "CrystAlien Conflict Online",
+  "version": "1.0.0",
+  "description": "CrystAlien Conflict Online, as an app: the game with no browser, updating itself from GitHub Releases.",
+  "author": "CrystAlien Conflict Online contributors",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never",
+    "release": "electron-builder --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "xyz.viosarcade.crystalienconflict",
+    "productName": "CrystAlien Conflict Online",
+    "artifactName": "CrystAlien-Conflict-Online-${version}-${os}-${arch}.${ext}",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "icon.png", "package.json"],
+    "extraResources": [
+      { "from": "..", "to": "game", "filter": ["index.html", "src/**/*", "data/**/*", "assets/**/*"] }
+    ],
+    "icon": "icon.png",
+    "publish": [
+      { "provider": "github", "owner": "AgitationSkeleton", "repo": "crystalienconflict-html5-online", "releaseType": "draft" }
+    ],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": { "oneClick": true, "perMachine": false, "deleteAppDataOnUninstall": false },
+    "mac": { "target": [{ "target": "dmg", "arch": ["universal"] }, { "target": "zip", "arch": ["universal"] }], "category": "public.app-category.games" },
+    "linux": { "target": [{ "target": "AppImage", "arch": ["x64"] }], "category": "Game" }
+  }
+}

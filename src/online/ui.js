@@ -110,6 +110,8 @@ export class OnlineUI {
     this.applyVolumes();
     this.applyPrefs();
     this.wireNet();
+    // The app: an update fetched is installed on quitting.
+    if (window.crystalienApp) window.crystalienApp.onUpdateReady((v) => this.toast('Version ' + v + ' of the app is ready: it installs when you close the app.'));
     // The game calls Online.menu() when a match or a story game is over: back to the room, for
     // a match over the network.
     player.online.menu = (screen) => {
@@ -631,7 +633,9 @@ export class OnlineUI {
   }
 
   copyInvite() {
-    const link = location.origin + location.pathname + '?join=' + this.net.code;
+    // (from the app, a link to the website's game)
+    const site = location.protocol === 'app:' ? 'https://caconline.viosarcade.xyz/' : location.origin + location.pathname;
+    const link = site + '?join=' + this.net.code;
     navigator.clipboard.writeText(link).then(() => { this.roomNotice.textContent = 'The link is copied: ' + link; },
       () => { this.roomNotice.textContent = 'The link: ' + link; });
   }
@@ -881,7 +885,16 @@ export class OnlineUI {
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface' }), slider('ui'),
-      el('label', { class: 'wide', text: 'An offline client, for Windows, Mac and Linux, is coming.' }));
+      this.appNote());
+  }
+
+  // The app (client/): its version, or, in a browser, where to get it.
+  appNote() {
+    const app = window.crystalienApp;
+    if (app) return el('label', { class: 'wide', text: 'The app, version ' + app.version + '. It keeps itself up to date.' });
+    return el('div', { class: 'wide note' }, 'Play without a browser: ',
+      el('a', { href: 'https://github.com/AgitationSkeleton/crystalienconflict-html5-online/releases/latest', target: '_blank', rel: 'noopener', text: 'the app, for Windows, Mac and Linux' }),
+      '. It keeps itself up to date.');
   }
 
   // What the game reads of the settings while it plays.
