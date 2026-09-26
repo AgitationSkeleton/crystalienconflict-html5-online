@@ -35,6 +35,14 @@ FOUR = ("{map:17,mode:'all',cash:10000,prebuilt:true,units:3,shroud:true,superwe
         "players:[{name:'Me',faction:'evil',colour:'green',control:'local'},{name:'Pal',faction:'good',colour:'green',control:'bot'},"
         "{name:'Foe1',faction:'good',colour:'orange',control:'bot'},{name:'Foe2',faction:'evil',colour:'red',control:'bot'}]}")
 
+# Pointing at a sidebar option restarts the white flash over the radar.  Moving to another
+# option on the frame the last flash ends must restart it again and let it fade, not
+# leave it stuck white.
+RADAR_FLASH = ['move 300 300', 'step 10', 'move 30 225', 'step 5', 'move 30 255', 'step 12',
+               '''eval (() => { const s = player.levels[1].panel.game.level.arena.radar.stats;
+  return s.title === 'TRAINING CAMP' && s.flash._currentframe === 6 ? []
+    : ['radar flash stuck: ' + s.title + ' frame ' + s.flash._currentframe]; })()''']
+
 
 def code(level):
     # From the main menu: type a level code, skip its movie.
@@ -50,6 +58,7 @@ SCENARIOS = {
                 'clickjs (%s)(6, 6)' % TILE, 'step 900', 'shot end', STORY_DONE, ERRORS],
     'alien-start': ['step 70', 'click 555 215', 'step 35', 'click 300 373', 'step 150',
                     'shot end', ERRORS],
+    'radar-flash': code('eclipse') + RADAR_FLASH + ['shot end', ERRORS],
     'soak-eclipse': code('eclipse') + [SOAK, 'shot end'],
     'soak-santa': code('santa') + [SOAK, 'shot end'],
     'soak-drill': code('drill') + [SOAK, 'shot end'],
