@@ -7,6 +7,8 @@ import { COLOURS, COLOUR_CSS, loadSettings, saveSettings } from './settings.js';
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
+const SHARE = [['off', 'Off'], ['humans', 'Human control only'], ['all', 'All']];
+
 // The match settings, with the choices the lobby offers.  `ready` says whether the game does
 // anything with a setting yet; the rest are shown, and marked as coming.  `when` says which
 // other settings a setting depends on (the pizza's cost is only for Pizza Mode).
@@ -30,6 +32,11 @@ const MATCH = [
   { key: 'shroud', label: 'Shroud', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'superweapons', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'factions', label: 'Factions', ready: true, choices: [['all', 'Astro and Alien'], ['good', 'Astro only'], ['evil', 'Alien only'], ['random', 'All random']] },
+  // What allies (players of one colour) share: between people only, or computer players too.
+  { key: 'shareMoney', label: 'Allies share money', ready: true, choices: SHARE },
+  { key: 'sharePower', label: 'Allies share energy (and radar)', ready: true, choices: SHARE },
+  { key: 'shareUnits', label: 'Allies share units', ready: true, choices: SHARE },
+  { key: 'shareBuildings', label: 'Allies share buildings', ready: true, choices: SHARE },
   { key: 'regrowth', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
   { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy'], ['hive', 'Hive'], ['random', 'Random']] },
 ];
@@ -40,6 +47,7 @@ const MATCH_DEFAULTS = {
   map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true,
   christmas: false, crateRate: 'normal', income: 0, pizzaCost: 50000, speed: 1, shroud: true,
   superweapons: true, factions: 'all', regrowth: 1, palette: 'mars', build: 1, queue: false, shields: false, captures: 1,
+  shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off',
 };
 
 // The palette a match is seen in: the host's, unless this player prefers one; either may be
@@ -164,9 +172,9 @@ export class OnlineUI {
     if (this.attached) return;
     this.attached = true;
     if (this.panel) this.panel.state = 'hidden';
-    this.open('main');
-    // A link to a room (?join=CODE): straight to it.
+    // A link to a room (?join=CODE): straight to it.  (Read first: the menus set the address.)
     const join = new URLSearchParams(location.search).get('join');
+    this.open('main');
     if (join && this.net) {
       this.show('online');
       this.joinRoom(join.toUpperCase());
@@ -186,6 +194,9 @@ export class OnlineUI {
 
   show(name) {
     for (const [k, s] of Object.entries(this.screens)) s.classList.toggle('active', k === name);
+    // The address is the room's link while this page is in one (to share, or to come back to),
+    // and the site's own again once it leaves.
+    this.showAddress(name === 'room' && this.net && this.net.code);
     if (name === 'lobby') this.renderLobby();
     if (name === 'settings') this.renderSettings();
     if (name === 'online') this.refreshRooms();
@@ -452,6 +463,7 @@ export class OnlineUI {
       superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1,
+      shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings,
       players,
     };
     // Watching: a grey sidebar, with nothing on it to build.
@@ -652,6 +664,16 @@ export class OnlineUI {
     this.root.append(s);
   }
 
+  showAddress(code) {
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;   // (the app shows none)
+    const params = new URLSearchParams(location.search);
+    if (code) params.set('join', code);
+    else params.delete('join');
+    const query = params.toString();
+    const want = location.pathname + (query ? '?' + query : '') + location.hash;
+    if (want !== location.pathname + location.search + location.hash) history.replaceState(history.state, '', want);
+  }
+
   copyInvite() {
     // (from the app, a link to the website's game)
     const site = location.protocol === 'app:' ? 'https://caconline.viosarcade.xyz/' : location.origin + location.pathname;
@@ -672,6 +694,7 @@ export class OnlineUI {
   }
 
   renderRoom() {
+    if (this.screens.room.classList.contains('active')) this.showAddress(this.net && this.net.code);
     const net = this.net;
     const r = net && net.room;
     if (!r) return;
@@ -806,7 +829,8 @@ export class OnlineUI {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette: m.palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
-      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, players,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1,
+      shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings, players,
     };
     net.start(settings);
   }

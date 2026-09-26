@@ -108,6 +108,7 @@ def main():
     ap.add_argument('--script', default=None)
     ap.add_argument('--palette-b', default=None, help="the second page's palette (a player's preference; the view only)")
     ap.add_argument('--port', type=int, default=8796)
+    ap.add_argument('--allies', action='store_true', help='the two people one team (blue), the computer players the other (red): for the Share settings')
     args = ap.parse_args()
 
     server = http.server.ThreadingHTTPServer(('127.0.0.1', args.port), functools.partial(Quiet, directory=ROOT))
@@ -117,9 +118,9 @@ def main():
     def settings_for(me):
         players = []
         for i in range(2):
-            players.append({'name': 'H%d' % i, 'faction': 'good' if i == 0 else 'evil', 'colour': colours[i], 'control': 'local' if i == me else 'remote'})
+            players.append({'name': 'H%d' % i, 'faction': 'good' if i == 0 else 'evil', 'colour': 'blue' if args.allies else colours[i], 'control': 'local' if i == me else 'remote'})
         for i in range(args.bots):
-            players.append({'name': 'B%d' % i, 'faction': 'evil' if i % 2 == 0 else 'good', 'colour': colours[2 + i], 'control': 'bot', 'difficulty': 'hard'})
+            players.append({'name': 'B%d' % i, 'faction': 'evil' if i % 2 == 0 else 'good', 'colour': 'red' if args.allies else colours[2 + i], 'control': 'bot', 'difficulty': 'hard'})
         s = {'map': args.map, 'mode': args.mode, 'cash': 20000, 'units': 3, 'prebuilt': True, 'shroud': True, 'superweapons': True,
              'palette': 'mars', 'specops': 'on', 'pizzaCost': 25000, 'crates': True, 'christmas': True, 'crateRate': 'often', 'players': players}
         if args.settings:

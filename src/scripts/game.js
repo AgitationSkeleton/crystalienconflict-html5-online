@@ -5403,9 +5403,14 @@
          if(this.stats?.home && !x && !y)
          {
             this.tilePos = this.parent?.arena?.closestAvailable?.(this.stats?.home?.stats?.dockPos);
-            this.owner = this.stats?.home?.owner;
-            this.team = this.stats?.home?.team;
-            this.friend = this.stats?.home?.friend;
+            // (Online: in a skirmish the unit is its maker's, who may have made it at an ally's
+            // building -- see findBuilding.)
+            if(!(this.parent?.skirmish && this.owner))
+            {
+               this.owner = this.stats?.home?.owner;
+               this.team = this.stats?.home?.team;
+               this.friend = this.stats?.home?.friend;
+            }
          }
          this.nav = new UnitNav(this);
          if(this.stats?.miner && !x && !y)
@@ -8203,7 +8208,8 @@
                   {
                      __as.upd(this.construction?.shortcuts?.[_loc2_?.type], "total", 1, false);
                   }
-                  if(_loc2_?.friend)
+                  // (Online: or an ally's who shares their power, and the radar with it)
+                  if(_loc2_?.friend || this.skirmish && this.shares?.(this.localPlayer, _loc2_?.owner, "Power"))
                   {
                      _loc8_ = _loc8_ || _loc2_?.stats?.isRadar;
                      _loc7_ = _loc7_ || _loc2_?.stats?.isSatellite;
@@ -8247,17 +8253,34 @@
             var _loc13_ = this.powerOff;
             var _loc11_;
             index = 0;
+            var other;
             while(index < this.players?.length)
             {
-               _loc11_ = this.players[index].powerCharge - this.players[index].powerDrain;
+               // (Online: with the power of the allies who share it, by the host's settings)
+               this.players[index].sharedCharge = this.players[index].powerCharge;
+               this.players[index].sharedDrain = this.players[index].powerDrain;
+               if(this.skirmish)
+               {
+                  other = 0;
+                  while(other < this.players.length)
+                  {
+                     if(other != index && this.shares?.(this.players[index], this.players[other], "Power"))
+                     {
+                        this.players[index].sharedCharge += this.players[other].powerCharge;
+                        this.players[index].sharedDrain += this.players[other].powerDrain;
+                     }
+                     other++;
+                  }
+               }
+               _loc11_ = this.players[index].sharedCharge - this.players[index].sharedDrain;
                this.players[index].powerLow = _loc11_ < 50;
                this.players[index].powerOff = _loc11_ < 0;
                index++;
             }
             // What the HUD and the sidebar show, and the story's scripts read: this browser's
             // player's power, and the opponent's.
-            this.powerCharge = this.localPlayer?.powerCharge;
-            this.powerDrain = this.localPlayer?.powerDrain;
+            this.powerCharge = this.localPlayer?.sharedCharge;
+            this.powerDrain = this.localPlayer?.sharedDrain;
             this.powerLow = this.localPlayer?.powerLow;
             this.powerOff = this.localPlayer?.powerOff;
             this.powerLowOppo = this.players?.[1]?.powerLow;
@@ -8513,6 +8536,21 @@
                }
                _loc3_ = _loc3_ - 1;
             }
+            // (Online: else an ally's who shares their buildings, by the host's settings -- what a
+            // player may build, where a unit of theirs comes out, where a miner of theirs unloads.)
+            if(team?.isPlayer && this.skirmish)
+            {
+               _loc3_ = this.buildings?.length - 1;
+               while(!(_loc3_ < 0))
+               {
+                  _loc2_ = this.buildings?.[_loc3_];
+                  if(_loc2_?.active && _loc2_?.type == type && _loc2_?.owner != team && this.shares?.(team, _loc2_?.owner, "Buildings"))
+                  {
+                     return _loc2_;
+                  }
+                  _loc3_ = _loc3_ - 1;
+               }
+            }
             return false;
          };
          this.findUnit = function (type, team)
@@ -8577,6 +8615,30 @@
                   count++;
                }
                index++;
+            }
+            // Online: allies who share their money, by the host's settings, have one purse between
+            // them, with all their money in it: what any of them earns or spends is from it.
+            index = 0;
+            while(index < this.players?.length)
+            {
+               player = this.players[index];
+               index++;
+               if(player?.spectator || player?.purse)
+               {
+                  continue;
+               }
+               var members = this.players.filter((other) => !other?.spectator && this.shares?.(player, other, "Money"));
+               if(members.length < 2)
+               {
+                  continue;
+               }
+               var purse = {cash:0};
+               for(var member of members)
+               {
+                  purse.cash += Number(member.cash) || 0;
+                  member.purse = purse;
+                  Object.defineProperty(member, "cash", {get:() => purse.cash, set:(v) => { purse.cash = v; }, configurable:true, enumerable:true});
+               }
             }
             this.flags = new Array();
             if(settings?.mode == "ctf")
@@ -8791,7 +8853,7 @@
          this.isDepot = function (building, unit)
          {
             var code = building?.type?.substr?.(0, 2);
-            return !!(building?.active && building.isBuilding && building.owner == unit?.owner && (code == "BA" || code == "BK" && this.skirmish?.opsHQ !== false));
+            return !!(building?.active && building.isBuilding && this.shares?.(unit?.owner, building.owner, "Buildings") && (code == "BA" || code == "BK" && this.skirmish?.opsHQ !== false));
          };
          this.nearestDepot = function (unit)
          {
@@ -9568,7 +9630,7 @@
             while(index < c?.u?.length)
             {
                u = this.find?.(c.u[index]);
-               if(u && u.owner == who)
+               if(u && this.shares?.(who, u.owner, "Units"))
                {
                   mine.push(u);
                }
@@ -9613,7 +9675,7 @@
                   {
                      break;
                   }
-                  if(c.wrench && o.owner == who)
+                  if(c.wrench && this.shares?.(who, o.owner, "Buildings"))
                   {
                      __as.set(o, "repairing", true);
                   }
@@ -9635,7 +9697,7 @@
                   }
                   break;
                case "deploy":
-                  if(o && o.owner == who)
+                  if(o && this.shares?.(who, o.owner, "Units"))
                   {
                      __as.set(o, "deploy", true);
                   }
@@ -10015,6 +10077,27 @@
          this.allied = function (player)
          {
             return !!(player && this.localPlayer && player.team == this.localPlayer.team);
+         };
+         // Online: whether player a has the use of what player b has, by the host's Share settings
+         // (what: "Money", "Power" -- and the radar with it --, "Units" or "Buildings"): the same
+         // player, or allies (one team) with that setting on -- "humans", between people only,
+         // or "all", computer players too.
+         this.shares = function (a, b, what)
+         {
+            if(!a || !b)
+            {
+               return false;
+            }
+            if(a == b)
+            {
+               return true;
+            }
+            var how = this.skirmish?.["share" + what];
+            if(!how || how == "off" || a.team != b.team || a.spectator || b.spectator)
+            {
+               return false;
+            }
+            return how == "all" || !!(a.human && b.human);
          };
          // The stats of a type, not of any one unit or building (costs, caps, power).
          this.statsCache = {};
@@ -10411,6 +10494,17 @@
             }
             return false;
          };
+         // Online: whether this player may give orders to a unit (theirs, or an ally's who shares
+         // their units, by the host's settings) or select a building (theirs).
+         this.commands = function (obj)
+         {
+            return !!(obj?.friend || obj?.isUnit && this.parent?.skirmish && this.parent?.shares?.(this.parent?.localPlayer, obj?.owner, "Units"));
+         };
+         // And a building to mend with the wrench: theirs, or one an ally shares.
+         this.mends = function (obj)
+         {
+            return !!(obj?.friend || obj?.isBuilding && this.parent?.skirmish && this.parent?.shares?.(this.parent?.localPlayer, obj?.owner, "Buildings"));
+         };
          // Online: the square the pointer is over, on the map as it is drawn at this moment (for
          // the building site, which is placed after the map has moved in a frame).
          this.pointedTile = function ()
@@ -10437,7 +10531,7 @@
                if(this.parent?.units?.[_loc2_]?.checkForHit?.(this.posX, this.posY))
                {
                   this.activeTarget = this.parent?.units?.[_loc2_];
-                  if(this.parent?.units?.[_loc2_]?.friend)
+                  if(this.commands?.(this.parent?.units?.[_loc2_]))
                   {
                      this.cursorState = "select";
                   }
@@ -10459,8 +10553,9 @@
                   }
                }
             }
-            // Online: an ally's unit or building is neither ours to command nor a target.
-            if(this.activeTarget && !this.activeTarget?.friend && !this.parent?.hostile?.(this.activeTarget, this.parent?.localPlayer) && this.activeTarget?.owner)
+            // Online: an ally's unit or building is neither ours to command nor a target (unless the
+            // host's settings share it: then a unit is ours to command, a building to mend).
+            if(this.activeTarget && !this.commands?.(this.activeTarget) && !(this.advancedCursorState == "repair" && this.mends?.(this.activeTarget)) && !this.parent?.hostile?.(this.activeTarget, this.parent?.localPlayer) && this.activeTarget?.owner)
             {
                this.activeTarget = false;
             }
@@ -10471,7 +10566,7 @@
             }
             if(this.advancedCursorState)
             {
-               if(this.activeTarget?.isUnit || !this.activeTarget?.friend || this.advancedCursorState == "sell" && this.activeTarget?.stats?.isHQ || this.advancedCursorState == "superweapon")
+               if(this.activeTarget?.isUnit || !(this.activeTarget?.friend || this.advancedCursorState == "repair" && this.mends?.(this.activeTarget)) || this.advancedCursorState == "sell" && this.activeTarget?.stats?.isHQ || this.advancedCursorState == "superweapon")
                {
                   this.activeTarget = false;
                }
@@ -10493,7 +10588,7 @@
                }
                if(this.activeTarget)
                {
-                  if(!this.activeTarget?.friend)
+                  if(!this.commands?.(this.activeTarget))
                   {
                      if(this.activeTarget?.isBuilding)
                      {
@@ -10655,7 +10750,7 @@
                   if(this.activeTarget)
                   {
                      this.singleClick = false;
-                     if(this.cursorState == "select" || this.cursorState == "standard" && this.activeTarget?.friend)
+                     if(this.cursorState == "select" || this.cursorState == "standard" && this.commands?.(this.activeTarget))
                      {
                         if(!Key.isDown(16))
                         {
@@ -10753,7 +10848,7 @@
             var _loc2_ = false;
             for(var _loc7_ of __as.keys(this.parent?.units))
             {
-               if(this.parent?.units?.[_loc7_]?.checkForHit?.(_loc6_, _loc5_, _loc4_, _loc3_) && !this.parent?.units?.[_loc7_]?.selected && this.parent?.units?.[_loc7_]?.friend)
+               if(this.parent?.units?.[_loc7_]?.checkForHit?.(_loc6_, _loc5_, _loc4_, _loc3_) && !this.parent?.units?.[_loc7_]?.selected && this.commands?.(this.parent?.units?.[_loc7_]))
                {
                   __as.set(this.parent?.units?.[_loc7_], "selected", true);
                   _loc2_ = true;
