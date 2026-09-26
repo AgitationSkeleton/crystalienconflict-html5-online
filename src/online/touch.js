@@ -118,6 +118,7 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     const zoom = (lv.arena && lv.arena.zoom) || 1;
     cam.focus = false;
     cam.dx = cam.dy = 0;
+    if (lv.control) lv.control.following = null;      // (a spectator's view let go of the unit it followed)
     cam.posX -= dx / zoom;
     cam.posY -= (2 * dy) / zoom;
   };

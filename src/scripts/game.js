@@ -5653,6 +5653,11 @@
             {
                this.makeNoise?.(this.type + "_pain_" + (random?.(2) + 1));
                this.owner?.bot?.damaged?.(this, weapon?.shooter);
+               // (Online: what hurt it last -- its killer, for someone watching it: Control.follow)
+               if(weapon?.shooter)
+               {
+                  this.lastShooter = weapon.shooter;
+               }
                this.health -= weapon?.dmg;
                if(this.hal?.type == "still")
                {
@@ -10447,6 +10452,10 @@
                      this.MOUSEDOWN = false;
                   }
                }
+               else if(this.parent?.spectating)
+               {
+                  this.spectate?.();
+               }
                else
                {
                   this.doCursor?.();
@@ -10498,12 +10507,79 @@
                this.resetSelected?.();
             }
             this.rightButton = rightButton;
+            this.follow?.();
             this.updateSelected?.();
             if(_xmouse < 150)
             {
                this.cursorState = "standard";
             }
             this.updateCursor?.();
+         };
+         // Online: watching (a spectator, or out of the match), a click picks one unit, anyone's, for
+         // the camera to follow, and a click on nothing lets it go.  No box is dragged, nothing is
+         // commanded.
+         this.spectate = function ()
+         {
+            this.cursorState = "standard";
+            this.activeTarget = false;
+            this.isDragging = false;
+            this.mouseDownCount = 0;
+            var unit;
+            for(var index of __as.keys(this.parent?.units))
+            {
+               unit = this.parent.units[index];
+               if(unit?.active && unit.owner && !unit.stats?.pickup && unit.posX >= 0 && unit.checkForHit?.(this.posX, this.posY))
+               {
+                  this.activeTarget = unit;
+                  this.cursorState = "select";
+                  break;
+               }
+            }
+            if(!this.MOUSEDOWN && MOUSEDOWN && _xmouse > 150)
+            {
+               this.watch?.(this.activeTarget || null);
+               if(this.activeTarget)
+               {
+                  this.parent?.parent?.sfx?.play?.("INT_cursor_select");
+               }
+            }
+            this.MOUSEDOWN = MOUSEDOWN;
+         };
+         // The one unit followed (selected, the camera on it), or none.
+         this.watch = function (unit)
+         {
+            this.resetSelected?.();
+            if(unit)
+            {
+               __as.set(unit, "selected", true);
+               this.selected = new Array(unit);
+            }
+            this.following = unit || null;
+         };
+         // Each frame, the camera on the unit followed.  Killed, it hands on to its killer, if that
+         // was a unit (not a turret or other building); moving the view lets it go.
+         this.follow = function ()
+         {
+            var unit = this.following;
+            if(!unit)
+            {
+               return undefined;
+            }
+            if(!this.parent?.spectating || this.UP || this.RIGHT || this.DOWN || this.LEFT)
+            {
+               this.following = null;
+               return undefined;
+            }
+            if(!unit.active)
+            {
+               var killer = unit.lastShooter;
+               this.watch?.(killer?.active && killer.isUnit && killer.owner && killer.posX >= 0 ? killer : null);
+               unit = this.following;
+            }
+            if(unit && unit.posX >= 0)
+            {
+               __as.set(this.parent?.camera, "focus", unit);
+            }
          };
          // The ids of what is selected, in the order the original went through them.
          this.selectedIds = function ()
@@ -10911,6 +10987,7 @@
          this.resetSelected = function ()
          {
             this.advancedCursorState = false;
+            this.following = null;
             if(this.cursorState == "superweapon")
             {
                if(this.parent?.skirmish)
