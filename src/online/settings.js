@@ -4,13 +4,13 @@
 
 const KEY = 'cac-online:settings';
 
-export const COLOURS = ['orange', 'green', 'red', 'blue', 'purple', 'black', 'tan', 'cyan'];
+export const COLOURS = ['orange', 'green', 'red', 'blue', 'purple', 'black', 'tan', 'cyan', 'yellow'];
 
 // The colours as the menus show them (the game's art is recoloured by hue; see
 // TEAM_COLOURS in src/flash/render.js).
 export const COLOUR_CSS = {
   orange: '#ff8a00', green: '#6fd12a', red: '#e0201c', blue: '#2a6fe8',
-  purple: '#9a3ee0', black: '#303030', tan: '#d2b48c', cyan: '#20d0e0',
+  purple: '#9a3ee0', black: '#303030', tan: '#d2b48c', cyan: '#20d0e0', yellow: '#f5d312',
 };
 
 // How far the game may be enlarged to fill the window, in CSS pixels to one of the stage's

@@ -7600,7 +7600,7 @@
       // Online: the maps a skirmish can be played on -- the story's, by level number -- and
       // where on each the players' bases go.  A map without markers gets them in its corners.
       // The players' colours, as the radar shows them.
-      TEAM_RGB = {orange:0xFF8A00,green:0x6FD12A,red:0xE0201C,blue:0x2A6FE8,purple:0x9A3EE0,black:0x303030,tan:0xD2B48C,cyan:0x20D0E0};
+      TEAM_RGB = {orange:0xFF8A00,green:0x6FD12A,red:0xE0201C,blue:0x2A6FE8,purple:0x9A3EE0,black:0x303030,tan:0xD2B48C,cyan:0x20D0E0,yellow:0xF5D312};
       SKIRMISH_MAPS = {10:{name:"Eclipse",bases:[{x:5,y:20},{x:25,y:12}]}};
       // The match the Conflict button starts: this browser's player against the computer on
       // Eclipse, playing the faction chosen.

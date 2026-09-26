@@ -23,6 +23,7 @@ export const TEAM_COLOURS = {
   black: { h: 0, s: 0.08, v: 0.35, plate: 0 },
   tan: { h: 36, s: 0.4, v: 1, plate: 0.25 },
   cyan: { h: 185, s: 1, v: 1, plate: 0.45 },
+  yellow: { h: 54, s: 1, v: 1, plate: 0.5 },     // (well clear of orange's 30 and tan's pale 36)
   gray: { h: 0, s: 0, v: 0.9, plate: 0 },          // a spectator's sidebar
 };
 const TEAM_BAND = 22;             // degrees either side of the art's accent

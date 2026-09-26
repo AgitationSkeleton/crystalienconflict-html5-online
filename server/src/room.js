@@ -44,7 +44,7 @@ const LATE_MS = 250;            // how long a turn waits for a player behind the
 const GRACE_MS = 20000;         // how long a disconnected player's seat is kept
 const EMPTY_MS = 60000;         // how long a room with nobody in it lasts
 const HEARTBEAT_MS = 30000;     // how often a listed room tells the master server it is there
-const COLOURS = ['orange', 'green', 'red', 'blue', 'purple', 'black', 'tan', 'cyan'];
+const COLOURS = ['orange', 'green', 'red', 'blue', 'purple', 'black', 'tan', 'cyan', 'yellow'];
 
 export function newCode() {
   const b = new Uint8Array(6);
