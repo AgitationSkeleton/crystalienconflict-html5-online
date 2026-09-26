@@ -1184,6 +1184,11 @@
                {
                   new Color(_loc3_)?.setRGB?.(TEAM_RGB?.[_loc2_?.owner?.colour]);
                }
+               // (Online: a pickup's white would be lost on snow: black there.)
+               else if(_loc2_?.stats?.pickup && this.parent?.snowy)
+               {
+                  new Color(_loc3_)?.setRGB?.(0);
+               }
                if(_loc2_?.isBuilding)
                {
                   __as.set(_loc3_, "_width", this.tileSize * _loc2_?.stats?.width);
@@ -2588,6 +2593,7 @@
             }
             // Online: and the radar shows it so, over snowy ground (Mars ground, 0xC45D2E, through
             // the snow's colour matrix).
+            this.snowy = true;
             this.radar?.redrawTiles?.(15202815);
          };
          this.layoutTiles?.();
@@ -4601,6 +4607,15 @@
             this.maxWeaponCharge = 10;
             this.weaponRange = 100;
             this.cost = 2000;
+            // Online: in a skirmish, Santa as his own level leaves him, with the seven presents
+            // it lays out for him (each, when collected: a shot a frame sooner, down to 2, 25
+            // further and 50 more health) -- as the C&C mod has him (power_up_santa).
+            if(SKIRMISH)
+            {
+               this.maxWeaponCharge = 3;
+               this.weaponRange = 275;
+               this.maxHealth = 550;
+            }
          }
          if(this.type == "UN_evil")
          {

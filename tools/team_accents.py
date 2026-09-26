@@ -15,7 +15,10 @@ an Alien's a yellow-green or a green (the Radar Station's dish is blue, and stay
 output maps each bitmap's character id to [accent hue in degrees, native colour]; the native
 colour is the one the art is already painted in (orange for the Astros, green for the Aliens),
 which needs no repainting.  The baseplates are grey, with no accent: they are coloured all
-over (hue -1).  Pickups and the seasonal and one-off pieces keep their own colours, apart from
+over (hue -1).  Santa's Sleigh, Santa and the Reindeer, which a skirmish's present lets anyone
+build, are coloured as the mod colours them: their accent is looked for all round the colour
+wheel (Santa's red, say), and they have no native colour, so every player's repaints them.
+Pickups and the other one-off pieces keep their own colours, apart from
 the pizza's box, which is its buyer's (Pizza Mode): its entry adds the pixels to leave alone,
 the pizza in the box, as rows of [y, first x, last x].  The Amaze level's flag, which Capture
 the Flag gives every player, has a white cloth and no accent: hue -2 colours its pale pixels.
@@ -43,13 +46,16 @@ ACCENT_OVERRIDE = {
     'UB_good': 32.0,
 }
 
-# Where each faction's accent may lie: window centres, in degrees.
-ACCENT_RANGE = {'orange': (12, 52), 'green': (45, 135)}
+# Where each faction's accent may lie: window centres, in degrees ('wheel': anywhere).
+ACCENT_RANGE = {'orange': (12, 52), 'green': (45, 135), 'wheel': (0, 359)}
 
-# Not a player's: pickups (UI crates, UJ the pizza), the Christmas level's (UM, UN, UO, BJ),
-# the soccer pitch (BI) and the story's rocket (BX).
-NOT_TEAM = {'UI_good', 'UI_evil', 'UJ_good', 'UJ_evil', 'UM_evil', 'UN_evil', 'UO_evil',
-            'BI_good', 'BJ_evil', 'BX_good'}
+# Not a player's: pickups (UI crates, UJ the pizza, UO the presents), the soccer pitch (BI) and
+# the story's rocket (BX).
+NOT_TEAM = {'UI_good', 'UI_evil', 'UJ_good', 'UJ_evil', 'UO_evil', 'BI_good', 'BX_good'}
+
+# Anyone's, with their accent anywhere on the wheel (see above): Santa's Sleigh, Santa and the
+# Reindeer.
+WHEEL = {'UM_evil', 'UN_evil', 'BJ_evil'}
 
 HUD_BITMAPS = {4511: 'good', 4567: 'evil'}   # the sidebar's frame art, and the Aliens' top bar
 ARROWS = {4529: 'good', 4532: 'evil'}          # the tutorial's arrows (the indicator's 'arrow')
@@ -179,7 +185,7 @@ def main():
             ids = set()
             for cid in label_contents(symbol, label, ('unit', 'building')):
                 bitmaps(cid, ids, set())
-            record(label, sorted(ids), 'orange' if label.endswith('_good') else 'green')
+            record(label, sorted(ids), 'wheel' if label in WHEEL else 'orange' if label.endswith('_good') else 'green')
     labels = chars[str(game['exports']['baseplate'])]['labels']
     for label in sorted(labels):
         ids = set()
