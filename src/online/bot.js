@@ -765,7 +765,9 @@ export class Bot {
     let best = null, bestScore = -1;
     for (const b of this.level.buildings) {
       if (!b.active || !b.owner || !this.hostile(b) || this.pizzaProtected(b)) continue;
-      const worth = ['BA', 'BK', 'BC', 'BE', 'BF'].includes(this.code(b)) ? 400 : 100;
+      // (Destroy HQs: the headquarters are the game.)
+      const hq = ['BA', 'BK'].includes(this.code(b));
+      const worth = hq && this.settings.mode === 'hq' ? 1600 : ['BA', 'BK', 'BC', 'BE', 'BF'].includes(this.code(b)) ? 400 : 100;
       const score = worth * 32 / Math.max(1, cells(c.x * CELL, c.y * CELL, b.posX, b.posY));
       if (score > bestScore) { bestScore = score; best = b; }
     }
@@ -846,7 +848,7 @@ export class Bot {
     if (!b.active || !b.owner || !this.hostile(b) || !(b.stats.threat > 0) || this.pizzaProtected(b)) return 0;
     const code = this.code(b);
     if (this.settings.mode === 'pizza') return code === 'BA' ? 0 : code === 'BK' ? 2 : code === 'BL' ? 8 : 1;
-    if (code === 'BA' || code === 'BK') return 3;
+    if (code === 'BA' || code === 'BK') return this.settings.mode === 'hq' ? 8 : 3;
     if (code === 'BL') return this.player.faction === 'evil' ? 4 : 2;
     return 1;
   }

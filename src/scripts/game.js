@@ -8609,6 +8609,12 @@
                {
                   continue;
                }
+               // Online: Destroy HQs: a team with no headquarters left is out at once, all of it.
+               if(this.skirmish?.mode == "hq" && !this.teamHasHQ?.(player))
+               {
+                  this.knockOut?.(player);
+                  continue;
+               }
                if(!this.holdsOn?.(player))
                {
                   this.defeat?.(player);
@@ -8750,6 +8756,24 @@
                }
                index++;
             }
+         };
+         // Online: whether a player's team (the players of its colour still in) has a
+         // headquarters: its own or one it has taken, and (if the settings say so) an Ops Ship
+         // or Hive.
+         this.teamHasHQ = function (player)
+         {
+            var building;
+            var code;
+            for(var index of __as.keys(this.buildings))
+            {
+               building = this.buildings[index];
+               code = building?.type?.substr?.(0, 2);
+               if(building?.active && building.owner && !building.owner.defeated && building.owner.team == player?.team && (code == "BA" || code == "BK" && this.skirmish?.opsHQ !== false))
+               {
+                  return true;
+               }
+            }
+            return false;
          };
          this.holdsOn = function (player)
          {
