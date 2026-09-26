@@ -90,8 +90,9 @@ export class Renderer {
     const h = Math.max(1, Math.round(cssH * dpr));
     if (this.canvas.width !== w) this.canvas.width = w;
     if (this.canvas.height !== h) this.canvas.height = h;
-    const k = Math.max(1e-3, Math.min(cssW / MIN_STAGE_W, cssH / MIN_STAGE_H, this.maxScale || Infinity));
-    this.stageW = Math.max(MIN_STAGE_W, Math.floor(cssW / k));
+    const minW = this.minStageW || MIN_STAGE_W;
+    const k = Math.max(1e-3, Math.min(cssW / minW, cssH / MIN_STAGE_H, this.maxScale || Infinity));
+    this.stageW = Math.max(minW, Math.floor(cssW / k));
     this.stageH = Math.max(MIN_STAGE_H, Math.floor(cssH / k));
     this.scale = Math.min(w / this.stageW, h / this.stageH);
     this.offsetX = (w - this.stageW * this.scale) / 2;
@@ -141,6 +142,7 @@ export class Renderer {
 
   drawObject(ctx, obj, parentM, parentCx) {
     if (!obj.$visible || obj.$removed || obj.$maskOf) return;     // a setMask() mask is never drawn
+    if (obj.$pointer && this.hidePointer) return;                   // (online: touch has no pointer)
     const m = obj.$ipFrame === this.ipFrame || obj.$pointer ? this.smoothed(ctx, obj, parentM) : mul(parentM, obj.$m);
     const cx = cxMul(parentCx, obj.$cx);
     if (cx && cx[3] <= 0 && cx[7] <= 0) return;           // fully transparent

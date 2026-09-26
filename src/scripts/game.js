@@ -2125,7 +2125,8 @@
                this.posX += this.dx;
                this.posY += this.dy;
             }
-            this.quake = random?.(this.shake * 2);
+            // (Online: the shake is the view's, not the game's: its own random numbers.)
+            this.quake = (Online?.fxRandom || random)?.(this.shake * 2);
             this.posY += this.quake;
             if(this.shake > 1)
             {
@@ -2364,7 +2365,7 @@
             _loc2_?.lineTo?.(0, this.viewHeight);
             _loc2_?.lineTo?.(0, 0);
             _loc2_?.endFill;
-            if(random?.(5) == 1 && _loc2_?._alpha < 200)
+            if((Online?.fxRandom || random)?.(5) == 1 && _loc2_?._alpha < 200)
             {
                __as.op(_loc2_, "_alpha", "+", 25);
             }
@@ -3701,7 +3702,7 @@
             this.maxHealth = 1500;
             this.spread = 3;
          }
-         if(this.parent?.friend)
+         if(this.parent?.friend && !this.parent?.parent?.skirmish)
          {
             if(this.parent?.parent?.parent?.parent?.cheatFirepower && this.maxWeaponCharge)
             {
@@ -3986,7 +3987,7 @@
                __as.op(this.owner, "cash", "+", Math.round(this.stats?.cost * 0.5 * (this.healthPerc / 100)));
             }
             var _loc2_;
-            if((this.friend || this.team == this.type?.substr?.(3)) && this.parent?.active)
+            if((this.friend || this.parent?.skirmish || this.team == this.type?.substr?.(3)) && this.parent?.active)
             {
                for(var _loc3_ of __as.keys(this.stats?.children))
                {
@@ -4573,7 +4574,7 @@
          this.altitude2 = this.altitude / 2;
          this.altitudeT2 = this.altitude * 2;
          this.mechanical = this.obstruct || this.flying;
-         if(this.parent?.friend)
+         if(this.parent?.friend && !this.parent?.parent?.skirmish)
          {
             if(this.parent?.parent?.parent?.parent?.cheatFirepower && this.maxWeaponCharge)
             {
@@ -5090,9 +5091,9 @@
                }
             }
          };
-         // (Online: in a skirmish, this browser's player's miners wait for orders, or are sent
-         // by Level.sendMiner.)
-         if(this.parent?.stats?.miner && !(this.parent?.parent?.skirmish && this.parent?.owner == this.parent?.parent?.localPlayer))
+         // (Online: in a skirmish, a person's miners wait for orders, or are sent by
+         // Level.sendMiner from that person's browser.)
+         if(this.parent?.stats?.miner && !(this.parent?.parent?.skirmish && this.parent?.owner && !this.parent?.owner?.bot))
          {
             this.voyage?.(undefined, undefined, false, this.parent?.stats?.bait);
          }
@@ -5520,7 +5521,7 @@
             if(this.respawn && (this.stats?.home?.active && this.stats?.home?.owner == this.owner || this.stats?.pickup))
             {
                _loc3_ = true;
-               if(!this.friend)
+               if(!this.friend || this.parent?.skirmish)
                {
                   if(!(this.owner?.cash < this.stats?.cost))
                   {
@@ -9130,6 +9131,13 @@
                this.execute?.(command);
                return undefined;
             }
+            // In a match over the network, the command goes to every browser (src/online/net.js),
+            // which all run it on the same frame; the network puts it in commandQueue then.
+            if(Online?.net?.active)
+            {
+               Online.net.issue(command);
+               return undefined;
+            }
             this.commandQueue?.push?.(command);
          };
          this.runCommands = function ()
@@ -9305,6 +9313,19 @@
                   {
                      this.launchSuperweapon?.(c.x, c.y);
                   }
+                  break;
+               // A player gives up (or, over the network, left and did not come back): what was
+               // theirs blows up, they are out, and everyone is told.
+               case "surrender":
+                  for(var at of __as.keys(this.buildings))
+                  {
+                     if(this.buildings?.[at]?.active && this.buildings?.[at]?.owner == who)
+                     {
+                        this.buildings?.[at]?.destroy?.();
+                     }
+                  }
+                  this.defeat?.(who);
+                  this.parent?.hud?.showMessage?.(dialogue?.("int_surrendered")?.split?.("%s")?.join?.(String(who.name || "A player")));
                   break;
             }
          };
@@ -9511,7 +9532,15 @@
             while(index < options?.length)
             {
                this.players?.push?.(new Player(this, index, options?.[index]));
-               if(options?.[index]?.control == "local")
+               // (Online: a seat for watching a match over the network: out of it from the start,
+               // and this browser's if it is theirs.)
+               if(options?.[index]?.control == "spectator")
+               {
+                  this.players[index].spectator = true;
+                  this.players[index].defeated = true;
+                  this.players[index].team = "spectators";
+               }
+               if(options?.[index]?.control == "local" || options?.[index]?.control == "spectator" && options?.[index]?.local)
                {
                   this.localPlayer = this.players?.[index];
                }
@@ -9759,6 +9788,15 @@
             if(Key.isDown(27) || MOUSEDOWN && this.parent?.parent?.hud?.MC?.exit?.hitTest?.(_xmouse, _ymouse, true))
             {
                this.parent?.parent?.hud?.popup?.();
+               // (Online: over the network the game does not stop for one player's menu: only
+               // their controls do.)
+               if(Online?.net?.active)
+               {
+                  this.active = false;
+                  __as.set(this.cursorMC, "_visible", false);
+                  Mouse.show();
+                  return undefined;
+               }
                __as.set(this.parent?.parent, "active", false);
                __as.set(this.cursorMC, "_visible", false);
                Mouse.show();
@@ -9787,7 +9825,7 @@
             this.prevMouseX = _xmouse;
             this.prevMouseY = _ymouse;
             this.tilePos = this.parent?.arena?.translatePos?.(this.posX, this.posY);
-            if(this.still > 1 && Online?.prefs?.edgeScroll !== false)
+            if(this.still > 1 && Online?.prefs?.edgeScroll !== false && !Online?.touch)
             {
                if(_xmouse > SCREENX - this.scrollMargin && _xmouse < SCREENX)
                {
@@ -10527,15 +10565,17 @@
             __as.set(this.MC, "cash", "$" + this.displayCash);
             __as.set(this.MC?.training, "_visible", this.parent?.level?.training);
             __as.set(this.MC, "deselect", "");
+            // (Online: on a touch screen, the hint is for its button.)
+            var touch = Online?.touch ? "_touch" : "";
             if(this.parent?.level?.construction?.buildingSite)
             {
-               __as.set(this.MC, "deselect", dialogue?.("int_buildingsite_deselect")?.toUpperCase?.());
+               __as.set(this.MC, "deselect", dialogue?.("int_buildingsite_deselect" + touch)?.toUpperCase?.());
             }
             else
             {
                if(this.parent?.level?.control?.selected?.length)
                {
-                  __as.set(this.MC, "deselect", dialogue?.("int_deselect")?.toUpperCase?.());
+                  __as.set(this.MC, "deselect", dialogue?.("int_deselect" + touch)?.toUpperCase?.());
                }
             }
          };
@@ -10621,9 +10661,18 @@
          {
             this.parent?.sfx?.mute?.(true);
             this.MC?.popup?.gotoAndPlay?.(1);
+            // (Online: over the network there is no restarting; Quit is surrendering.)
+            if(Online?.net?.active)
+            {
+               __as.set(this.MC?.popup?.top?.$childAt?.(6 - 16384), "_visible", false);
+            }
          };
          this.pressRestart = function ()
          {
+            if(Online?.net?.active)
+            {
+               return undefined;
+            }
             this.parent?.sfx?.mute?.(false);
             __as.upd(this.parent, "currentLevel", -1, false);
             this.MC?.popup?.gotoAndPlay?.("out");
@@ -10633,11 +10682,21 @@
          this.pressQuit = function ()
          {
             this.parent?.sfx?.mute?.(false);
+            if(Online?.net?.active)
+            {
+               this.MC?.popup?.gotoAndPlay?.("out");
+               Online.net.quit();
+               return undefined;
+            }
             this.parent?.parent?.gameOver?.("quit");
          };
          this.pressResume = function ()
          {
             this.parent?.sfx?.mute?.(false);
+            if(Online?.net?.active)
+            {
+               __as.set(this.parent?.level?.control, "active", true);
+            }
             __as.set(this.parent, "active", true);
             this.MC?.popup?.gotoAndPlay?.("out");
             Mouse.hide();
@@ -10844,7 +10903,15 @@
             this.fps = this.calcFPS?.();
             this.hud?.handle?.();
             this.control?.handle?.();
-            this.level?.handle?.();
+            // Online: the level's frame is the simulation (its own random numbers).
+            if(Online?.sim)
+            {
+               Online.sim(() => this.level?.handle?.());
+            }
+            else
+            {
+               this.level?.handle?.();
+            }
          };
          this.calcFPS = function ()
          {
@@ -10871,7 +10938,7 @@
             this.level?.destroy?.();
             delete this.level;
             this.currentLevel++;
-            this.level = new Level(this, this.currentLevel);
+            this.level = Online?.sim ? Online.sim(() => new Level(this, this.currentLevel)) : new Level(this, this.currentLevel);
             this.flash?.();
          };
          this.destroy = function ()

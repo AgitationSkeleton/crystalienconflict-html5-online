@@ -11,8 +11,9 @@ Work in progress. See [ROADMAP.md](ROADMAP.md) for what is planned, in what orde
 
 The game fills the window: a wider window shows more of the map instead of enlarging it.
 The main menu leads to a **skirmish** against the computer (set up in the lobby: map,
-players, teams by colour, and the match's settings), to the original **story**, and to the
-**settings** (your name, faction, colour, preferred map palette and volumes, kept in the
+players, teams by colour, and the match's settings), to **online** games against other people
+(host one, join one from the list or by its code, or send friends a link), to the original
+**story**, and to the **settings** (your name, faction, colour, preferred map palette and volumes, kept in the
 browser). In the story's menus, Conflict mode starts a skirmish on Eclipse; the story's two
 Conflict levels are still there, by their access codes.
 
@@ -39,6 +40,16 @@ error report, for a bug report.
 | Esc | pause menu |
 | H | jump to your headquarters |
 | Q + number, number, W + number | assign, select, jump to a squad |
+
+On a phone or tablet, upright or on its side:
+
+| Touch | Action |
+| --- | --- |
+| Tap | select, give orders, build (as a click) |
+| Drag | move the view; on the sidebar, scroll its lists |
+| Press and hold, then drag | draw a selection box |
+| Pinch, two-finger drag | zoom, move the view |
+| ✕ ⌂ ≡ buttons | deselect, jump to your headquarters, menu |
 
 ## Running it locally
 

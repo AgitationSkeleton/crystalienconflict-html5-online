@@ -257,3 +257,52 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 }
 .errnote button:hover { background: rgba(255, 138, 0, 0.35); }
 .errnote .close { padding: 1px 7px; font-size: 14px; }
+
+/* ---- online: the list of games, a room --------------------------------------------------- */
+
+.online-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 14px; width: min(1100px, 100%); position: relative; z-index: 1; align-items: start; }
+.online-grid .side { display: flex; flex-direction: column; gap: 14px; }
+@media (max-width: 860px) { .online-grid { grid-template-columns: minmax(0, 1fr); } }
+.rooms { display: flex; flex-direction: column; gap: 6px; }
+.roomrow {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 52px 70px auto; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px; text-transform: none; letter-spacing: 0;
+}
+.roomrow .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roomrow .ping, .roomrow .phase, .roomrow .count { color: var(--ink-dim); font-size: 12px; text-align: right; }
+.roomrow.playing .phase { color: var(--orange-hi); }
+@media (max-width: 560px) { .roomrow { grid-template-columns: 16px minmax(0, 1fr) auto auto; } .roomrow .ping, .roomrow .phase { display: none; } }
+.join { display: flex; gap: 8px; }
+.code-input { text-transform: uppercase !important; letter-spacing: 0.2em; font-family: monospace !important; }
+.right { display: flex; justify-content: flex-end; }
+
+.room-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 14px; width: min(1100px, 100%); position: relative; z-index: 1; }
+.room-grid > .panel:first-child { grid-row: span 2; }
+.room-grid > .panel.wide { grid-column: 1 / -1; }
+@media (max-width: 860px) { .room-grid { grid-template-columns: minmax(0, 1fr); } .room-grid > .panel:first-child { grid-row: auto; } }
+.slot.mine { box-shadow: inset 0 0 0 1px var(--orange); }
+.btn.kick { padding: 2px 8px; font-size: 13px; }
+.watchers { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--ink-dim); text-transform: none; }
+.watchers:empty { display: none; }
+.coderow { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.coderow .code { font: 700 18px/1 monospace; letter-spacing: 0.25em; color: #fff; min-width: 7ch; }
+.form.access { margin-top: 4px; }
+.chat { display: flex; flex-direction: column; gap: 8px; }
+.chatlog { height: 150px; overflow-y: auto; font-size: 13px; text-transform: none; letter-spacing: 0; line-height: 1.35; }
+.chatlog b { color: var(--orange-hi); font-weight: 600; }
+.toast {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; max-width: min(560px, calc(100vw - 24px));
+  padding: 10px 14px; background: var(--panel); border: 1px solid var(--orange); border-radius: 8px; color: var(--ink);
+  font: 13px/1.3 system-ui, sans-serif; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+}
+.btn.kick::after { display: none; }
+
+/* ---- touch (touch.js): buttons for the keys a touch screen lacks ------------------------- */
+.touchbar { position: fixed; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 12; display: none; gap: 10px; }
+.touchbar.shown { display: flex; }
+.touchbar button {
+  width: 48px; height: 48px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.7); background: rgba(20, 20, 24, 0.55);
+  color: #fff; font: 22px/1 system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); touch-action: manipulation;
+}
+.touchbar button:active { background: rgba(255, 138, 0, 0.7); }

@@ -1,0 +1,38 @@
+// CrystAlien Conflict's server (a Cloudflare Worker): the high-score table (D1), and the online
+// game's master server (the Lobby Durable Object, one for everyone) and match rooms (a Room
+// Durable Object for each).  See README.md here for deploying it.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "crystalien-server",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+
+  // The high-score table.  `npx wrangler d1 create crystalien` prints the id to put here.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "crystalien", "database_id": "00000000-0000-0000-0000-000000000000" }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "LOBBY", "class_name": "Lobby" },
+      { "name": "ROOM", "class_name": "Room" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Lobby", "Room"] }
+  ],
+
+  "vars": {
+    // Pages that may use the server (a trailing :* allows any port, for testing locally).
+    "ALLOWED_ORIGINS": "https://cac.viosarcade.xyz,https://caconline.viosarcade.xyz,http://localhost:*,http://127.0.0.1:*",
+    // The game's own score secret (it is in the SWF: game.js sendScore), to check a score's hash.
+    "SCORE_SECRET": "6a8566530d02deedf2beecbd1868d45f068613ca"
+  },
+
+  // The server's address.  viosarcade.xyz must be a zone on this Cloudflare account; the
+  // address and its certificate are made on the first deploy.
+  "routes": [
+    { "pattern": "cacserver.viosarcade.xyz", "custom_domain": true }
+  ]
+}

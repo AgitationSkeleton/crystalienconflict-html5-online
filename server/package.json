@@ -1,0 +1,15 @@
+{
+  "name": "crystalien-server",
+  "private": true,
+  "description": "CrystAlien Conflict's server: the high-score table and the online game's master server and match rooms (a Cloudflare Worker).",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute crystalien --remote --file=schema.sql",
+    "db:init:local": "wrangler d1 execute crystalien --local --file=schema.sql",
+    "test": "node test/run.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

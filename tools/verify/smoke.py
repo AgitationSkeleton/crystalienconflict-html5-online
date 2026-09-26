@@ -87,6 +87,10 @@ SCENARIOS = {
                         "eval (() => { const lv = player.levels[1].panel.game.level; const n = lv.units.filter((u) => u.active && u.stats.pickup === true).length;"
                         " return lv.crateTarget === 3 && n === 3 ? [] : ['crates: target ' + lv.crateTarget + ', on the ground ' + n]; })()",
                         'step 2760', SOAK, 'shot end'],
+    # The lobby's Start (the menus' own path to a match, with the host's "All random" factions).
+    'lobby-start': ['step 70', "eval (() => { onlineUI.match.factions = 'random'; onlineUI.renderLobby(); onlineUI.start(); return 'started'; })()",
+                    'step 60', "eval (() => { const g = player.levels[1].panel.game; const lv = g && g.level;"
+                    " return lv && lv.skirmish && lv.players.length >= 2 ? [] : ['the lobby did not start a match']; })()", 'step 600', 'shot end'],
     # Pizza Mode, rich enough that pizzas are bought, fetched and eaten within the soak.
     'skirmish-pizza': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'lego-mp01',mode:'pizza',pizzaCost:25000,cash:40000,units:3,"
                        "prebuilt:true,shroud:true,superweapons:true,palette:'snowy',specops:'on',players:[{name:'Me',faction:'evil',colour:'purple',"

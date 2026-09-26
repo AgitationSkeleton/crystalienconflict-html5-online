@@ -9,8 +9,15 @@ import { OnlineUI } from './online/ui.js';
 import { loadSettings, UI_SCALES } from './online/settings.js';
 import { Bot } from './online/bot.js';
 import { ErrorReporter } from './online/errors.js';
+import { Net, serverRoot } from './online/net.js';
+import { installTouch } from './online/touch.js';
+import { scoreServer, askScoreName } from './hiscore.js';
 
-const FLASHVARS = { xmlurl: 'data/dialogue.xml', asseturl: '', serviceurl: '', gamename: 'CrystAlienConflict' };
+// serviceurl: the high-score server (src/hiscore.js), shared with the 1:1 port.  username: the
+// game sends a finished Conflict run's score only for someone logged in to LEGO's site; here
+// anyone may, and is asked for a name (their settings' name suggested) when a score is sent.
+const FLASHVARS = { xmlurl: 'data/dialogue.xml', asseturl: '', serviceurl: scoreServer(new URLSearchParams(location.search)),
+  gamename: 'CrystAlienConflict', username: 'player' };
 const MOVIES = { 'game.swf': 'game' };     // loadMovieNum's file names -> converted movies
 const FPS = 23;
 
@@ -52,8 +59,15 @@ function openMovie(name) {
 const player = new Player(canvas, {
   flashVars: FLASHVARS,
   openMovie: (file) => (MOVIES[file] ? openMovie(MOVIES[file]) : null),
+  scoreName: () => askScoreName(loadSettings().name),
 });
 globalThis.player = player;                // for the console and the verification harness
+// The game's simulation, and random numbers that are not its (src/flash/player.js).
+player.online.sim = (fn) => player.sim(fn);
+player.online.fxRandom = (n) => {
+  n = Math.trunc(+n);
+  return n > 0 ? Math.floor(player.fxRandom() * n) : 0;
+};
 const errors = new ErrorReporter(player);  // (a notice, and a report to copy, when something goes wrong)
 player.online.Bot = Bot;                   // the computer players (the game makes them)
 player.online.icons = ICONS;
@@ -79,6 +93,19 @@ globalThis.__run = () => requestAnimationFrame(loop);
 function setSize(size) {
   player.renderer.maxScale = TEST && !params.has('menus') ? Infinity : UI_SCALES[size] || UI_SCALES.medium;
 }
+// Online: upright on a phone, a match's stage may be narrower than the original's 600 (the
+// sidebar and the view would otherwise be shrunk to fit a narrow screen); the menus keep theirs.
+let fitChecked = 0;
+function fitPortrait() {
+  if (++fitChecked % 20) return;
+  const g = player.levels[1];
+  const inMatch = !!(g && g.panel && g.panel.game);
+  const want = inMatch && innerHeight > innerWidth ? 420 : 600;
+  if (player.renderer.minStageW !== want) {
+    player.renderer.minStageW = want;
+    resize();
+  }
+}
 function resize() {
   const r = canvas.getBoundingClientRect();
   player.renderer.resize(r.width, r.height, window.devicePixelRatio || 1);
@@ -101,7 +128,19 @@ function stagePoint(ev) {
   return player.renderer.toStage((ev.clientX - r.left) * dpr, (ev.clientY - r.top) * dpr);
 }
 
+// (Online: the game reads the button once a frame, so a click's release waits until the game
+// has had two frames to see the press: a touchpad's tap can be quicker than a frame.  Touch has
+// its own handling, src/online/touch.js, which comes first.)
+let pressedAt = 0;
+let pendingUp = null;
+function releaseWhenSeen() {
+  if (pendingUp && player.frame >= pressedAt + 2) {
+    player.pointerUp(pendingUp[0], pendingUp[1]);
+    pendingUp = null;
+  }
+}
 canvas.addEventListener('pointermove', (ev) => {
+  if (ev.pointerType === 'mouse') touchMode(false);
   const [x, y] = stagePoint(ev);
   player.pointerMove(x, y);
 });
@@ -109,15 +148,30 @@ canvas.addEventListener('pointerdown', (ev) => {
   if (ev.button !== 0) return;             // Flash only ever saw the left button
   canvas.focus();
   canvas.setPointerCapture(ev.pointerId);  // a drag that leaves the stage still ends here
+  if (pendingUp) player.pointerUp(pendingUp[0], pendingUp[1]);
+  pendingUp = null;
   const [x, y] = stagePoint(ev);
   player.pointerDown(x, y);
+  pressedAt = player.frame;
   ev.preventDefault();
 });
 canvas.addEventListener('pointerup', (ev) => {
   if (ev.button !== 0) return;
   const [x, y] = stagePoint(ev);
-  player.pointerUp(x, y);
+  pendingUp = [x, y];
+  if (!TEST) releaseWhenSeen();
+  else { player.pointerUp(x, y); pendingUp = null; }
 });
+// Touch (online): taps, drags, pinches, and buttons for the keys a touch screen lacks.  In touch
+// mode the game's pointer is not drawn and the view does not scroll at the screen's edges.
+let touching = false;
+function touchMode(on) {
+  if (touching === on) return;
+  touching = on;
+  player.online.touch = on;
+  player.renderer.hidePointer = on;
+}
+const touch = installTouch({ player, canvas, stagePoint, onTouchMode: touchMode });
 canvas.addEventListener('pointercancel', (ev) => {
   const [x, y] = stagePoint(ev);
   if (player.mouseDown) player.pointerUp(x, y);
@@ -192,9 +246,29 @@ function loop(now) {
   requestAnimationFrame(loop);
   if (last) acc += Math.min(now - last, STEP * 4);
   last = now;
+  releaseWhenSeen();
+  touch.frame(touching);
+  fitPortrait();
+  // Over the network (src/online/net.js), a turn is run only when everyone's orders for it are
+  // here; and a page behind the others runs extra frames, a few milliseconds' worth a refresh
+  // (more when far behind: joining a match under way), until it has caught up.
+  const net = player.online.net && player.online.net.active ? player.online.net : null;
   while (acc >= STEP) {
+    if (net && !net.ready()) {
+      acc = Math.min(acc, STEP);
+      break;
+    }
     acc -= STEP;
+    if (net) net.beforeTick();
     player.tick();
+  }
+  if (net) {
+    const t0 = performance.now();
+    const budget = net.behind() > 60 ? 40 : 8;
+    while (net.active && net.behind() > net.slack() && net.ready() && performance.now() - t0 < budget) {
+      net.beforeTick();
+      player.tick();
+    }
   }
   // Drawn at every refresh of the screen, what moved part of the way to where the next frame
   // will have it, so that it moves smoothly however often the screen refreshes; the game keeps
@@ -236,9 +310,11 @@ async function start() {
   centreLoader();
   player.draw();
   if (!TEST) requestAnimationFrame(loop);
+  // Online play: the master server and match rooms (src/online/net.js; ?server=URL for another).
+  const net = new Net(player, serverRoot(params));
   // Online: the menus, over the game once it has loaded (?test keeps the game's own, for the
   // regression scenarios, unless ?menus asks for them).
-  const ui = new OnlineUI(player, { setSpeed: (f) => { STEP = 1000 / (FPS * (f || 1)); }, setSize: (s) => { setSize(s); resize(); } });
+  const ui = new OnlineUI(player, { setSpeed: (f) => { STEP = 1000 / (FPS * (f || 1)); }, setSize: (s) => { setSize(s); resize(); }, net });
   globalThis.onlineUI = ui;
   if (!TEST || params.has('menus')) {
     const waitForGame = () => {

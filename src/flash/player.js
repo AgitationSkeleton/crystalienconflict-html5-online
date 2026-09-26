@@ -75,21 +75,50 @@ export class Player {
     this.hitContext = hc.getContext('2d');
     this.openMovie = opts.openMovie || null;   // "game.swf" -> { lib, ready } (see loadMovieNum)
     this.onError = opts.onError || ((key, e) => console.error('[as2]', key, e));
+    this.scoreName = opts.scoreName || null;    // () -> Promise of the name a high score goes under (LoadVars)
     this.startTime = performance.now();
-    this.random = Math.random;
+    // Online: two random streams (random() and Math.random() in the scripts draw from whichever
+    // is current).  While the game's simulation runs (simDepth > 0: a level's frame, a level
+    // being made), from the simulation's, seeded by the match and the same in every browser;
+    // otherwise -- sprites' frame scripts, the interface -- from another.  simCalls counts the
+    // simulation's draws, for checking that browsers agree.
+    this.simDepth = 0;
+    this.simCalls = 0;
+    this.simRandom = Math.random;
+    this.fxRandom = Math.random;
+    this.random = () => {
+      if (this.simDepth > 0) {
+        this.simCalls++;
+        return this.simRandom();
+      }
+      return this.fxRandom();
+    };
     installBuiltins(this);
   }
 
-  // A repeatable random sequence (mulberry32), for tests.
+  // A repeatable random sequence (mulberry32), for tests and matches: the simulation's stream
+  // from the seed, and the rest from another derived from it.
   seedRandom(seed) {
-    let a = seed >>> 0;
-    this.random = () => {
+    const stream = (a) => () => {
       a = (a + 0x6d2b79f5) >>> 0;
       let t = a;
       t = Math.imul(t ^ (t >>> 15), t | 1);
       t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+    this.simRandom = stream(seed >>> 0);
+    this.fxRandom = stream((seed ^ 0x9e3779b9) >>> 0);
+    this.simCalls = 0;
+  }
+
+  // Run fn as the game's simulation (its random numbers from the simulation's stream).
+  sim(fn) {
+    this.simDepth++;
+    try {
+      return fn();
+    } finally {
+      this.simDepth--;
+    }
   }
 
   // loadMovieNum(url, n), the loader's way of starting the game.  The SWF's file name

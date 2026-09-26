@@ -84,11 +84,22 @@ As listed, plus later additions:
   scrolls, right-click deselects. It is drawn at the screen's refresh rate, what moves
   shown between the game's 23 frames a second, and the pointer where the mouse is; the
   zoomed-out map keeps its shroud as a picture (the game's own cacheAsBitmap), mended where
-  it changes. When something goes wrong, a notice offers an error report to copy.
-- **2. Skirmish core: under way.** Units and buildings belong to players (up to six, in
+  it changes. When something goes wrong, a notice offers an error report to copy. On a
+  touch screen (`src/online/touch.js`) a tap is a click, a drag moves the view (or scrolls
+  the sidebar's lists), a press held and dragged draws a selection box, and two fingers
+  pinch to zoom; buttons stand in for Space, H and Esc. Upright on a phone, a match's stage
+  narrows (the original's 600 units wide would shrink everything to fit), so the sidebar
+  and the map stay a size to touch. `tools/verify/mobile.py` plays on an emulated phone both
+  ways up.
+- **2. Skirmish core: done.** Units and buildings belong to players (up to six, in
   teams) with their own money and power; the story's levels play as two players, unchanged.
-  Conflict mode starts a skirmish against the computer on Eclipse. Still to come in this
-  step: the match's random seed and the determinism the online game needs.
+  Conflict mode starts a skirmish against the computer on Eclipse. The simulation is the same
+  in every browser: a match's seed; the game's random numbers in two streams, the
+  simulation's and everything else's (sprites' own frame scripts, the camera's shake), so
+  that what one browser shows cannot change another's game; nothing in it depends on which
+  player is this browser's. `tools/verify/twin.py` plays a match in two browsers as its two
+  players, at different window sizes, orders and all, and checks their games agree frame by
+  frame.
 - **3. Team colours: done.** Each player's units and buildings wear their colour in place of
   the faction's (the C&C mod's method: the faction's accent hue is repainted, keeping the
   art's shading; `tools/team_accents.py`), and so does anything in the C&C key green the mod
@@ -139,6 +150,22 @@ As listed, plus later additions:
   present lets its finder build Santa's Sleigh, and with it Santa and his Reindeer (another
   present is $10,000). Crates belong to nobody; computer players send a vehicle for the
   nearest.
+- **8. Online: done.** Online in the main menu lists the games on the master server (host,
+  mode, map, players, ping; a lock on those with a password), joins by a game's code or a
+  link (`?join=CODE`), and hosts: anyone, with a password, or only with the code or link. A
+  room's lobby has slots for people and computer players, the host's match settings, chat,
+  the code (hidden until shown) and a link to copy, and the host can ask someone to leave.
+  Whoever has no slot watches. A match is deterministic lockstep through the room
+  (`src/online/net.js`, `server/src/room.js`): only orders travel, in turns of two frames,
+  with a delay to suit the slowest connection. Someone falling behind (a slow moment, a hidden
+  tab) is not waited for, and catches up; someone joining a match under way watches it,
+  played from the start at speed. Esc opens that player's menu without pausing anything;
+  Quit surrenders. A player who disconnects has 20 seconds to come back; then, or on
+  surrendering, everything of theirs blows up, "<name> has surrendered!", and the match goes
+  on while two teams stand. The browsers' games are compared as they go. After the match,
+  back to the room. The server is a Cloudflare Worker (`server/`, whose README says how to
+  deploy it); `tools/verify/online.py` plays a match through it with two browsers and a
+  latecomer.
 - **4. Bots: done.** Computer players (`src/online/bot.js`) think the way the C&C mod's
   opponent does, as set out in `docs/cnc-ai-spec.md`: a build plan by urgency, the four
   wants, the missions (guard, hunt, attack, harvest and so on), raids on the weakest or
