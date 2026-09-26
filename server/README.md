@@ -23,19 +23,24 @@ npx wrangler login                       # opens the browser to sign in to Cloud
 npx wrangler d1 create crystalien        # prints a database_id
 ```
 
-Put that `database_id` into `wrangler.jsonc` (in place of the zeros), then:
+Put that `database_id` into `wrangler.jsonc` (in place of the zeros; if wrangler offers to add
+it for you, it adds a second binding instead: keep the one called `DB`), then:
 
 ```
 npm run db:init                          # makes the scores table in the database
-npx wrangler secret put ADMIN_KEY        # type a long random password: it guards deleting scores
+npx wrangler secret put ADMIN_KEY        # the NAME is ADMIN_KEY; it then asks for the password
 npm run deploy
 ```
+
+A Cloudflare account that has never had a Worker has no `workers.dev` subdomain, and the first
+deploy fails asking for one (code 10063): open Workers & Pages in the dashboard once, and deploy
+again. (This account's is `viosarcade`.)
 
 `deploy` makes the Worker, its two Durable Objects, and the address `cacserver.viosarcade.xyz`
 with its certificate (it can take a few minutes the first time). Check it at
 https://cacserver.viosarcade.xyz/health, which answers `{"ok":true,...}`.
 
-That's all: both sites already point there. Later changes to the server are just
+It is deployed (2026-09-26). Both sites already point there. Later changes to the server are just
 `npm run deploy` again.
 
 Everything fits Cloudflare's free plan: D1 and SQLite-backed Durable Objects are included, and a
