@@ -2802,6 +2802,7 @@
          this.handle = function ()
          {
             this.fitRows?.();
+            this.showSellRepair?.();
             if(this.doPrereq)
             {
                this.doPrerequisites?.();
@@ -2911,6 +2912,26 @@
             }
             __as.set(this.parent?.arena?.radar?.stats, "_visible", _loc9_);
             this.showCounts?.();
+         };
+         // Online: watching a match (or out of it), there is nothing to sell or mend: the Sell and
+         // Repair buttons are hidden (doMouse ignores them), and a Sell or Repair cursor put away.
+         this.showSellRepair = function ()
+         {
+            var shown = !this.parent?.spectating;
+            var hud = this.parent?.parent?.hud?.MC;
+            if(hud?.sell && hud.sell._visible != shown)
+            {
+               __as.set(hud.sell, "_visible", shown);
+            }
+            if(hud?.repair && hud.repair._visible != shown)
+            {
+               __as.set(hud.repair, "_visible", shown);
+            }
+            var control = this.parent?.control;
+            if(!shown && (control?.advancedCursorState == "sell" || control?.advancedCursorState == "repair"))
+            {
+               __as.set(control, "advancedCursorState", false);
+            }
          };
          // Online: numbers in the bottom corners of the options' pictures: on the right, how many
          // of a unit are being made and wait their turn (the host's Unit queue); on the left, how
@@ -3137,7 +3158,7 @@
          };
          this.doMouse = function (x, y)
          {
-            if(!this.parent?.training)
+            if(!this.parent?.training && !this.parent?.spectating)
             {
                if(this.parent?.parent?.hud?.MC?.sell?.hitTest?.(x, y, true))
                {
