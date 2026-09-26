@@ -32,10 +32,16 @@ const TICKS_PER_FRAME = 15 / 23;
 //   aggression, patrol  how often it looks for trouble and patrols
 //   react        as a person must click: how long after one thing is made it starts the next,
 //                and after a building is ready it puts it down
+//   hunters   of each new fighting unit, the chance in 100 it is sent hunting (the rest keep
+//             to the base, until it is attacked or an attack takes them)
+//   buildGap  ticks between one building and starting the next, unless it is needed now
+//   buildings how many buildings it keeps, unless one is needed now (power, a first miner)
+//   outposts  crystal outposts (BL), at most; reach: minutes for each 8 cells they may go out
+//   sortieGap ticks from one Boomerang sortie to the next it may send (none in the quiet start)
 const PROFILES = {
-  easy: { react: 90, speed: 3, miners: 2, army: 4, guns: 2, quiet: 5400, attackEvery: 3, share: 2, raidEvery: 1800, raidThreatened: 360, raidSize: 2, aggression: 90, patrol: 900, superweapon: false },
-  medium: { react: 45, speed: 5, miners: 3, army: 7, guns: 6, quiet: 2700, attackEvery: 1.5, share: 3, raidEvery: 900, raidThreatened: 240, raidSize: 4, aggression: 45, patrol: 450, superweapon: true },
-  hard: { react: 15, speed: 8, miners: 4, army: 10, guns: 40, quiet: 900, attackEvery: 1, share: 3, raidEvery: 450, raidThreatened: 180, raidSize: 7, aggression: 30, patrol: 300, superweapon: true },
+  easy: { react: 90, speed: 3, miners: 2, army: 4, guns: 2, quiet: 9000, attackEvery: 5, share: 1, raidEvery: 3600, raidThreatened: 360, raidSize: 2, aggression: 90, hunters: 10, patrol: 1800, superweapon: false, buildGap: 1200, buildings: 10, outposts: 2, reach: 9, sortieGap: 2700 },
+  medium: { react: 45, speed: 5, miners: 3, army: 7, guns: 6, quiet: 5400, attackEvery: 2.5, share: 2, raidEvery: 1800, raidThreatened: 240, raidSize: 3, aggression: 45, hunters: 30, patrol: 900, superweapon: true, buildGap: 750, buildings: 14, outposts: 3, reach: 5, sortieGap: 1350 },
+  hard: { react: 15, speed: 8, miners: 4, army: 10, guns: 40, quiet: 900, attackEvery: 1, share: 3, raidEvery: 450, raidThreatened: 180, raidSize: 7, aggression: 30, hunters: 100, patrol: 300, superweapon: true, buildGap: 0, buildings: Infinity, outposts: 4, reach: 3, sortieGap: 0 },
 };
 const CELL = 96;                              // a tile, in world pixels
 
@@ -86,6 +92,9 @@ export class Bot {
     this.placeWait = 0;
     this.placing = null;
     this.readyAt = { unit: 0, building: 0 };  // when it may start the next of each (react)
+    this.lastBuilt = -1e9;                   // when a building was last in production (buildGap)
+    this.wantUrgent = false;                 // the building chosen is needed now
+    this.lastSortie = -1e9;                  // when its Boomerangs were last sent (sorties)
     // Building speed: a player's is 8; the computer never waits to click, so below Hard it
     // builds slower.
     this.speed = this.profile.speed;
@@ -220,8 +229,13 @@ export class Bot {
     if (this.want.building && !this.canBuild(this.want.building)) this.want.building = null;
     if (!this.want.building) this.want.building = this.plan();
     const p = this.production;
-    if (p.building) this.readyAt.building = this.tick + this.profile.react;
-    if (this.want.building && !p.building && this.tick >= this.readyAt.building && this.player.cash > 10) {
+    if (p.building) {
+      this.readyAt.building = this.tick + this.profile.react;
+      this.lastBuilt = this.tick;
+    }
+    // (below Hard, a pause between buildings, unless the one chosen is needed now)
+    const gap = this.wantUrgent ? 0 : this.profile.buildGap;
+    if (this.want.building && !p.building && this.tick >= this.readyAt.building && this.tick >= this.lastBuilt + gap && this.player.cash > 10) {
       if (p.start(this.want.building)) this.want.building = null;
     }
   }
@@ -260,7 +274,7 @@ export class Bot {
     if (cur('BG') === 0 && this.canBuild(bg) && this.canPower(bg) && this.affordable(bg)) offer(bg, tier ? HIGH : MEDIUM);
     const bh = this.slot('BH');
     if (cur('BH') === 0 && this.canBuild(bh) && this.canPower(bh) && this.affordable(bh)) offer(bh, MEDIUM);
-    if (this.count(bl) < 4 && this.canBuild(bl) && this.canPower(bl) && this.affordable(bl)) offer(bl, this.settings.mode === 'pizza' ? CRITICAL : MEDIUM);
+    if (this.count(bl) < this.profile.outposts && this.canBuild(bl) && this.canPower(bl) && this.affordable(bl)) offer(bl, this.settings.mode === 'pizza' ? CRITICAL : MEDIUM);
     // (Santa's Sleigh, the Aliens' building, is anyone's who has found a present.)
     const bj = 'BJ_evil';
     if (this.count(bj) < 1 && this.canBuild(bj) && this.affordable(bj)) offer(bj, MEDIUM);
@@ -277,6 +291,9 @@ export class Bot {
     for (const [type, urgency] of entries) {
       if (urgency > bestUrgency) { best = type; bestUrgency = urgency; }
     }
+    // (below Hard, a base of a size, beyond which only what is needed now is built)
+    this.wantUrgent = bestUrgency >= HIGH;
+    if (!this.wantUrgent && N >= this.profile.buildings) return null;
     return best;
   }
 
@@ -386,7 +403,7 @@ export class Bot {
     const arena = this.arena;
     const minutes = this.tick / 900;
     const diagonal = Math.hypot(arena.cols, arena.rows);
-    const allowed = this.ownBuildings((b) => this.code(b) === 'BH').length ? diagonal : Math.min(Math.max(24, diagonal), 24 + 8 * Math.floor(minutes / 3));
+    const allowed = this.ownBuildings((b) => this.code(b) === 'BH').length ? diagonal : Math.min(Math.max(24, diagonal), 24 + 8 * Math.floor(minutes / this.profile.reach));
     let best = null, bestD = Infinity;
     for (let x = 1; x <= arena.cols; x++) {
       for (let y = 1; y <= arena.rows; y++) {
@@ -747,8 +764,23 @@ export class Bot {
       if (u.stats.transformer && this.random(20) !== 0) continue;
       const m = this.missionOf(u);
       if (u.target || (u.nav.path && u.nav.path.length > 1)) continue;
+      if (m.kind === 'guard' && !reclaim && this.random(100) >= this.profile.hunters) {
+        // (below Hard, most new units keep to the base)
+        u.mission = { kind: 'guard_area', anchor: { x: u.posX, y: u.posY } };
+        continue;
+      }
       if (m.kind === 'guard' || (reclaim && m.kind === 'guard_area')) this.order(u, 'hunt', { target: this.huntPick(u) });
     }
+  }
+
+  // The game gives each computer player, every 320 frames, one of its enemies' buildings for its
+  // Boomerangs to fly at (the level's raiders: friendlyTarget), whatever else it is doing.  Below
+  // Hard, none in the quiet start, and then not every time.
+  sorties() {
+    if (this.calm()) return false;
+    if (this.tick - this.lastSortie < this.profile.sortieGap) return false;
+    this.lastSortie = this.tick;
+    return true;
   }
 
   // ---- §4.3 raid ---------------------------------------------------------------------------------

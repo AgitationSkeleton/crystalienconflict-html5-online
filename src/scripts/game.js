@@ -8332,6 +8332,12 @@
                      continue;
                   }
                   raider.friendlyTarget = false;
+                  // (Online: a computer player below Hard keeps its Boomerangs home in its quiet
+                  // start, and sends them less often -- Bot.sorties.)
+                  if(raider.bot && !raider.bot.sorties())
+                  {
+                     continue;
+                  }
                   _loc9_ = 0;
                   do
                   {
