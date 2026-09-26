@@ -106,6 +106,7 @@ def main():
     ap.add_argument('--seed', type=int, default=4242)
     ap.add_argument('--settings', default=None)
     ap.add_argument('--script', default=None)
+    ap.add_argument('--palette-b', default=None, help="the second page's palette (a player's preference; the view only)")
     ap.add_argument('--port', type=int, default=8796)
     args = ap.parse_args()
 
@@ -123,6 +124,8 @@ def main():
              'palette': 'mars', 'specops': 'on', 'pizzaCost': 25000, 'crates': True, 'christmas': True, 'crateRate': 'often', 'players': players}
         if args.settings:
             s.update(json.loads(args.settings))
+        if me == 1 and args.palette_b:
+            s['palette'] = args.palette_b
         return s
 
     with sync_playwright() as pw:
