@@ -2349,6 +2349,62 @@
          __as.set(this.mask, "_height", this.mugshotHeight * this.maxOnScreen);
          this.glowFilter = new flash.filters.GlowFilter(16777215, 100, 10, 10, 2, 1, true);
          this.MC?.setMask?.(this.mask);
+         // Online: in a skirmish what is being built is the player's Production's (the game's,
+         // which every browser runs); the sidebar shows it, and asks for changes by command.
+         this.production = function ()
+         {
+            return this.parent?.skirmish ? this.parent?.localPlayer?.production : undefined;
+         };
+         this.showProduction = function ()
+         {
+            var production = this.production?.();
+            var kinds = new Array("building", "unit");
+            var index = 0;
+            var item;
+            var option;
+            var current;
+            while(index < kinds.length)
+            {
+               item = production?.[kinds[index]];
+               option = item ? this.shortcuts?.[item.type] : false;
+               current = kinds[index] == "building" ? this.constructingBuilding : this.constructingUnit;
+               if(current && current != option)
+               {
+                  __as.set(current, "progress", 0);
+                  __as.set(current, "inProgress", false);
+                  __as.set(current?.MC?.progress, "_visible", false);
+               }
+               if(option)
+               {
+                  __as.set(option, "progress", item.progress);
+                  __as.set(option, "inProgress", item.progress < item.constructionTime);
+                  __as.set(option?.MC?.progress, "_visible", true);
+                  option?.MC?.progress?.gotoAndStop?.(Math.max(1, Math.ceil(100 * item.progress / item.constructionTime)));
+                  if(item.progress < item.constructionTime && this.parent?.localPlayer?.cash < Math.ceil(8 / item.constructionTime * item.cost))
+                  {
+                     this.sufficientFunds = false;
+                  }
+               }
+               if(kinds[index] == "building")
+               {
+                  this.constructingBuilding = option;
+               }
+               else
+               {
+                  this.constructingUnit = option;
+               }
+               index++;
+            }
+            if(production)
+            {
+               production.speed = this.speed;
+               if(production.finished)
+               {
+                  this.parent?.parent?.sfx?.play?.(production.finished == "unit" ? "INT_constructioncomplete_unit" : "INT_constructioncomplete_building");
+                  production.finished = false;
+               }
+            }
+         };
          this.handle = function ()
          {
             if(this.doPrereq)
@@ -2358,20 +2414,39 @@
             }
             this.scroll?.();
             this.sufficientFunds = true;
+            if(this.production?.())
+            {
+               this.showProduction?.();
+            }
             if(this.buildingSite)
             {
                this.buildingSite?.handle?.();
             }
-            if(!this.constructingBuilding?.active)
+            if(this.production?.())
             {
-               this.cancel?.(this.constructingBuilding, true);
+               // Something whose prerequisite has gone is given up, as the sidebar gives it up.
+               if(this.constructingBuilding && !this.constructingBuilding?.active)
+               {
+                  this.parent?.issue?.({t:"cancel",building:true});
+               }
+               if(this.constructingUnit && !this.constructingUnit?.active)
+               {
+                  this.parent?.issue?.({t:"cancel",building:false});
+               }
             }
-            if(!this.constructingUnit?.active)
+            else
             {
-               this.cancel?.(this.constructingUnit, true);
+               if(!this.constructingBuilding?.active)
+               {
+                  this.cancel?.(this.constructingBuilding, true);
+               }
+               if(!this.constructingUnit?.active)
+               {
+                  this.cancel?.(this.constructingUnit, true);
+               }
+               this.construct?.(this.constructingBuilding);
+               this.construct?.(this.constructingUnit);
             }
-            this.construct?.(this.constructingBuilding);
-            this.construct?.(this.constructingUnit);
             this.overOption = false;
             var _loc9_ = false;
             var _loc10_ = this.MC?.hitTest?.(_xmouse, _ymouse, true);
@@ -2586,6 +2661,10 @@
             {
                return false;
             }
+            if(this.production?.())
+            {
+               return this.skirmishClick?.(current);
+            }
             if(this.constructingBuilding == current && current?.progress == current?.constructionTime)
             {
                this.buildingSite = new BuildingSite(this, this.constructingBuilding?.type);
@@ -2645,6 +2724,42 @@
                {
                   this.parent?.parent?.sfx?.play?.("INT_nofunds");
                }
+            }
+            return true;
+         };
+         // A click on the sidebar in a skirmish: what the original's does, by command.
+         this.skirmishClick = function (current)
+         {
+            var complete = current?.progress == current?.constructionTime;
+            if(this.constructingBuilding == current && complete)
+            {
+               this.buildingSite = new BuildingSite(this, current?.type);
+               return undefined;
+            }
+            if(this.constructingUnit == current && complete && current?.superweapon)
+            {
+               __as.set(this.parent?.control, "advancedCursorState", "superweapon");
+               return undefined;
+            }
+            if(current?.inProgress)
+            {
+               this.parent?.issue?.({t:"cancel",building:!!current?.isBuilding});
+               this.parent?.parent?.sfx?.play?.("INT_invalid");
+               return true;
+            }
+            if(current?.isBuilding && this.constructingBuilding || current?.isUnit && this.constructingUnit)
+            {
+               this.parent?.parent?.sfx?.play?.("INT_invalid");
+               return true;
+            }
+            if(this.parent?.localPlayer?.cash)
+            {
+               this.parent?.issue?.({t:"build",type:current?.type});
+               this.parent?.parent?.sfx?.play?.("INT_construction");
+            }
+            else
+            {
+               this.parent?.parent?.sfx?.play?.("INT_nofunds");
             }
             return true;
          };
@@ -3003,7 +3118,14 @@
                return undefined;
             }
             __as.upd(this.parent?.parent, "outcomeFutures", 1, false);
-            this.parent?.parent?.buildings?.push?.(new Building(this.parent?.parent, this.type, this.parent?.parent?.control?.tilePos?.x, this.parent?.parent?.control?.tilePos?.y, this.parent?.parent?.localPlayer));
+            if(this.parent?.parent?.skirmish)
+            {
+               this.parent?.parent?.issue?.({t:"place",x:this.parent?.parent?.control?.tilePos?.x,y:this.parent?.parent?.control?.tilePos?.y});
+            }
+            else
+            {
+               this.parent?.parent?.buildings?.push?.(new Building(this.parent?.parent, this.type, this.parent?.parent?.control?.tilePos?.x, this.parent?.parent?.control?.tilePos?.y, this.parent?.parent?.localPlayer));
+            }
             this.destroy?.(true);
             this.parent?.parent?.parent?.sfx?.play?.("INT_breakground");
             return true;
@@ -3013,7 +3135,14 @@
             this.MC?.removeMovieClip?.();
             if(!success)
             {
-               __as.op(this.parent?.parent?.localPlayer, "cash", "+", this.stats?.cost);
+               if(this.parent?.parent?.skirmish)
+               {
+                  this.parent?.parent?.issue?.({t:"cancel",building:true});
+               }
+               else
+               {
+                  __as.op(this.parent?.parent?.localPlayer, "cash", "+", this.stats?.cost);
+               }
                this.parent?.parent?.parent?.sfx?.play?.("INT_invalid");
             }
          };
@@ -3303,6 +3432,7 @@
          this.healthPerc = 100;
          this.weaponCharge = this.stats?.maxWeaponCharge;
          this.weaponPayload = this.stats?.maxWeaponPayload;
+         this.id = this.parent?.uniqid;
          this.MC = this.parent?.arena?.MC?.createEmptyMovieClip?.("building_" + __as.upd(this.parent, "uniqid", 1, false), this.parent?.arena?.MC?.getNextHighestDepth?.());
          __as.set(this.MC, "teamColour", this.owner?.colour);
          this.MCbaseplate = this.MC?.attachMovie?.("baseplate", "baseplate", 1);
@@ -4644,6 +4774,7 @@
             this.health = this.stats?.maxHealth * damage;
          }
          this.healthPerc = Math.ceil(this.health / this.stats?.maxHealth * 100);
+         this.id = this.parent?.uniqid;
          this.MC = this.parent?.arena?.MC?.createEmptyMovieClip?.("unit_" + __as.upd(this.parent, "uniqid", 1, false), this.parent?.arena?.MC?.getNextHighestDepth?.());
          __as.set(this.MC, "teamColour", this.owner?.colour);
          this.MCsprite = this.MC?.attachMovie?.("unit", "unit", 1);
@@ -6868,10 +6999,15 @@
             }
             this.owner.cash -= price;
             item.progress = min?.(item.progress + step, item.constructionTime);
-            if(item.progress == item.constructionTime && item.isUnit && !item.superweapon)
+            if(item.progress == item.constructionTime)
             {
-               this.level?.units?.push?.(new Unit(this.level, item.type, undefined, undefined, 0.125 * random?.(8), this.owner));
-               this.unit = false;
+               // (What the sidebar, if it is this browser's player's, says when it is done.)
+               this.finished = item.isUnit && !item.superweapon ? "unit" : "building";
+               if(item.isUnit && !item.superweapon)
+               {
+                  this.level?.units?.push?.(new Unit(this.level, item.type, undefined, undefined, 0.125 * random?.(8), this.owner));
+                  this.unit = false;
+               }
             }
          };
          // A finished building, waiting for somewhere to go.
@@ -6933,7 +7069,6 @@
          this.handle = function ()
          {
             this.count++;
-            this.production?.handle?.();
             this.placeBuilding?.();
             if(!(this.count % 23))
             {
@@ -7170,6 +7305,7 @@
          this.handle = function ()
          {
             this.count++;
+            this.runCommands?.();
             this.handleIndicators?.();
             this.cleanup?.();
             this.control?.handle?.();
@@ -7194,6 +7330,7 @@
             {
                if(this.active && !this.players[index]?.defeated)
                {
+                  this.players[index]?.production?.handle?.();
                   this.players[index]?.bot?.handle?.();
                }
                index++;
@@ -7980,6 +8117,195 @@
                }
             }
          };
+         // Online: commands.  issue() is what this browser's player's controls call; execute()
+         // is the one place a command changes the game, for whichever player gave it.
+         this.commandQueue = new Array();
+         this.issue = function (command)
+         {
+            command.p = this.localPlayer?.index;
+            if(!this.skirmish)
+            {
+               this.execute?.(command);
+               return undefined;
+            }
+            this.commandQueue?.push?.(command);
+         };
+         this.runCommands = function ()
+         {
+            var queue = this.commandQueue;
+            this.commandQueue = new Array();
+            var index = 0;
+            while(index < queue?.length)
+            {
+               this.execute?.(queue[index]);
+               index++;
+            }
+         };
+         // A unit or building by id, if it is still in the game.
+         this.find = function (id)
+         {
+            var index = 0;
+            while(index < this.units?.length)
+            {
+               if(this.units[index]?.id == id && this.units[index]?.active)
+               {
+                  return this.units[index];
+               }
+               index++;
+            }
+            index = 0;
+            while(index < this.buildings?.length)
+            {
+               if(this.buildings[index]?.id == id && this.buildings[index]?.active)
+               {
+                  return this.buildings[index];
+               }
+               index++;
+            }
+            return undefined;
+         };
+         this.execute = function (c)
+         {
+            var who = this.players?.[c?.p];
+            if(!who || who.defeated)
+            {
+               return undefined;
+            }
+            // The player's own units the command names, in the order it names them.
+            var mine = new Array();
+            var index = 0;
+            var u;
+            while(index < c?.u?.length)
+            {
+               u = this.find?.(c.u[index]);
+               if(u && u.owner == who)
+               {
+                  mine.push(u);
+               }
+               index++;
+            }
+            var o = c?.o != undefined ? this.find?.(c.o) : undefined;
+            switch(c?.t)
+            {
+               case "move":
+                  for(index = 0; index < mine.length; index++)
+                  {
+                     mine[index]?.freeBlock?.();
+                     __as.set(mine[index], "target", false);
+                  }
+                  for(index = 0; index < mine.length; index++)
+                  {
+                     __as.set(mine[index], "ordered", true);
+                     mine[index]?.nav?.voyage?.(c.x, c.y, true);
+                  }
+                  for(index = 0; index < mine.length; index++)
+                  {
+                     mine[index]?.setBlock?.(mine[index]?.tilePos?.x, mine[index]?.tilePos?.y);
+                  }
+                  break;
+               case "attack":
+                  if(!o)
+                  {
+                     break;
+                  }
+                  __as.set(o, "hilite", true);
+                  for(index = 0; index < mine.length; index++)
+                  {
+                     if(mine[index]?.stats?.weapon)
+                     {
+                        mine[index]?.wakeUp?.();
+                        __as.set(mine[index], "target", o);
+                     }
+                  }
+                  break;
+               case "repair":
+                  if(!o)
+                  {
+                     break;
+                  }
+                  if(c.wrench && o.owner == who)
+                  {
+                     __as.set(o, "repairing", true);
+                  }
+                  __as.set(o, "hilite", true);
+                  for(index = 0; index < mine.length; index++)
+                  {
+                     if(mine[index]?.stats?.repair)
+                     {
+                        mine[index]?.wakeUp?.();
+                        __as.set(mine[index], "target", o);
+                     }
+                  }
+                  break;
+               case "sell":
+                  if(o && o.owner == who)
+                  {
+                     __as.set(o, "hilite", true);
+                     o.destroy?.(true);
+                  }
+                  break;
+               case "deploy":
+                  if(o && o.owner == who)
+                  {
+                     __as.set(o, "deploy", true);
+                  }
+                  break;
+               case "board":
+                  for(index = 0; index < mine.length; index++)
+                  {
+                     if(mine[index]?.stats?.carriable && o)
+                     {
+                        mine[index]?.wakeUp?.();
+                        __as.set(mine[index], "target", o);
+                     }
+                  }
+                  if(o)
+                  {
+                     __as.set(o, "hilite", true);
+                  }
+                  break;
+               case "home":
+                  for(index = 0; index < mine.length; index++)
+                  {
+                     mine[index]?.wakeUp?.();
+                     mine[index]?.nav?.returnHome?.();
+                  }
+                  if(o)
+                  {
+                     __as.set(o, "hilite", true);
+                  }
+                  break;
+               case "infiltrate":
+                  for(index = 0; index < mine.length; index++)
+                  {
+                     if(mine[index]?.stats?.repair && o)
+                     {
+                        mine[index]?.wakeUp?.();
+                        __as.set(mine[index], "target", o);
+                     }
+                  }
+                  if(o)
+                  {
+                     __as.set(o, "hilite", true);
+                  }
+                  break;
+               case "build":
+                  who.production?.start?.(c.type);
+                  break;
+               case "cancel":
+                  who.production?.cancel?.(c.building);
+                  break;
+               case "place":
+                  who.production?.place?.(c.x, c.y);
+                  break;
+               case "superweapon":
+                  if(who.production?.fire?.())
+                  {
+                     this.launchSuperweapon?.(c.x, c.y);
+                  }
+                  break;
+            }
+         };
          // Online: what a player may build: the sidebar's prerequisites (Construction.
          // doPrerequisites), for any player, by the buildings that player owns.  (The story's
          // levels hold some of it back from the player; that is the sidebar's business.)
@@ -8162,6 +8488,11 @@
                if(this.players[index]?.control == "bot")
                {
                   this.players[index].bot = new Bot(this, this.players[index]);
+                  this.players[index].production = this.players[index].bot.production;
+               }
+               else if(this.skirmish)
+               {
+                  this.players[index].production = new Production(this, this.players[index]);
                }
                index++;
             }
@@ -8451,7 +8782,14 @@
                   this.MOUSEDOWN = MOUSEDOWN = false;
                   this.pressX = this.posX;
                   this.pressY = this.posY;
-                  this.parent?.launchSuperweapon?.(this.posX, this.posY);
+                  if(this.parent?.skirmish)
+                  {
+                     this.parent?.issue?.({t:"superweapon",x:this.posX,y:this.posY});
+                  }
+                  else
+                  {
+                     this.parent?.launchSuperweapon?.(this.posX, this.posY);
+                  }
                }
                this.MOUSEDOWN = MOUSEDOWN;
             }
@@ -8528,6 +8866,16 @@
                this.cursorState = "standard";
             }
             this.updateCursor?.();
+         };
+         // The ids of what is selected, in the order the original went through them.
+         this.selectedIds = function ()
+         {
+            var ids = new Array();
+            for(var index of __as.keys(this.selected))
+            {
+               ids.push(this.selected[index]?.id);
+            }
+            return ids;
          };
          this.numberDown = function ()
          {
@@ -8723,20 +9071,7 @@
                _loc3_ = this.parent?.arena?.MC?.attachMovie?.("pulse", "pulse", 99999997);
                __as.set(_loc3_, "_x", this.pressX);
                __as.set(_loc3_, "_y", this.pressY / 2);
-               for(_loc2_ of __as.keys(this.selected))
-               {
-                  this.selected?.[_loc2_]?.freeBlock?.();
-                  __as.set(this.selected?.[_loc2_], "target", false);
-               }
-               for(_loc2_ of __as.keys(this.selected))
-               {
-                  __as.set(this.selected?.[_loc2_], "ordered", true);
-                  this.selected?.[_loc2_]?.nav?.voyage?.(this.pressX, this.pressY, true);
-               }
-               for(_loc2_ of __as.keys(this.selected))
-               {
-                  this.selected?.[_loc2_]?.setBlock?.(this.selected?.[_loc2_]?.tilePos?.x, this.selected?.[_loc2_]?.tilePos?.y);
-               }
+               this.parent?.issue?.({t:"move",u:this.selectedIds?.(),x:this.pressX,y:this.pressY});
                this.parent?.parent?.sfx?.play?.("INT_cursor_move");
             }
          };
@@ -8800,15 +9135,7 @@
                      }
                      if(this.cursorState == "target")
                      {
-                        __as.set(this.activeTarget, "hilite", true);
-                        for(var _loc2_ of __as.keys(this.selected))
-                        {
-                           if(this.selected?.[_loc2_]?.stats?.weapon)
-                           {
-                              this.selected?.[_loc2_]?.wakeUp?.();
-                              __as.set(this.selected?.[_loc2_], "target", this.activeTarget);
-                           }
-                        }
+                        this.parent?.issue?.({t:"attack",u:this.selectedIds?.(),o:this.activeTarget?.id});
                         this.parent?.parent?.sfx?.play?.("INT_cursor_target");
                      }
                      if(this.cursorState == "repair")
@@ -8816,27 +9143,17 @@
                         if(this.advancedCursorState == "repair")
                         {
                            this.parent?.parent?.sfx?.play?.("INT_cursor_select");
-                           __as.set(this.activeTarget, "repairing", true);
                         }
-                        __as.set(this.activeTarget, "hilite", true);
-                        for(_loc2_ of __as.keys(this.selected))
-                        {
-                           if(this.selected?.[_loc2_]?.stats?.repair)
-                           {
-                              this.selected?.[_loc2_]?.wakeUp?.();
-                              __as.set(this.selected?.[_loc2_], "target", this.activeTarget);
-                           }
-                        }
+                        this.parent?.issue?.({t:"repair",u:this.selectedIds?.(),o:this.activeTarget?.id,wrench:this.advancedCursorState == "repair"});
                      }
                      if(this.cursorState == "sell")
                      {
                         this.parent?.parent?.sfx?.play?.("INT_cursor_select");
-                        __as.set(this.activeTarget, "hilite", true);
-                        this.activeTarget?.destroy?.(true);
+                        this.parent?.issue?.({t:"sell",o:this.activeTarget?.id});
                      }
                      if(this.cursorState == "deploy")
                      {
-                        __as.set(this.activeTarget, "deploy", true);
+                        this.parent?.issue?.({t:"deploy",o:this.activeTarget?.id});
                      }
                      if(this.cursorState == "infiltrate")
                      {
@@ -8844,36 +9161,17 @@
                         {
                            if(this.activeTarget?.stats?.carrier)
                            {
-                              for(_loc2_ of __as.keys(this.selected))
-                              {
-                                 if(this.selected?.[_loc2_]?.stats?.carriable)
-                                 {
-                                    this.selected?.[_loc2_]?.wakeUp?.();
-                                    __as.set(this.selected?.[_loc2_], "target", this.activeTarget);
-                                 }
-                              }
+                              this.parent?.issue?.({t:"board",u:this.selectedIds?.(),o:this.activeTarget?.id});
                            }
                            else
                            {
-                              for(_loc2_ of __as.keys(this.selected))
-                              {
-                                 this.selected?.[_loc2_]?.wakeUp?.();
-                                 this.selected?.[_loc2_]?.nav?.returnHome?.();
-                              }
+                              this.parent?.issue?.({t:"home",u:this.selectedIds?.(),o:this.activeTarget?.id});
                            }
                         }
                         else
                         {
-                           for(_loc2_ of __as.keys(this.selected))
-                           {
-                              if(this.selected?.[_loc2_]?.stats?.repair)
-                              {
-                                 this.selected?.[_loc2_]?.wakeUp?.();
-                                 __as.set(this.selected?.[_loc2_], "target", this.activeTarget);
-                              }
-                           }
+                           this.parent?.issue?.({t:"infiltrate",u:this.selectedIds?.(),o:this.activeTarget?.id});
                         }
-                        __as.set(this.activeTarget, "hilite", true);
                         this.parent?.parent?.sfx?.play?.("INT_cursor_target");
                      }
                   }
@@ -8946,7 +9244,14 @@
             this.advancedCursorState = false;
             if(this.cursorState == "superweapon")
             {
-               __as.op(this.parent?.localPlayer, "cash", "+", this.parent?.construction?.shortcuts?.["UK_" + this.parent?.parent?.team]?.cost);
+               if(this.parent?.skirmish)
+               {
+                  this.parent?.issue?.({t:"cancel",building:false});
+               }
+               else
+               {
+                  __as.op(this.parent?.localPlayer, "cash", "+", this.parent?.construction?.shortcuts?.["UK_" + this.parent?.parent?.team]?.cost);
+               }
             }
             this.cursorState = "standard";
             for(var _loc2_ of __as.keys(this.selected))

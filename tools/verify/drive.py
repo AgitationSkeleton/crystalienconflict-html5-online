@@ -11,6 +11,7 @@ Actions (stage coordinates; the viewport is the 600x400 stage at 1:1 unless --sc
     click X Y          left click, held for two frames
     rclick X Y         right click, held for two frames
     clickjs JS         left click at the stage point [x, y] that JS evaluates to
+    movejs JS          move the mouse there
     down X Y / up X Y  press / release
     move X Y           move the mouse
     mclick X Y, mdown, mup, mmove
@@ -129,6 +130,9 @@ def main():
                 page.evaluate('() => { delete window.__f0; }')
             elif op == 'shot':
                 page.screenshot(path=os.path.join(args.out, rest + '.png'))
+            elif op == 'movejs':
+                sx, sy = page.evaluate(rest)
+                page.mouse.move(*to_page(sx, sy))
             elif op == 'clickjs':
                 sx, sy = page.evaluate(rest)
                 x, y = to_page(sx, sy)
