@@ -246,7 +246,7 @@ export class OnlineUI {
   defaultSlots(saved) {
     const me = this.settings;
     const slots = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 7; i++) {
       const s = saved && saved[i];
       if (i === 0) {
         slots.push({ kind: 'you', name: me.name, faction: s && s.faction === 'spectate' ? 'spectate' : me.faction, colour: me.colour });
@@ -268,7 +268,8 @@ export class OnlineUI {
   buildLobby() {
     this.mapSelect = el('select', { onchange: (e) => { this.match.map = e.target.value; this.renderLobby(); } });
     this.slotCount = el('select', { onchange: (e) => { this.match.slots = Number(e.target.value); this.renderLobby(); } });
-    for (let n = 2; n <= 6; n++) this.slotCount.append(el('option', { value: n, text: n + ' players' }));
+    // (seven, for six players and this one watching)
+    for (let n = 2; n <= 7; n++) this.slotCount.append(el('option', { value: n, text: n + ' slots' }));
     this.mapPreview = el('canvas', { width: 64, height: 64 });
     this.mapName = el('div', { class: 'name' });
     this.mapPlayers = el('div', { class: 'players' });
@@ -316,10 +317,14 @@ export class OnlineUI {
     const factionChoices = this.match.factions === 'all' ? ['good', 'evil', 'random'] : [this.match.factions];
     const spectating = (slot) => slot.kind === 'you' && slot.faction === 'spectate';
     const rows = [];
+    // (a slot beyond the map's bases is marked: counting only those that play)
+    let playing = 0;
     for (let i = 0; i < this.match.slots; i++) {
       const slot = this.slots[i];
-      const over = i >= map.bases;
       if (!factionChoices.includes(slot.faction) && !(i === 0 && slot.faction === 'spectate')) slot.faction = factionChoices[0];
+      const plays = slot.kind !== 'closed' && !spectating(slot);
+      if (plays) playing++;
+      const over = plays && playing > map.bases;
       const kind = i === 0
         ? el('div', { class: 'who' }, el('span', { class: 'name', text: slot.name }))
         : el('select', { 'aria-label': 'Slot ' + (i + 1), onchange: (e) => { slot.kind = e.target.value; this.renderLobby(); } },
@@ -359,7 +364,7 @@ export class OnlineUI {
   problem() {
     const map = this.mapInfo();
     const inUse = this.slots.slice(0, this.match.slots).filter((s) => s.kind !== 'closed' && s.faction !== 'spectate');
-    if (this.match.slots > map.bases) return map.name + ' has room for ' + map.bases + ' players: set the slots to ' + map.bases + ' or fewer, or pick a bigger map.';
+    if (inUse.length > map.bases) return map.name + ' has room for ' + map.bases + ' players: close a slot, or pick a bigger map.';
     if (inUse.length < 2) return 'A match needs at least two players.';
     const teams = new Set(inUse.map((s) => s.colour));
     if (teams.size < 2) return 'Everyone is on the same team (the same colour): give someone another colour.';
@@ -587,7 +592,7 @@ export class OnlineUI {
     this.roomTitle = el('h1', { text: 'Game' });
     this.roomMapSelect = el('select', { 'aria-label': 'Map', onchange: (e) => this.setRoomMatch({ map: e.target.value }) });
     this.roomSlotCount = el('select', { 'aria-label': 'Slots', onchange: (e) => this.net.setCount(Number(e.target.value)) });
-    for (let n = 2; n <= 6; n++) this.roomSlotCount.append(el('option', { value: n, text: n + ' players' }));
+    for (let n = 2; n <= 6; n++) this.roomSlotCount.append(el('option', { value: n, text: n + ' slots' }));
     this.roomPreview = el('canvas', { width: 64, height: 64 });
     this.roomMapName = el('div', { class: 'name' });
     this.roomMapPlayers = el('div', { class: 'players' });
@@ -695,9 +700,11 @@ export class OnlineUI {
     const factionChoices = m.factions === 'all' ? ['good', 'evil', 'random'] : [m.factions];
     const mySlot = r.slots.findIndex((x) => x.kind === 'member' && x.member === net.you);
     const rows = [];
+    let playing = 0;
     for (let i = 0; i < r.count; i++) {
       const slot = r.slots[i];
-      const over = i >= map.bases;
+      if (slot.kind === 'member' || slot.kind === 'bot') playing++;
+      const over = (slot.kind === 'member' || slot.kind === 'bot') && playing > map.bases;
       const mine = i === mySlot;
       const person = slot.kind === 'member' ? members[slot.member] : null;
       let who;
@@ -756,7 +763,7 @@ export class OnlineUI {
 
   roomProblem(r, map) {
     const inUse = r.slots.slice(0, r.count).filter((x) => x.kind === 'member' || x.kind === 'bot');
-    if (r.count > map.bases) return map.name + ' has room for ' + map.bases + ' players: fewer slots, or a bigger map.';
+    if (inUse.length > map.bases) return map.name + ' has room for ' + map.bases + ' players: close a slot, or pick a bigger map.';
     if (inUse.length < 2) return 'A match needs at least two players.';
     const teams = new Set(inUse.map((x) => x.colour));
     if (teams.size < 2) return 'Everyone is on the same team (the same colour): someone needs another colour.';
