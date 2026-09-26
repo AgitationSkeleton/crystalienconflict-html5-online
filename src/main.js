@@ -284,11 +284,26 @@ let drawn = null;
 function loop(now) {
   // (The next one asked for first: an error in a frame must not stop the game.)
   requestAnimationFrame(loop);
-  if (last) acc += Math.min(now - last, STEP * 4);
-  last = now;
   releaseWhenSeen();
   touch.frame(touching);
   fitPortrait();
+  advance(now);
+  // Drawn at every refresh of the screen, what moved part of the way to where the next frame
+  // will have it, so that it moves smoothly however often the screen refreshes; the game keeps
+  // its own frames.  (Not drawn again when nothing has changed: no frame since, nothing on its
+  // way anywhere, and the mouse where it was.)
+  const alpha = acc / STEP;
+  const state = player.frame + '|' + (player.lastMove === player.frame ? alpha : '') + '|' + player.mouse;
+  if (state !== drawn) {
+    drawn = state;
+    player.draw(alpha);
+  }
+}
+
+// The game's frames due by `now`.
+function advance(now) {
+  if (last) acc += Math.min(now - last, STEP * 4);
+  last = now;
   // Over the network (src/online/net.js), a turn is run only when everyone's orders for it are
   // here; and a page behind the others runs extra frames, a few milliseconds' worth a refresh
   // (more when far behind: joining a match under way), until it has caught up.
@@ -310,17 +325,30 @@ function loop(now) {
       player.tick();
     }
   }
-  // Drawn at every refresh of the screen, what moved part of the way to where the next frame
-  // will have it, so that it moves smoothly however often the screen refreshes; the game keeps
-  // its own frames.  (Not drawn again when nothing has changed: no frame since, nothing on its
-  // way anywhere, and the mouse where it was.)
-  const alpha = acc / STEP;
-  const state = player.frame + '|' + (player.lastMove === player.frame ? alpha : '') + '|' + player.mouse;
-  if (state !== drawn) {
-    drawn = state;
-    player.draw(alpha);
-  }
 }
+
+// A hidden page (alt-tabbed away from, another window over it, minimized) has no animation
+// frames.  Alone, the game waits for it; but in a match online the others play on, and it
+// would come back far behind, to seconds of catching up at a few frames a second.  So while
+// hidden in a match, its frames go on from a worker's clock (a hidden page's own timers are
+// slowed to once a second; a worker's are not), and nothing is drawn.
+let hiddenClock = null;
+function watchHidden() {
+  const hidden = document.visibilityState === 'hidden';
+  if (hidden && !hiddenClock) {
+    try {
+      const src = 'let t = null; onmessage = (e) => { clearInterval(t); t = e.data ? setInterval(() => postMessage(0), e.data) : null; };';
+      hiddenClock = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      hiddenClock.onmessage = () => {
+        if (document.visibilityState === 'hidden' && player.online.net && player.online.net.active) advance(performance.now());
+      };
+    } catch (e) {
+      hiddenClock = false;      // (no workers here: as before, it catches up when shown)
+    }
+  }
+  if (hiddenClock) hiddenClock.postMessage(hidden ? 25 : 0);
+}
+document.addEventListener('visibilitychange', watchHidden);
 
 // ---- start ---------------------------------------------------------------------------------
 // Online: the skirmish maps made from other games' (tools/convert_maps.py), for the game to

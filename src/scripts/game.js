@@ -2915,8 +2915,11 @@
          // Online: numbers in the bottom corners of the options' pictures: on the right, how many
          // of a unit are being made and wait their turn (the host's Unit queue); on the left, how
          // many of a thing this player has (a setting of theirs, "Show Unit/Building Count").
+         // And the pictures in this player's colour, or as the game drew them (another setting,
+         // "Team-Coloured Sidebar Icons"; the story's sidebar is the original's either way).
          this.showCounts = function ()
          {
+            var tint = Online?.prefs?.teamIcons === false ? "none" : this.parent?.parent?.localColour;
             var production = this.production?.();
             var queuing = !!production?.queuing;
             var owned = !!Online?.prefs?.ownedCounts && !this.parent?.spectating;
@@ -2949,6 +2952,10 @@
                if(!option?.MC)
                {
                   continue;
+               }
+               if(option.MC.teamColour !== tint)
+               {
+                  __as.set(option.MC, "teamColour", tint);
                }
                this.badge?.(option, "making", 1001, queuing && option.isUnit ? production.making?.(option.type) : 0, true);
                this.badge?.(option, "having", 1002, owned ? have[option.type] || 0 : 0, false);

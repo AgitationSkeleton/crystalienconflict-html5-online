@@ -717,7 +717,7 @@ export class Renderer {
   // baseplate (accent -1) is coloured all over, and a white cloth (-2, the flag's) where it
   // is pale.  Art already in that colour, and art with no
   // accent, is left alone, as are the pixels an accent keeps (rows of [y, first x, last x]: the
-  // pizza in the pizza box).  Returns [image, cache key], in the tints cache.
+  // pizza in the pizza box, the backdrops of the sidebar's pictures).  Returns [image, cache key], in the tints cache.
   teamed(key, img, id, lib, team) {
     const colour = TEAM_COLOURS[team];
     const accent = lib.accents && lib.accents[id];
@@ -740,15 +740,21 @@ export class Renderer {
       const plate = accent[0] === -1;
       const cloth = accent[0] === -2;
       const centre = accent[0];
-      const keep = new Map();
-      for (const [ky, x0, x1] of accent[2] || []) keep.set(ky, [x0, x1]);
+      const keep = new Map();         // row -> [first x, last x, first x, last x, ...]
+      for (const [ky, x0, x1] of accent[2] || []) {
+        const spans = keep.get(ky);
+        if (spans) spans.push(x0, x1);
+        else keep.set(ky, [x0, x1]);
+      }
       const band = accent[3] || TEAM_BAND;     // (wider for a few: tools/team_accents.py)
       for (let i = 0; i < p.length; i += 4) {
         if (!p[i + 3]) continue;
         if (keep.size) {
           const row = keep.get(Math.floor(i / 4 / w));
           const x = (i / 4) % w;
-          if (row && x >= row[0] && x <= row[1]) continue;
+          let kept = false;
+          for (let j = 0; row && j < row.length && !kept; j += 2) kept = x >= row[j] && x <= row[j + 1];
+          if (kept) continue;
         }
         const r = p[i] / 255, gr = p[i + 1] / 255, b = p[i + 2] / 255;
         const max = Math.max(r, gr, b), min = Math.min(r, gr, b), delta = max - min;

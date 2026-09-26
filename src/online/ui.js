@@ -1014,6 +1014,7 @@ export class OnlineUI {
       el('label', { text: 'Scroll at the edges' }), onOff('edgeScroll', 'Scroll at the edges'),
       el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
       el('label', { text: 'Show Unit/Building Count' }), onOff('ownedCounts', 'Show Unit/Building Count'),
+      el('label', { text: 'Team-Coloured Sidebar Icons' }), onOff('teamIcons', 'Team-Coloured Sidebar Icons'),
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface' }), slider('ui'),
@@ -1031,7 +1032,7 @@ export class OnlineUI {
 
   // What the game reads of the settings while it plays.
   applyPrefs() {
-    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts };
+    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons !== false };
   }
 
   applyVolumes() {

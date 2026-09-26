@@ -23,6 +23,12 @@ the pizza's box, which is its buyer's (Pizza Mode): its entry adds the pixels to
 the pizza in the box, as rows of [y, first x, last x].  The Amaze level's flag, which Capture
 the Flag gives every player, has a white cloth and no accent: hue -2 colours its pale pixels.
 The tutorial's arrows, which Capture the Flag puts over a flag's carrier, are coloured too.
+So are the sidebar's pictures of what can be built (a player's setting, "Team-coloured
+icons"): each as its type is, the same accent -- the game's own pictures, the 'mugshots'
+clip's 'option' with a frame for each type, and the C&C mod's for what the game never had on
+its sidebar (src/main.js ICONS).  Each picture is its type on its faction's backdrop, a sky and
+the ground in the Astros' sunset orange or the Aliens' green -- their accents too -- so the
+pixels of the backdrop are kept (rows of [y, first x, last x], as the pizza's).
 """
 
 import colorsys
@@ -66,6 +72,47 @@ WHEEL = {'UM_evil', 'UN_evil', 'BJ_evil'}
 HUD_BITMAPS = {4511: 'good', 4567: 'evil'}   # the sidebar's frame art, and the Aliens' top bar
 ARROWS = {4529: 'good', 4532: 'evil'}          # the tutorial's arrows (the indicator's 'arrow')
 FLAG = 4448                                    # the flag, a tile of the Amaze level
+MUGSHOTS = 4661                                # the sidebar's pictures ('mugshots'.'option')
+ICONS = {'BK_evil': 990001, 'BJ_evil': 990002, 'UM_evil': 990003, 'UN_evil': 990004}   # (src/main.js)
+# A faction's backdrop, from all its pictures: at each pixel, the colour the most of them agree
+# on (within BACKDROP_AGREE).  A picture's pixel is the backdrop's if it is within BACKDROP_NEAR of
+# it there or a pixel away (the pictures are compressed, their skies not quite the same).
+BACKDROP_AGREE = 16
+BACKDROP_NEAR = 20
+
+
+def near(a, b, t):
+    return abs(a[0] - b[0]) <= t and abs(a[1] - b[1]) <= t and abs(a[2] - b[2]) <= t
+
+
+def backdrop_of(pictures):
+    w, h = pictures[0].size
+    back = {}
+    for y in range(h):
+        for x in range(w):
+            px = [im.getpixel((x, y))[:3] for im in pictures]
+            best = max(px, key=lambda c: sum(near(c, q, BACKDROP_AGREE) for q in px))
+            agree = [q for q in px if near(best, q, BACKDROP_AGREE)]
+            back[x, y] = tuple(sum(q[k] for q in agree) // len(agree) for k in range(3))
+    return back
+
+
+def backdrop_keep(im, back):
+    """A picture's pixels that are its backdrop, as rows of [y, first x, last x]."""
+    w, h = im.size
+    keep = []
+    for y in range(h):
+        run = None
+        for x in range(w + 1):
+            p = im.getpixel((x, y))[:3] if x < w else None
+            kept = p is not None and any(near(p, back[xx, yy], BACKDROP_NEAR)
+                                         for xx in (x - 1, x, x + 1) for yy in (y - 1, y, y + 1) if (xx, yy) in back)
+            if kept and run is None:
+                run = x
+            elif not kept and run is not None:
+                keep.append([y, run, x - 1])
+                run = None
+    return keep
 
 # The pizza's box is a pure red (hues 356-4, fully saturated); the pizza in it is everything
 # else -- crust, cheese and pepperoni, some of which are the box's reds too, so the pizza is
@@ -133,8 +180,9 @@ def main():
 
     def label_contents(symbol, label, names=None):
         """The characters a symbol's labelled frame shows (only those placed under the given
-        instance names, if any: a unit's art, not its health bar)."""
-        ch = chars[str(game['exports'][symbol])]
+        instance names, if any: a unit's art, not its health bar).  (symbol: an export's name,
+        or a character's id.)"""
+        ch = chars[str(game['exports'][symbol] if isinstance(symbol, str) else symbol)]
         target = ch['labels'][label]
         shown = {}
         for i, frame in enumerate(ch['frames'][:target]):
@@ -171,6 +219,7 @@ def main():
 
     out = {}
     report = []
+    entries = {}                # each type's, for its pictures on the sidebar
 
     def record(name, ids, native, hue=None):
         if name in NOT_TEAM:
@@ -183,6 +232,7 @@ def main():
         if hue is None:
             return
         entry = [hue, native] if name not in ACCENT_BAND else [hue, native, [], ACCENT_BAND[name]]
+        entries[name] = entry
         for bid in ids:
             out.setdefault(str(bid), entry)
 
@@ -193,6 +243,26 @@ def main():
             for cid in label_contents(symbol, label, ('unit', 'building')):
                 bitmaps(cid, ids, set())
             record(label, sorted(ids), 'wheel' if label in WHEEL else 'orange' if label.endswith('_good') else 'green')
+    pictures = {}
+    for label in sorted(chars[str(MUGSHOTS)]['labels']):
+        ids = set()
+        for cid in label_contents(MUGSHOTS, label):
+            bitmaps(cid, ids, set())
+        pictures[label] = [(bid, image(bid)) for bid in sorted(ids)]
+    for label, bid in ICONS.items():
+        pictures[label] = [(bid, Image.open(os.path.join(ROOT, 'assets', 'online', 'icons', label + '.png')).convert('RGBA'))]
+    backdrops = {}
+    for side in ('good', 'evil'):
+        backdrops[side] = backdrop_of([im for label, pics in pictures.items() if label.endswith(side) and label not in ICONS for _, im in pics])
+    for label, pics in sorted(pictures.items()):
+        if label not in entries:
+            continue
+        hue, native = entries[label][:2]
+        band = entries[label][3:]
+        for bid, im in pics:
+            keep = backdrop_keep(im, backdrops[label[-4:]])
+            out[str(bid)] = [hue, native, keep] + band
+            report.append('%-12s picture %d: %d of %d pixels its backdrop' % (label, bid, sum(x1 - x0 + 1 for _, x0, x1 in keep), im.size[0] * im.size[1]))
     labels = chars[str(game['exports']['baseplate'])]['labels']
     for label in sorted(labels):
         ids = set()

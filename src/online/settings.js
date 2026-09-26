@@ -30,6 +30,7 @@ export const DEFAULTS = {
   edgeScroll: true,         // the view scrolls when the pointer is at its edge
   autoMine: true,           // a new miner of yours goes to the nearest crystals
   ownedCounts: false,       // the sidebar shows how many of each thing you have
+  teamIcons: true,          // the sidebar's pictures in your colour
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -47,7 +48,7 @@ export function loadSettings() {
   if (!COLOURS.includes(s.colour)) s.colour = DEFAULTS.colour;
   if (!['all', 'mars', 'snowy', 'hive', 'random'].includes(s.palette)) s.palette = DEFAULTS.palette;
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
-  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
+  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'teamIcons']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);
     s[k] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULTS[k];
