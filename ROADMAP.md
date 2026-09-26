@@ -94,6 +94,15 @@ As listed, plus later additions:
   extracted (`tools/maps/`) and drawn with CrystAlien's own rock, acid-pool and crystal tiles
   (`tools/convert_maps.py`). LEGO bridge sites are ground; islands a LEGO player reached by
   boat get a causeway across the narrowest water so every base can reach every other.
+- **5. Game modes: under way.** Destroy All and Destroy Structures, and **Pizza Mode**, by
+  the C&C mod's rules: any player can buy a pizza at their headquarters (the lobby sets its
+  price; it takes as long as the original's), which is delivered to a random reachable spot
+  in the buyer's colour (the box only; the pizza stays a pizza). The buyer's team sees the
+  ground around it, everyone else hears the alarm, and it blinks on every radar through the
+  shroud. The team that collects its own pizza wins; anyone else's units leave it alone.
+  Headquarters take no harm and cannot be sold or infiltrated, and every player gets $400
+  a minute. Computer players buy one when they can afford it, send their fastest unit for
+  it, and post four armed units on the enemy's. Capture the Flag and crates are next.
 - **4. Bots: done.** Computer players (`src/online/bot.js`) think the way the C&C mod's
   opponent does, as set out in `docs/cnc-ai-spec.md`: a build plan by urgency, the four
   wants, the missions (guard, hunt, attack, harvest and so on), raids on the weakest or

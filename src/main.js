@@ -25,12 +25,22 @@ function loadScript(src) {
   });
 }
 
+// Online: sidebar pictures the game never had (tools/make_icons.py), as library bitmaps under
+// ids of their own.
+const ICONS = { BK_evil: 990001 };
+async function loadIcons(lib) {
+  await Promise.all(Object.entries(ICONS).map(async ([type, id]) => {
+    const r = await fetch(`assets/online/icons/${type}.png`);
+    if (r.ok) lib.bitmaps.set(id, await createImageBitmap(await r.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'default' }));
+  }));
+}
+
 // A movie is its library (data + media) and its translated ActionScript.  The game's comes with
 // the accents its art is painted in, for team colours (tools/team_accents.py).
 function openMovie(name) {
   const lib = new Library(name, `assets/${name}/`);
   const ready = Promise.all([
-    lib.load(`data/${name}.json`, sizes),
+    lib.load(`data/${name}.json`, sizes).then(() => (name === 'game' ? loadIcons(lib) : null)),
     globalThis.__scripts && globalThis.__scripts[name] ? null : loadScript(`src/scripts/${name}.js`),
     name === 'game' ? fetch('data/accents.json').then((r) => r.json()).then((a) => { lib.accents = a; }) : null,
   ]);
@@ -43,6 +53,7 @@ const player = new Player(canvas, {
 });
 globalThis.player = player;                // for the console and the verification harness
 player.online.Bot = Bot;                   // the computer players (the game makes them)
+player.online.icons = ICONS;
 
 // ?test stops the clock: frames advance only when __step() is called, so a test decides
 // exactly when each click lands.  ?seed=N makes the random numbers repeatable.

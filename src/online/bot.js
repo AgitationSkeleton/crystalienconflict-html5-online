@@ -67,7 +67,7 @@ export class Bot {
   // ---- the game's side ------------------------------------------------------------------------
   get arena() { return this.level.arena; }
   get settings() { return this.level.skirmish || {}; }
-  own(test) { return this.level.units.filter((u) => u.active && u.owner === this.player && (!test || test(u))); }
+  own(test) { return this.level.units.filter((u) => u.active && u.owner === this.player && !u.stats.pickup && (!test || test(u))); }
   ownBuildings(test) { return this.level.buildings.filter((b) => b.active && b.owner === this.player && (!test || test(b))); }
   code(obj) { return obj.type.substr(0, 2); }
   side(obj) { return obj.type.substr(3); }
@@ -115,6 +115,7 @@ export class Bot {
     if (this.every(15, 7 * this.id)) this.infiltrate();
     if (this.every(15, 3 * this.id)) this.missions();
     this.idleWatch();
+    if (this.settings.mode === 'pizza' && this.every(15, 13 * this.id)) this.pizza();
     if (--this.expertTimer <= 0) {
       this.expertTimer = 75 + 1 + this.random(7);
       this.expert();
@@ -938,6 +939,36 @@ export class Bot {
     if (best) this.order(collector, 'move', { dest: { x: best.posX, y: best.posY }, errand: true });
   }
 
+  // ---- §5.1 CAC_AI_Pizza: fetch our pizza, camp theirs ------------------------------------------
+  pizza() {
+    const pizzas = this.level.pizzas ? this.level.pizzas() : [];
+    const mine = pizzas.find((p) => !this.hostile(p));
+    const theirs = pizzas.find((p) => this.hostile(p));
+    const at = (spot, p) => spot && cells(spot.x, spot.y, p.posX, p.posY) < 1;
+    // The fastest unit that is not a miner (armed or not, busy or not) runs for ours, unless
+    // one is on its way already.
+    if (mine && !this.own((u) => u.mission && u.mission.kind === 'move' && at(u.mission.dest, mine)).length) {
+      let runner = null;
+      for (const u of this.own((x) => (this.vehicle(x) || this.infantry(x)) && !this.isMiner(x) && x.posX >= 0)) {
+        if (!runner || (u.stats.speed || 0) > (runner.stats.speed || 0)) runner = u;
+      }
+      if (runner) this.order(runner, 'move', { dest: { x: mine.posX, y: mine.posY }, runner: true });
+    }
+    // Four armed units sit on theirs: vehicles first, then infantry.
+    if (theirs) {
+      let posted = 0;
+      for (const u of [...this.own((x) => this.vehicle(x)), ...this.own((x) => this.infantry(x))]) {
+        if (posted >= 4) break;
+        if (!this.armed(u) || this.isMiner(u) || u.posX < 0 || (u.mission && u.mission.runner)) continue;
+        const m = this.missionOf(u);
+        if (m.kind === 'capture' || m.kind === 'enter') continue;
+        if (m.kind === 'guard_area' && at(m.anchor, theirs)) { posted++; continue; }
+        this.order(u, 'guard_area', { anchor: { x: theirs.posX, y: theirs.posY }, camp: true });
+        posted++;
+      }
+    }
+  }
+
   // ---- §4.10 idle watch --------------------------------------------------------------------
   idleWatch() {
     if (this.tick % 5) return;                    // (every tick in the mod; five is plenty here)
@@ -1028,7 +1059,12 @@ export class Bot {
     const p = this.production;
     const uk = this.mine('UK');
     if (p.unit && p.unit.type === uk && p.unit.progress === p.unit.constructionTime) {
-      const target = this.level.buildings.find((b) => b.active && b.owner && this.hostile(b) && !this.pizzaProtected(b));
+      // (The mod fires at the first hostile building, a Pizza Mode headquarters too, which
+      // shrugs it off.  Here a building that can be harmed comes first; but a headquarters
+      // is still fired on when there is nothing else, since the finished weapon holds up
+      // this player's other units until it is fired.)
+      const hostile = this.level.buildings.filter((b) => b.active && b.owner && this.hostile(b));
+      const target = hostile.find((b) => !this.pizzaProtected(b)) || hostile[0];
       if (target && p.fire()) this.level.launchSuperweapon(target.posX, target.posY);
       return;
     }

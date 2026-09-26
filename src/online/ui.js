@@ -8,9 +8,10 @@ const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
 // The match settings, with the choices the lobby offers.  `ready` says whether the game does
-// anything with a setting yet; the rest are shown, and marked as coming.
+// anything with a setting yet; the rest are shown, and marked as coming.  `when` says which
+// other settings a setting depends on (the pizza's cost is only for Pizza Mode).
 const MATCH = [
-  { key: 'mode', label: 'Game mode', ready: true, choices: [['all', 'Destroy all'], ['structures', 'Destroy structures'], ['pizza', 'Pizza mode'], ['ctf', 'Capture the flag']], only: { pizza: false, ctf: false } },
+  { key: 'mode', label: 'Game mode', ready: true, choices: [['all', 'Destroy all'], ['structures', 'Destroy structures'], ['pizza', 'Pizza mode'], ['ctf', 'Capture the flag']], only: { ctf: false } },
   { key: 'cash', label: 'Starting money', ready: true, choices: [[2500, '$2,500'], [5000, '$5,000'], [7500, '$7,500'], [10000, '$10,000'], [15000, '$15,000'], [20000, '$20,000'], [30000, '$30,000'], [50000, '$50,000']] },
   { key: 'units', label: 'Starting units', ready: true, choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']] },
   { key: 'prebuilt', label: 'Base', ready: true, choices: [[false, 'HQ only'], [true, 'HQ, power, barracks']] },
@@ -19,7 +20,7 @@ const MATCH = [
   { key: 'christmas', label: 'Christmas crate', ready: false, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'crateRate', label: 'Crates appear', ready: false, choices: [['rare', 'Rarely'], ['normal', 'Normally'], ['often', 'Often']] },
   { key: 'income', label: 'Passive income', ready: true, choices: [[0, 'None'], [200, '$200 a minute'], [400, '$400 a minute'], [800, '$800 a minute']] },
-  { key: 'pizzaCost', label: 'Pizza cost', ready: false, choices: [[25000, '$25,000'], [50000, '$50,000'], [100000, '$100,000']] },
+  { key: 'pizzaCost', label: 'Pizza cost', ready: true, when: (m) => m.mode === 'pizza', choices: [[25000, '$25,000'], [50000, '$50,000'], [100000, '$100,000']] },
   { key: 'speed', label: 'Game speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Fastest']] },
   { key: 'shroud', label: 'Shroud', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'superweapons', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
@@ -261,7 +262,7 @@ export class OnlineUI {
     this.slotList.replaceChildren(...rows);
 
     this.matchForm.replaceChildren(...MATCH.flatMap((m) => {
-      const select = el('select', { 'aria-label': m.label, disabled: !m.ready, onchange: (e) => {
+      const select = el('select', { 'aria-label': m.label, disabled: !m.ready || (m.when && !m.when(this.match)), onchange: (e) => {
         const c = m.choices.find(([v]) => String(v) === e.target.value);
         this.match[m.key] = c ? c[0] : this.match[m.key];
         this.renderLobby();

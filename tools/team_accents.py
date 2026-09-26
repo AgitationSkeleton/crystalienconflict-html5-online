@@ -15,7 +15,9 @@ an Alien's a yellow-green or a green (the Radar Station's dish is blue, and stay
 output maps each bitmap's character id to [accent hue in degrees, native colour]; the native
 colour is the one the art is already painted in (orange for the Astros, green for the Aliens),
 which needs no repainting.  The baseplates are grey, with no accent: they are coloured all
-over (hue -1).  Pickups and the seasonal and one-off pieces keep their own colours.
+over (hue -1).  Pickups and the seasonal and one-off pieces keep their own colours, apart from
+the pizza's box, which is its buyer's (Pizza Mode): its entry adds the pixels to leave alone,
+the pizza in the box, as rows of [y, first x, last x].
 """
 
 import colorsys
@@ -48,6 +50,38 @@ NOT_TEAM = {'UI_good', 'UI_evil', 'UJ_good', 'UJ_evil', 'UM_evil', 'UN_evil', 'U
             'BI_good', 'BJ_evil', 'BX_good'}
 
 HUD_BITMAPS = {4511: 'good', 4567: 'evil'}   # the sidebar's frame art, and the Aliens' top bar
+
+# The pizza's box is a pure red (hues 356-4, fully saturated); the pizza in it is everything
+# else -- crust, cheese and pepperoni, some of which are the box's reds too, so the pizza is
+# taken as the area its own colours span, row by row and column by column.
+PIZZA = 'UJ_good'
+PIZZA_RED = 2.0
+
+
+def pizza_keep(img):
+    """The pizza in its box, as rows of [y, first x, last x]."""
+    w, h = img.size
+    px = img.load()
+
+    def box(r, g, b):
+        hue, s, _ = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+        hue *= 360
+        return s >= 0.95 and (hue <= 4 or hue >= 356)
+
+    food = [(x, y) for y in range(h) for x in range(w)
+            if px[x, y][3] and max(px[x, y][:3]) > 40 and not box(*px[x, y][:3])]
+    rows, cols = {}, {}
+    for x, y in food:
+        lo, hi = rows.get(y, (x, x))
+        rows[y] = (min(lo, x), max(hi, x))
+        lo, hi = cols.get(x, (y, y))
+        cols[x] = (min(lo, y), max(hi, y))
+    keep = []
+    for y in sorted(rows):
+        xs = [x for x in range(rows[y][0], rows[y][1] + 1) if x in cols and cols[x][0] <= y <= cols[x][1]]
+        if xs:
+            keep.append([y, xs[0], xs[-1]])
+    return keep
 
 
 def main():
@@ -150,6 +184,12 @@ def main():
         record('baseplate:' + label, sorted(ids), '', hue=-1.0)
     for bid, side in HUD_BITMAPS.items():
         record('hud:%d' % bid, [bid], 'orange' if side == 'good' else 'green')
+    ids = set()
+    for cid in label_contents('unit', PIZZA, ('unit',)):
+        bitmaps(cid, ids, set())
+    for bid in sorted(ids):
+        out[str(bid)] = [PIZZA_RED, 'red', pizza_keep(image(bid))]
+        report.append('%-12s %-6s %5.1f  (bitmap %d, the pizza kept in %d rows)' % (PIZZA, 'red', PIZZA_RED, bid, len(out[str(bid)][2])))
 
     path = os.path.join(ROOT, 'data', 'accents.json')
     with open(path, 'w', encoding='utf-8', newline='\n') as fh:

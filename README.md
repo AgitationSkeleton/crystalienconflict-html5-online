@@ -16,6 +16,12 @@ players, teams by colour, and the match's settings), to the original **story**, 
 browser). In the story's menus, Conflict mode starts a skirmish on Eclipse; the story's two
 Conflict levels are still there, by their access codes.
 
+A skirmish is won by destroying everything the other teams have, or only their buildings,
+or in **Pizza Mode** by collecting your own pizza: buy one at your headquarters (it lands
+somewhere random, in your colour, and shows on every radar), then get a unit to it before
+the enemy parks on it. Headquarters can't be destroyed in Pizza Mode, and everyone gets
+$400 a minute.
+
 | Control | Action |
 | --- | --- |
 | Left click, drag | select units, give orders (as in the original) |

@@ -1174,6 +1174,25 @@
                }
             }
             this.blips = new Array();
+            // Online: a pizza is on everyone's radar, shroud or no shroud, blinking in its
+            // owner's colour (Pizza Mode; the story's pizza stays hidden).
+            this.MCpizzas = this.MC?.createEmptyMovieClip?.("pizzas", 11);
+            var pizzas = this.parent?.parent?.skirmish ? this.parent?.parent?.pizzas?.() : undefined;
+            var index = 0;
+            while(index < pizzas?.length && this.parent?.parent?.count % 20 < 13)
+            {
+               _loc3_ = this.MCpizzas?.attachMovie?.("blip", "pizza" + index, index);
+               __as.set(_loc3_, "_x", pizzas[index].posX * this.scaler + this.marginX);
+               __as.set(_loc3_, "_y", pizzas[index].posY * this.scaler + this.marginY);
+               __as.set(_loc3_, "_xscale", 200);
+               __as.set(_loc3_, "_yscale", 200);
+               _loc3_?.gotoAndStop?.(pizzas[index].team);
+               if(TEAM_RGB?.[pizzas[index].owner?.colour] != undefined)
+               {
+                  new Color(_loc3_)?.setRGB?.(TEAM_RGB?.[pizzas[index].owner?.colour]);
+               }
+               index++;
+            }
             __as.set(this.MCportal, "_x", -this.parent?.posX * this.scaler + this.marginX);
             __as.set(this.MCportal, "_y", -this.parent?.posY * 2 * this.scaler + this.marginY);
          };
@@ -1780,6 +1799,27 @@
                   _loc2_ = _loc2_ + 1;
                }
                _loc3_ = _loc3_ + 1;
+            }
+            this.needToUpdate = true;
+         };
+         // Online: everything within a radius of a cell is seen (a pizza's surroundings, by its
+         // buyer's team).
+         this.revealAround = function (x, y, radius)
+         {
+            var dx = -radius;
+            var dy;
+            while(!(dx > radius))
+            {
+               dy = -radius;
+               while(!(dy > radius))
+               {
+                  if(!(dx * dx + dy * dy > radius * radius) && x + dx >= 1 && y + dy >= 1 && !(x + dx > this.cols) && !(y + dy > this.rows))
+                  {
+                     __as.set(this.tiles?.[x + dx], y + dy, true);
+                  }
+                  dy++;
+               }
+               dx++;
             }
             this.needToUpdate = true;
          };
@@ -2703,7 +2743,13 @@
                   this[_loc4_]++;
                   var MC = __as.set(_loc3_, "MC", this["MC" + _loc4_]?.attachMovie?.("mugshots", "mugshot_" + _loc3_?.type, _loc2_));
                   __as.set(MC, "_y", (this[_loc4_] - 1) * this.mugshotHeight);
-                  MC?.option?.gotoAndStop?.(_loc3_?.type);
+                  // (Online: the Aliens' pizza has the Astros' picture; there is only the one.)
+                  MC?.option?.gotoAndStop?.(_loc3_?.type == "UJ_evil" ? "UJ_good" : _loc3_?.type);
+                  // (And the Hive, which was never on the sidebar, has one made for it.)
+                  if(Online?.icons?.[_loc3_?.type])
+                  {
+                     MC?.option?.createEmptyMovieClip?.("picture", 1000)?.attachBitmap?.(flash.display.BitmapData?.loadBitmap?.("#" + Online.icons[_loc3_.type]), 1);
+                  }
                   __as.set(MC?.progress, "_visible", false);
                   __as.set(this.options?.[_loc2_], "MC", MC);
                   __as.set(this.options?.[_loc2_], "posX", MC?._x + this["MC" + _loc4_]?._x + this.MC?._x + this.mugshotWidth - 10);
@@ -3708,7 +3754,7 @@
          {
             this.hilite = true;
             var _loc3_;
-            if(weapon?.dmg)
+            if(weapon?.dmg && !this.parent?.pizzaProtected?.(this))
             {
                this.owner?.bot?.damaged?.(this, weapon?.shooter);
                this.health -= weapon?.dmg;
@@ -4185,7 +4231,9 @@
                __as.set(this.parent, "tilePos", {x:destX,y:destY});
             }
          }
-         if(this.type == "UJ_good")
+         // Online: in a skirmish either side can have a pizza delivered (Pizza Mode).  It is
+         // delivered by the level (Level.deliverPizza), not dropped anywhere on the map's top half.
+         if(this.type == "UJ_good" || this.type == "UJ_evil" && SKIRMISH)
          {
             this.max = 1;
             this.threat = 0;
@@ -4199,7 +4247,7 @@
             this.obstruct = false;
             this.pickup = "special";
             this.cost = 5000;
-            if(this.parent?.isUnit)
+            if(this.parent?.isUnit && !SKIRMISH)
             {
                do
                {
@@ -4314,6 +4362,12 @@
             this.altitude = 20;
          }
          this.constructionTime = this.cost;
+         // Online: a skirmish's pizza costs what the settings say, and takes as long to make as
+         // the original's (the C&C mod's rule).
+         if(this.pickup == "special" && SKIRMISH?.pizzaCost)
+         {
+            this.cost = SKIRMISH.pizzaCost;
+         }
          this.size2 = this.size / 2;
          this.maxAltitude = this.altitude;
          this.altitude2 = this.altitude / 2;
@@ -4727,6 +4781,12 @@
                {
                   if(this.parent?.parent?.hostile?.(this.target, this.parent))
                   {
+                     // (Online: nor, in Pizza Mode, a headquarters.)
+                     if(this.parent?.parent?.pizzaProtected?.(this.target))
+                     {
+                        __as.set(this.parent, "target", false);
+                        return false;
+                     }
                      this.parent?.doInfiltrate?.();
                      return true;
                   }
@@ -4858,7 +4918,7 @@
          this.team = !team?.isPlayer ? team : this.owner?.faction;
          this.friend = this.owner == this.parent?.localPlayer;
          this.stats = new UnitStats(this);
-         if(this.owner?.bot && !this.stats?.boomerang)
+         if(this.owner?.bot && !this.stats?.boomerang && !this.stats?.pickup)
          {
             this.hal = this.owner.bot.hal(this);
          }
@@ -4904,7 +4964,7 @@
          this.MC = this.parent?.arena?.MC?.createEmptyMovieClip?.("unit_" + __as.upd(this.parent, "uniqid", 1, false), this.parent?.arena?.MC?.getNextHighestDepth?.());
          __as.set(this.MC, "teamColour", this.owner?.colour);
          this.MCsprite = this.MC?.attachMovie?.("unit", "unit", 1);
-         this.MCsprite?.gotoAndStop?.(this.type);
+         this.MCsprite?.gotoAndStop?.(this.type == "UJ_evil" && SKIRMISH ? "UJ_good" : this.type);
          __as.set(this.MCsprite?.unit, "_x", __as.set(this.MCsprite?.shadow, "_x", -this.MCsprite?.unit?.bank?._width / 2));
          __as.set(this.MCsprite?.unit, "_y", __as.set(this.MCsprite?.shadow, "_y", -this.MCsprite?.unit?.bank?._height / 2));
          __as.set(this.MCsprite?.health, "_y", -Math.round(this.stats?.altitude + this.stats?.size2 + 20));
@@ -5256,6 +5316,18 @@
          {
             if(!this.active)
             {
+               return undefined;
+            }
+            if(this.stats?.pickup == "special" && this.parent?.skirmish)
+            {
+               // Online: a pizza (Pizza Mode).  Anyone else walking over it leaves it be.
+               if(this.parent?.hostile?.(collectee, this))
+               {
+                  return undefined;
+               }
+               this.makeNoise?.("INT_collect");
+               this.destroy?.(true);
+               this.parent?.eatPizza?.(this, collectee);
                return undefined;
             }
             this.makeNoise?.("INT_collect");
@@ -7132,7 +7204,14 @@
                this.finished = item.isUnit && !item.superweapon ? "unit" : "building";
                if(item.isUnit && !item.superweapon)
                {
-                  this.level?.units?.push?.(new Unit(this.level, item.type, undefined, undefined, 0.125 * random?.(8), this.owner));
+                  if(item.pickup == "special")
+                  {
+                     this.level?.deliverPizza?.(this.owner, item.type);
+                  }
+                  else
+                  {
+                     this.level?.units?.push?.(new Unit(this.level, item.type, undefined, undefined, 0.125 * random?.(8), this.owner));
+                  }
                   this.unit = false;
                }
             }
@@ -7190,6 +7269,8 @@
          // plays one of the story's maps (mapLevel) under a level number of its own.
          this.skirmish = this.parent?.parent?.skirmish;
          this.mapLevel = this.skirmish ? this.skirmish.map : this.level;
+         // (The stats of a type are made without a level to ask; they see the settings here.)
+         SKIRMISH = this.skirmish;
          this.stats = new LevelStats(this);
          this.setup = this.stats?.setup;
          this.outcome = this.stats?.outcome;
@@ -7302,7 +7383,7 @@
             {
                if(this.victory)
                {
-                  this.parent?.hud?.showMessage?.(dialogue?.("int_level" + this.level + "_complete"));
+                  this.parent?.hud?.showMessage?.(dialogue?.(this.victoryLine || "int_level" + this.level + "_complete"));
                }
                else
                {
@@ -7707,7 +7788,7 @@
                for(var _loc6_ of __as.keys(this.parent?.buildings))
                {
                   _loc3_ = this.parent?.buildings?.[_loc6_];
-                  if(this.parent?.hostile?.(_loc3_, this))
+                  if(this.parent?.hostile?.(_loc3_, this) && !this.parent?.pizzaProtected?.(_loc3_))
                   {
                      if(!(_loc3_?.stats?.threat < _loc4_))
                      {
@@ -7986,6 +8067,7 @@
          // left (in "structures" mode, when no building is, and their units go with it).
          this.skirmishOutcome = function ()
          {
+            this.pizzaStipend?.();
             if(!this.active || this.count % 23)
             {
                return undefined;
@@ -8039,6 +8121,20 @@
                index++;
             }
          };
+         // Pizza Mode's stipend (the mod's): 400 a minute to every player still in, each on a
+         // beat of their own.
+         this.pizzaStipend = function ()
+         {
+            var index = 0;
+            while(this.active && this.skirmish?.mode == "pizza" && index < this.players?.length)
+            {
+               if(!this.players[index]?.defeated && this.count > 0 && (this.count + 11 * index) % 1380 == 0)
+               {
+                  this.players[index].cash += 400;
+               }
+               index++;
+            }
+         };
          this.holdsOn = function (player)
          {
             for(var index of __as.keys(this.buildings))
@@ -8071,6 +8167,172 @@
                   this.units?.[index]?.destroy?.();
                }
             }
+         };
+         // ---- Pizza Mode (the C&C mod's rules) ------------------------------------------------
+         // A headquarters takes no harm, cannot be infiltrated or sold, and is nobody's target:
+         // a pizza is the only way to win.
+         this.pizzaProtected = function (obj)
+         {
+            return this.skirmish?.mode == "pizza" && !!obj?.isBuilding && obj?.type?.substr?.(0, 2) == "BA";
+         };
+         // The pizzas on the map, in the order they came.
+         this.pizzas = function ()
+         {
+            var found = new Array();
+            for(var index of __as.keys(this.units))
+            {
+               if(this.units?.[index]?.active && this.units?.[index]?.stats?.pickup == "special")
+               {
+                  found.push(this.units[index]);
+               }
+            }
+            return found.reverse();
+         };
+         // A player's pizza (or, with team, one of their team's), if there is one out.
+         this.pizzaOf = function (player, team)
+         {
+            var all = this.pizzas?.();
+            var index = 0;
+            while(index < all?.length)
+            {
+               if(all[index].owner == player || team && !this.hostile?.(all[index], player))
+               {
+                  return all[index];
+               }
+               index++;
+            }
+            return undefined;
+         };
+         // What a computer player might send a unit to pick up (spec 4.9): crates and pizzas.
+         this.crateCells = function ()
+         {
+            var found = new Array();
+            for(var index of __as.keys(this.units))
+            {
+               if(this.units?.[index]?.active && this.units?.[index]?.stats?.pickup)
+               {
+                  found.push(this.units[index]);
+               }
+            }
+            return found.reverse();
+         };
+         // A pizza, bought: it turns up on a random cell of open ground (spec 5.1).  Its buyer's
+         // team sees the ground around it; everyone else hears the alarm.  If no cell will do,
+         // the money is lost, as in the mod.
+         this.deliverPizza = function (owner, type)
+         {
+            var site = this.randomPickupSite?.();
+            if(!site)
+            {
+               return undefined;
+            }
+            var pizza = new Unit(this, type, site.x, site.y, 0, owner);
+            this.units?.push?.(pizza);
+            if(this.allied?.(owner))
+            {
+               this.arena?.shroud?.revealAround?.(site.x, site.y, this.pizzaReveal?.());
+               this.parent?.hud?.showMessage?.(dialogue?.(owner == this.localPlayer ? "int_level21_good_ind2" : "int_pizza_ally"));
+            }
+            else
+            {
+               this.parent?.sfx?.play?.("INT_powerwarning");
+               this.parent?.hud?.showMessage?.(dialogue?.("int_pizza_enemy"));
+            }
+            return pizza;
+         };
+         // How far around a new pizza its buyer's team sees: the mod's 12 cells are for Command
+         // & Conquer's maps, about 61 cells across; a smaller map sees proportionally less (on
+         // Eclipse, 30 across, 6), and no map more.
+         this.pizzaReveal = function ()
+         {
+            return Math.max(4, Math.min(12, Math.round(12 * Math.sqrt(this.arena?.cols * this.arena?.rows) / 61)));
+         };
+         // A pizza collected by its own team: every other team is out, everything of theirs
+         // going with them.
+         this.eatPizza = function (pizza, collector)
+         {
+            var winner = collector?.owner || pizza?.owner;
+            var index = 0;
+            var player;
+            while(index < this.players?.length)
+            {
+               player = this.players[index];
+               index++;
+               if(player?.defeated || !this.hostile?.(player, winner))
+               {
+                  continue;
+               }
+               for(var at of __as.keys(this.buildings))
+               {
+                  if(this.buildings?.[at]?.active && this.buildings?.[at]?.owner == player)
+                  {
+                     this.buildings?.[at]?.destroy?.();
+                  }
+               }
+               this.defeat?.(player);
+            }
+            if(this.localPlayer?.defeated)
+            {
+               this.lose?.();
+            }
+            else
+            {
+               this.victoryLine = "int_level21_complete";
+               this.win?.();
+            }
+         };
+         // Somewhere for a pickup (spec 7.1): up to a hundred random cells, the first that is
+         // open ground with nothing on it and room around it.
+         this.randomPickupSite = function ()
+         {
+            var tries = 0;
+            var x;
+            var y;
+            while(tries < 100)
+            {
+               tries++;
+               x = random?.(this.arena?.cols) + 1;
+               y = random?.(this.arena?.rows) + 1;
+               if(this.pickupSite?.(x, y))
+               {
+                  return {x:x,y:y};
+               }
+            }
+            return undefined;
+         };
+         // Open ground -- no rock, crystal, building or unit -- from which at least 96 cells can
+         // be reached, four ways.
+         this.pickupSite = function (x, y)
+         {
+            var tiles = this.arena?.tiles;
+            if(tiles?.[x]?.[y] || this.arena?.useds?.[x]?.[y] || this.arena?.baits?.[x]?.[y])
+            {
+               return false;
+            }
+            var seen = {};
+            var queue = new Array({x:x,y:y});
+            var count = 0;
+            var cell;
+            var next;
+            var step;
+            seen[x + "," + y] = true;
+            while(queue.length && count < 96)
+            {
+               cell = queue.shift();
+               count++;
+               next = new Array({x:cell.x + 1,y:cell.y}, {x:cell.x - 1,y:cell.y}, {x:cell.x,y:cell.y + 1}, {x:cell.x,y:cell.y - 1});
+               step = 0;
+               while(step < 4)
+               {
+                  if(!seen[next[step].x + "," + next[step].y] && !tiles?.[next[step].x]?.[next[step].y] && next[step].x >= 1 && next[step].y >= 1 && next[step].x <= this.arena?.cols && next[step].y <= this.arena?.rows)
+                  {
+                     seen[next[step].x + "," + next[step].y] = true;
+                     queue.push(next[step]);
+                  }
+                  step++;
+               }
+            }
+            return count >= 96;
          };
          // Online: commands.  issue() is what this browser's player's controls call; execute()
          // is the one place a command changes the game, for whichever player gave it.
@@ -8193,7 +8455,7 @@
                   }
                   break;
                case "sell":
-                  if(o && o.owner == who)
+                  if(o && o.owner == who && !this.pizzaProtected?.(o))
                   {
                      __as.set(o, "hilite", true);
                      o.destroy?.(true);
@@ -8359,6 +8621,9 @@
                {
                   tech.BK_good = tech.BK_evil = tech.BL_good = tech.UP_good = tech.UP_evil = tech.UR_good = tech.UQ_evil = false;
                }
+               // Pizza Mode's pizza, from a headquarters.
+               tech.UJ_good = this.skirmish?.mode == "pizza" && has("BA_good");
+               tech.UJ_evil = this.skirmish?.mode == "pizza" && has("BA_evil");
                if(!this.skirmish?.superweapons)
                {
                   tech.UK_good = tech.UK_evil = false;
@@ -8925,6 +9190,11 @@
             }
             // Online: an ally's unit or building is neither ours to command nor a target.
             if(this.activeTarget && !this.activeTarget?.friend && !this.parent?.hostile?.(this.activeTarget, this.parent?.localPlayer) && this.activeTarget?.owner)
+            {
+               this.activeTarget = false;
+            }
+            // Nor, in Pizza Mode, is an enemy's headquarters, which nothing can harm.
+            if(this.activeTarget && !this.activeTarget?.friend && this.parent?.pizzaProtected?.(this.activeTarget))
             {
                this.activeTarget = false;
             }

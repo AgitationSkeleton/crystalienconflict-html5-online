@@ -397,7 +397,8 @@ export class Renderer {
   // tools/team_accents.py, within TEAM_BAND and saturated enough to be a colour at all) take
   // the colour's hue and keep their own saturation and value, so the shading stays; a grey
   // baseplate (accent -1) is coloured all over.  Art already in that colour, and art with no
-  // accent, is left alone.  Returns [image, cache key], in the tints cache.
+  // accent, is left alone, as are the pixels an accent keeps (rows of [y, first x, last x]: the
+  // pizza in the pizza box).  Returns [image, cache key], in the tints cache.
   teamed(key, img, id, lib, team) {
     const colour = TEAM_COLOURS[team];
     const accent = lib.accents && lib.accents[id];
@@ -420,8 +421,15 @@ export class Renderer {
       const p = d.data;
       const plate = accent[0] < 0;
       const centre = accent[0];
+      const keep = new Map();
+      for (const [ky, x0, x1] of accent[2] || []) keep.set(ky, [x0, x1]);
       for (let i = 0; i < p.length; i += 4) {
         if (!p[i + 3]) continue;
+        if (keep.size) {
+          const row = keep.get(Math.floor(i / 4 / w));
+          const x = (i / 4) % w;
+          if (row && x >= row[0] && x <= row[1]) continue;
+        }
         const r = p[i] / 255, gr = p[i + 1] / 255, b = p[i + 2] / 255;
         const max = Math.max(r, gr, b), min = Math.min(r, gr, b), delta = max - min;
         let hue, sat;

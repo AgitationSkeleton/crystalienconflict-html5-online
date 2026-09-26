@@ -63,6 +63,8 @@ SCENARIOS = {
     'soak-santa': code('santa') + [SOAK, 'shot end'],
     'soak-drill': code('drill') + [SOAK, 'shot end'],
     'soak-temple': code('temple') + [SOAK, 'shot end'],
+    # The story's own pizza (Astro bonus level 1), which Pizza Mode's is made from.
+    'soak-pizza': code('pizza') + [SOAK, 'shot end'],
     # Online: skirmishes -- Conflict mode's, and four players in two teams.
     'skirmish': ['step 70', "eval player.levels[1].panel.pressConflict('good')", 'step 30', SOAK, 'shot end'],
     'skirmish-4': ['step 70', 'eval player.levels[1].panel.startSkirmish(' + FOUR + ')', 'step 30', SOAK, 'shot end'],
@@ -71,6 +73,11 @@ SCENARIOS = {
                       "prebuilt:true,shroud:true,superweapons:true,palette:'mars',players:[{name:'Me',faction:'good',colour:'orange',"
                       "control:'local'},{name:'B',faction:'evil',colour:'green',control:'bot'},{name:'C',faction:'good',colour:'red',control:'bot'}]})",
                       'step 30', SOAK, 'shot end'],
+    # Pizza Mode, rich enough that pizzas are bought, fetched and eaten within the soak.
+    'skirmish-pizza': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'lego-mp01',mode:'pizza',pizzaCost:25000,cash:40000,units:3,"
+                       "prebuilt:true,shroud:true,superweapons:true,palette:'snowy',specops:'on',players:[{name:'Me',faction:'evil',colour:'purple',"
+                       "control:'local'},{name:'B',faction:'good',colour:'blue',control:'bot',difficulty:'hard'},{name:'C',faction:'evil',colour:'purple',"
+                       "control:'bot',difficulty:'medium'}]})", 'step 30', SOAK, 'shot end'],
 }
 
 
