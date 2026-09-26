@@ -1128,11 +1128,28 @@
          };
          this.fitPortal();
          this.tileBitmap = new flash.display.BitmapData(this.MCwidth, this.MCheight, false, 12868654);
-         var _loc6_ = new flash.geom.Matrix();
-         _loc6_?.scale?.(this.scaler, this.scaler * 2);
-         _loc6_?.translate?.(this.marginX, this.marginY);
-         this.tileBitmap?.draw?.(this.parent?.tileMC, _loc6_);
          this.MC?.attachBitmap?.(this.tileBitmap, 1, true, false);
+         // Online: the map's picture, over ground of the given colour (Mars's here; the snowy
+         // palette's once the tiles have its colours).  It is drawn at a dozen pixels a tile and
+         // shrunk to the radar's pixel or few, so that each pixel is the colour of what is there:
+         // drawn straight at that size, as the original draws its small maps, the outlines of
+         // crystals and cliffs (a line is never drawn thinner than a pixel) made a grid of white
+         // lines on a big map.
+         this.redrawTiles = function (ground)
+         {
+            this.tileBitmap?.fillRect?.(this.tileBitmap?.rectangle, ground);
+            var fine = Math.min(12, Math.floor(4096 / Math.max(this.parent?.cols, this.parent?.rows)));
+            var big = new flash.display.BitmapData(this.parent?.cols * fine, this.parent?.rows * fine, false, ground);
+            var matrix = new flash.geom.Matrix();
+            matrix?.scale?.(fine / this.parent?.tileSize, fine / this.parent?.tileSize2);
+            big?.draw?.(this.parent?.tileMC, matrix);
+            matrix = new flash.geom.Matrix();
+            matrix?.scale?.(this.tileSize / fine, this.tileSize / fine);
+            matrix?.translate?.(this.marginX, this.marginY);
+            this.tileBitmap?.draw?.(big, matrix, null, null, null, true);
+            big?.dispose?.();
+         };
+         this.redrawTiles(12868654);
          this.handle = function ()
          {
             __as.set(this.MC, "_visible", false);
@@ -1788,6 +1805,12 @@
          };
          this.update = function ()
          {
+            // (Speed: the functions used for every cell of the map, looked up once.  Each name a
+            // script reads is looked up through its clip's scope, at some cost: eight times a
+            // cell, on a big map, it came to 35 milliseconds, and an update runs twice.)
+            var S = String;
+            var N = Number;
+            var Rectangle = flash.geom.Rectangle;
             var _loc14_ = this.parent?.radar?.shroudBitmap;
             _loc14_?.fillRect?.(_loc14_?.rectangle, 4278190080);
             var _loc13_;
@@ -1818,7 +1841,7 @@
                   if(this.tiles?.[_loc2_]?.[_loc3_])
                   {
                      _loc8_ = "s1111";
-                     _loc14_?.fillRect?.(new flash.geom.Rectangle((_loc2_ - 1.5) * this.parent?.radar?.tileSize + this.parent?.radar?.marginX, (_loc3_ - 1.5) * this.parent?.radar?.tileSize + this.parent?.radar?.marginY, this.parent?.radar?.tileSize * 2, this.parent?.radar?.tileSize * 2), 0);
+                     _loc14_?.fillRect?.(new Rectangle((_loc2_ - 1.5) * this.parent?.radar?.tileSize + this.parent?.radar?.marginX, (_loc3_ - 1.5) * this.parent?.radar?.tileSize + this.parent?.radar?.marginY, this.parent?.radar?.tileSize * 2, this.parent?.radar?.tileSize * 2), 0);
                   }
                   else
                   {
@@ -1830,7 +1853,7 @@
                      _loc12_ = this.tiles?.[_loc6_]?.[_loc3_] || this.tiles?.[_loc6_]?.[_loc7_] || this.tiles?.[_loc2_]?.[_loc7_];
                      _loc11_ = this.tiles?.[_loc2_]?.[_loc7_] || this.tiles?.[_loc5_]?.[_loc7_] || this.tiles?.[_loc5_]?.[_loc3_];
                      _loc9_ = this.tiles?.[_loc5_]?.[_loc3_] || this.tiles?.[_loc5_]?.[_loc4_] || this.tiles?.[_loc2_]?.[_loc4_];
-                     _loc8_ = "s" + String?.(Number?.(_loc13_)) + String?.(Number?.(_loc12_)) + String?.(Number?.(_loc11_)) + String?.(Number?.(_loc9_));
+                     _loc8_ = "s" + S?.(N?.(_loc13_)) + S?.(N?.(_loc12_)) + S?.(N?.(_loc11_)) + S?.(N?.(_loc9_));
                   }
                   _loc10_ = this.MC?.["shroud_" + _loc2_ + "_" + _loc3_];
                   _loc10_?.gotoAndStop?.(_loc8_);
@@ -2542,6 +2565,9 @@
                __as.set(this.terrainMCs[piece], "filters", new Array(_loc5_));
             }
             this.windBitmap = flash.display.BitmapData?.loadBitmap?.("snow");
+            // Online: the green pools (tiles 29 to 44, the sea of the converted maps) freeze light
+            // blue -- their shading kept, as a light-blue ramp -- where the ground turns white.
+            var ice = new flash.filters.ColorMatrixFilter([0.105, 0.2065, 0.0385, 0, 95, 0.135, 0.2655, 0.0495, 0, 150, 0.105, 0.2065, 0.0385, 0, 200, 0, 0, 0, 1, 0]);
             var _loc4_ = 0;
             var _loc2_;
             var _loc3_;
@@ -2553,12 +2579,15 @@
                   _loc3_ = this.tileHandles?.["_" + _loc2_ + "_" + _loc4_];
                   if(!_loc3_?.bait)
                   {
-                     __as.set(_loc3_?.MC, "filters", new Array(_loc5_));
+                     __as.set(_loc3_?.MC, "filters", new Array(_loc3_?.id >= 29 && _loc3_?.id <= 44 ? ice : _loc5_));
                   }
                   _loc2_ = _loc2_ + 1;
                }
                _loc4_ = _loc4_ + 1;
             }
+            // Online: and the radar shows it so, over snowy ground (Mars ground, 0xC45D2E, through
+            // the snow's colour matrix).
+            this.radar?.redrawTiles?.(15202815);
          };
          this.layoutTiles?.();
          this.extendTerrain?.();
@@ -9561,6 +9590,11 @@
          this.keyFIRE = fire;
          this.UP = this.RIGHT = this.DOWN = this.LEFT = this.FIRE = this.MOUSEDOWN = false;
          this.cursorMC = this.parent?.parent?.hud?.MC?.attachMovie?.("cursor", "cursor", 9999999);
+         // (Smooth drawing: the pointer is drawn where the mouse is at the moment of drawing.)
+         if(this.cursorMC)
+         {
+            this.cursorMC.$pointer = true;
+         }
          this.dragMC = this.parent?.arena?.MC?.attachMovie?.("drag", "drag", 9999997);
          __as.set(this.dragMC, "_visible", false);
          this.indicatorMC = this.parent?.arena?.MC?.attachMovie?.("indicator", "indicator", 9999996);

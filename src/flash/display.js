@@ -33,12 +33,51 @@ export class DisplayObject {
     this.$maskClip = null;        // setMask(): the clip masking this one
     this.$maskOf = null;          // setMask(): the clip this one masks
     this.$id = nextInstance++;
+    this.$born = player ? player.frame : 0;   // (smooth drawing: the frame it was made in)
+  }
+
+  // Online (cacheAsBitmap, render.js drawCached): something about this object that shows has
+  // changed, so the clips above it that keep a picture of what they hold have to draw it again.
+  $changed() {
+    const p = this.$player;
+    if (!p || !p.cachers) return;
+    for (let o = this.$parent, via = this; o; via = o, o = o.$parent) if (o.$cacheAsBitmap) o.$markStale(via);
+  }
+
+  // ... something inside it (its frame, its children, its drawing), so its own picture as well.
+  $changedInside() {
+    const p = this.$player;
+    if (!p || !p.cachers) return;
+    if (this.$cacheAsBitmap) this.$markStale(null);
+    for (let o = this.$parent, via = this; o; via = o, o = o.$parent) if (o.$cacheAsBitmap) o.$markStale(via);
+  }
+
+  // A change under this clip, by way of its child `via` (the picture can be mended where that
+  // child is), or to the clip itself (null: it has to be made again).
+  $markStale(via) {
+    this.$stale = true;
+    if (!via) this.$staleAll = true;
+    else if (!this.$staleAll) (this.$staleKids || (this.$staleKids = new Set())).add(via);
+  }
+
+  // Smooth drawing: where a script found the object when it first moved it in a frame, so that
+  // a drawing made between two frames can show it part of the way (render.js, smoothed()).
+  $moving() {
+    const p = this.$player;
+    const f = p ? p.frame : 0;
+    if (this.$ipFrame !== f) {
+      this.$ipFrame = f;
+      this.$ipX = this.$m[4];
+      this.$ipY = this.$m[5];
+      if (p) p.lastMove = f;
+    }
   }
 
   // ---- geometry ---------------------------------------------------------------------
   $setMatrix(m) {
     this.$m = m.slice();
     this.$sr = null;
+    this.$changed();
   }
 
   $cacheSR() {
@@ -57,6 +96,7 @@ export class DisplayObject {
     this.$m[1] = sx * Math.sin(rot);
     this.$m[2] = -sy * Math.sin(rot + skew);
     this.$m[3] = sy * Math.cos(rot + skew);
+    this.$changed();
   }
 
   $worldMatrix() {
@@ -107,6 +147,8 @@ export class DisplayObject {
   set _x(v) {
     v = +v;
     if (Number.isNaN(v) || this.$removed) return;
+    this.$moving();
+    if (this.$m[4] !== twip(v)) this.$changed();
     this.$m[4] = twip(v);
     this.$scripted = true;
   }
@@ -115,6 +157,8 @@ export class DisplayObject {
   set _y(v) {
     v = +v;
     if (Number.isNaN(v) || this.$removed) return;
+    this.$moving();
+    if (this.$m[5] !== twip(v)) this.$changed();
     this.$m[5] = twip(v);
     this.$scripted = true;
   }
@@ -164,12 +208,16 @@ export class DisplayObject {
     cx[3] = Math.trunc(v * 256 / 100);         // 8.8 fixed point, as Flash stores it
     this.$cx = cx;
     this.$scripted = true;
+    this.$changed();
   }
 
   get _visible() { return this.$removed ? undefined : this.$visible; }
   set _visible(v) {
     if (this.$removed) return;
+    const was = this.$visible;
     this.$visible = typeof v === 'string' ? v !== '' && v !== '0' && v !== 'false' : !!v && v === v;
+    if (this.$visible && !was) this.$shown = this.$player ? this.$player.frame : 0;   // (smooth drawing)
+    if (this.$visible !== was) this.$changed();
   }
 
   get _width() {
@@ -251,6 +299,7 @@ export class DisplayObject {
       return f && typeof f.type === 'string' ? f : null;
     }).filter(Boolean) : [];
     this.$filters = list.length ? list : null;
+    this.$changed();
   }
 
   // String(clip) is the clip's path in dot notation, which is also what
@@ -433,6 +482,7 @@ export class MovieClip extends DisplayObject {
     while (i > 0 && c[i - 1].$depth > depth) i--;
     c.splice(i, 0, child);
     this.$link(child);
+    this.$changedInside();
   }
 
   $remove(child) {
@@ -441,6 +491,7 @@ export class MovieClip extends DisplayObject {
     if (i >= 0) c.splice(i, 1);
     this.$unlink(child);
     child.$markRemoved();
+    this.$changedInside();
   }
 
   // A named child can be reached as a property of its parent -- unless the parent has a
@@ -475,12 +526,18 @@ export class MovieClip extends DisplayObject {
     this.$player.clipEvent(this, 'unload');
     if (typeof this.onUnload === 'function') this.$player.queueMethod(this, 'onUnload');
     this.$removed = true;
+    if (this.$cacheAsBitmap) {
+      this.$cacheAsBitmap = false;
+      this.$player.cachers--;
+      this.$cache = null;
+    }
     for (const c of this.$children) c.$markRemoved();
     this.$player.forget(this);
   }
 
   $swapDepth(child, depth) {
     if (child.$depth === depth) return;
+    this.$changedInside();
     const other = this.$childAt(depth);
     const c = this.$children;
     const from = child.$depth;
@@ -530,6 +587,7 @@ export class MovieClip extends DisplayObject {
   $construct() {
     this.$cur = 1;
     this.$runFrame(1, false);
+    this.$changedInside();
   }
 
   $runFrame(f, skipScripts) {
@@ -631,6 +689,7 @@ export class MovieClip extends DisplayObject {
     else {
       this.$cur = next;
       this.$runFrame(next, false);
+      this.$changedInside();
     }
   }
 
@@ -650,6 +709,7 @@ export class MovieClip extends DisplayObject {
     if (target > this.$total) target = this.$total;
     const cur = this.$cur;
     if (target === cur && !looping) return;
+    this.$changedInside();
     if (target > cur) {
       for (let f = cur + 1; f <= target; f++) {
         this.$cur = f;
@@ -708,14 +768,24 @@ export class MovieClip extends DisplayObject {
   get useHandCursor() { return this.$handCursor; }
   set useHandCursor(v) { this.$handCursor = !!v; }
   get cacheAsBitmap() { return this.$cacheAsBitmap; }
-  set cacheAsBitmap(v) { this.$cacheAsBitmap = !!v; }
+  set cacheAsBitmap(v) {
+    v = !!v;
+    if (v === this.$cacheAsBitmap || this.$removed) return;
+    this.$cacheAsBitmap = v;
+    this.$player.cachers = (this.$player.cachers || 0) + (v ? 1 : -1);
+    this.$stale = true;
+    if (!v) this.$cache = null;
+  }
   // Online: a clip the renderer may skip when it is wholly off the canvas (Renderer.offCanvas).
   get cullable() { return !!this.$cullable; }
   set cullable(v) { this.$cullable = !!v; }
   // Online: the colour of the player this clip belongs to.  Bitmaps below it that wear the
   // faction's colour are drawn in this one instead (Renderer.teamed).
   get teamColour() { return this.$team; }
-  set teamColour(v) { this.$team = v ? String(v) : undefined; }
+  set teamColour(v) {
+    this.$team = v ? String(v) : undefined;
+    this.$changedInside();
+  }
 
   play() { if (!this.$removed) this.$playing = true; }
   stop() { if (!this.$removed) this.$playing = false; }
@@ -788,6 +858,7 @@ export class MovieClip extends DisplayObject {
       m.$maskOf = this;
     }
     this.$maskClip = m;
+    this.$changedInside();
     return true;
   }
 
@@ -803,11 +874,24 @@ export class MovieClip extends DisplayObject {
   // Drawing API.  Colours are 0xRRGGBB, alphas 0..100.
   $g() {
     if (!this.$gfx) this.$gfx = new Graphics();
+    this.$changedInside();
     return this.$gfx;
   }
 
   clear() {
-    if (this.$gfx) this.$gfx = new Graphics();
+    if (this.$gfx) {
+      // (Smooth drawing: the last frame's drawing is kept, the first time it is cleared in a
+      // frame, to be blended with this frame's -- render.js, blendedGfx.)
+      const p = this.$player;
+      const f = p ? p.frame : 0;
+      if (this.$gfxFrame !== f) {
+        this.$gfxPrev = this.$gfx;
+        this.$gfxFrame = f;
+        if (p) p.lastMove = f;
+      }
+      this.$gfx = new Graphics();
+      this.$changedInside();
+    }
   }
 
   lineStyle(thickness, rgb, alpha) {

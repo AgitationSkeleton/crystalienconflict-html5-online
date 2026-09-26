@@ -46,6 +46,7 @@ def main():
     ap.add_argument('--probe3', action='store_true', help='time the slow frames by canvas call (probe_canvas.js)')
     ap.add_argument('--trace', default=None, help='write a Chromium performance trace of the timed frames to this file')
     ap.add_argument('--noprofile', action='store_true', help='no CPU profile (timing and memory only)')
+    ap.add_argument('--gpu', action='store_true', help='Chromium with the GPU (as a browser here would), not the software renderer')
     args = ap.parse_args()
     vw, vh = (int(v) for v in args.viewport.split('x'))
 
@@ -60,7 +61,10 @@ def main():
                 'superweapons': True, 'palette': args.palette, 'specops': 'on', 'pizzaCost': 50000, 'players': players}
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(args=['--enable-precise-memory-info'])
+        if args.gpu:
+            browser = pw.chromium.launch(channel='chromium', args=['--enable-precise-memory-info', '--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist'])
+        else:
+            browser = pw.chromium.launch(args=['--enable-precise-memory-info'])
         page = browser.new_page(viewport={'width': vw, 'height': vh})
         errors = []
         page.on('pageerror', lambda e: errors.append(str(e)))

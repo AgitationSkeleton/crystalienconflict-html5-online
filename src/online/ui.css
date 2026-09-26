@@ -244,3 +244,16 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
   display: none;
 }
 .ui-back.shown { display: flex; }
+
+/* The error notice (errors.js): small, in a corner, over the game and the menus. */
+.errnote {
+  position: fixed; left: 10px; bottom: 10px; z-index: 1000; display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px 6px 12px; background: var(--panel); border: 1px solid var(--orange-lo); border-radius: 6px;
+  font: 12px/1.2 system-ui, sans-serif; color: var(--ink); text-shadow: var(--glow); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+.errnote button {
+  font: inherit; color: var(--ink); background: rgba(255, 138, 0, 0.18); border: 1px solid var(--orange-lo);
+  border-radius: 4px; padding: 3px 8px; cursor: pointer;
+}
+.errnote button:hover { background: rgba(255, 138, 0, 0.35); }
+.errnote .close { padding: 1px 7px; font-size: 14px; }

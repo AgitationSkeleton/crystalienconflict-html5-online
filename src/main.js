@@ -8,6 +8,7 @@ import { Library } from './flash/library.js';
 import { OnlineUI } from './online/ui.js';
 import { loadSettings, UI_SCALES } from './online/settings.js';
 import { Bot } from './online/bot.js';
+import { ErrorReporter } from './online/errors.js';
 
 const FLASHVARS = { xmlurl: 'data/dialogue.xml', asseturl: '', serviceurl: '', gamename: 'CrystAlienConflict' };
 const MOVIES = { 'game.swf': 'game' };     // loadMovieNum's file names -> converted movies
@@ -53,6 +54,7 @@ const player = new Player(canvas, {
   openMovie: (file) => (MOVIES[file] ? openMovie(MOVIES[file]) : null),
 });
 globalThis.player = player;                // for the console and the verification harness
+const errors = new ErrorReporter(player);  // (a notice, and a report to copy, when something goes wrong)
 player.online.Bot = Bot;                   // the computer players (the game makes them)
 player.online.icons = ICONS;
 
@@ -68,6 +70,8 @@ globalThis.__step = (n = 1) => {
   player.draw();
   return player.frame;
 };
+// (__run() starts the clock after all, for timing the drawing as it is played: tools/verify/fps.py.)
+globalThis.__run = () => requestAnimationFrame(loop);
 
 // ---- the stage fills the window, of its shape, enlarged as far as the interface size allows --
 // The game lays itself out across what it gets (Stage.width, height); the loader keeps its
@@ -182,17 +186,26 @@ addEventListener('blur', () => {
 let STEP = 1000 / FPS;
 let last = 0;
 let acc = 0;
+let drawn = null;
 function loop(now) {
+  // (The next one asked for first: an error in a frame must not stop the game.)
+  requestAnimationFrame(loop);
   if (last) acc += Math.min(now - last, STEP * 4);
   last = now;
-  let ticked = false;
   while (acc >= STEP) {
-    player.tick();
     acc -= STEP;
-    ticked = true;
+    player.tick();
   }
-  if (ticked) player.draw();
-  requestAnimationFrame(loop);
+  // Drawn at every refresh of the screen, what moved part of the way to where the next frame
+  // will have it, so that it moves smoothly however often the screen refreshes; the game keeps
+  // its own frames.  (Not drawn again when nothing has changed: no frame since, nothing on its
+  // way anywhere, and the mouse where it was.)
+  const alpha = acc / STEP;
+  const state = player.frame + '|' + (player.lastMove === player.frame ? alpha : '') + '|' + player.mouse;
+  if (state !== drawn) {
+    drawn = state;
+    player.draw(alpha);
+  }
 }
 
 // ---- start ---------------------------------------------------------------------------------

@@ -24,13 +24,16 @@ $400 a minute. In **Capture the Flag**, drive a vehicle onto an enemy's flag and
 your own flag's home to knock them out.
 
 The game fills the window. How far it is enlarged is the interface size (in the settings);
-past that, a bigger window shows more of the map and a taller sidebar.
+past that, a bigger window shows more of the map and a taller sidebar. It runs at the
+original's 23 frames a second and is drawn at every refresh of the screen, with what moves
+shown on its way between frames. If something goes wrong, a notice in the corner copies an
+error report, for a bug report.
 
 | Control | Action |
 | --- | --- |
 | Left click, drag | select units, give orders (as in the original) |
-| Mouse wheel | zoom in and out |
-| WASD, arrow keys, screen edges | scroll |
+| Mouse wheel | zoom in and out; over the sidebar, scroll its lists |
+| WASD, arrow keys, screen edges (can be turned off in the settings) | scroll |
 | Space, right-click, middle-click, double click | deselect, cancel a building placement |
 | Esc | pause menu |
 | H | jump to your headquarters |

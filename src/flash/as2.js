@@ -566,6 +566,7 @@ function makeColor(player, clipOf) {
       const a = clip.$cx ? clip.$cx : [256, 256, 256, 256, 0, 0, 0, 0];
       clip.$cx = [0, 0, 0, a[3], (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, a[7]];
       clip.$scripted = true;
+      clip.$changed();
     };
     this.getRGB = () => {
       if (!clip || !clip.$cx) return 0;
@@ -581,6 +582,7 @@ function makeColor(player, clipOf) {
       off(t.rb, 4); off(t.gb, 5); off(t.bb, 6); off(t.ab, 7);
       clip.$cx = c;
       clip.$scripted = true;
+      clip.$changed();
     };
     this.getTransform = () => {
       const c = clip && clip.$cx ? clip.$cx : [256, 256, 256, 256, 0, 0, 0, 0];
@@ -702,7 +704,9 @@ function makeFlashPackage(player) {
     this.$canvas = document.createElement('canvas');
     this.$canvas.width = w;
     this.$canvas.height = h;
-    this.$ctx = this.$canvas.getContext('2d');
+    // (In memory, not on the GPU: the game reads its bitmaps' pixels, and reading from the GPU
+    // waits for everything it has been given to draw -- milliseconds, each time.)
+    this.$ctx = this.$canvas.getContext('2d', { willReadFrequently: true });
     this.$id = bmdIds++;
     this.$version = 0;
     this.transparent = transparent !== false;
@@ -792,6 +796,11 @@ function makeFlashPackage(player) {
     }
     if (source instanceof BitmapData) {
       ctx.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+      // (Online: smoothing asked for, a bitmap shrunk far is averaged rather than sampled.)
+      if (smoothing === true) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+      }
       ctx.drawImage(source.$canvas, 0, 0);
     } else if (source.$player) {
       const r = player.renderer;

@@ -54,6 +54,13 @@ export class Renderer {
     this.player = player;
     this.stageW = 600;
     this.stageH = 400;
+    this.pathsIn = new WeakMap();     // path -> it in a gradient's space (see pathIn)
+    this.keyParts = new Map();        // the tint cache's keys, made once (see joinKey)
+    this.cmKeys = new WeakMap();      // colour matrix -> its part of a key
+    this.drawCount = 0;               // drawings made, for the tint cache's use stamps
+    this.cacheBuild = null;           // while a cacheAsBitmap picture is made (see drawCached)
+    this.ipFrame = -1;                // smooth drawing: the frame being drawn part of the way to
+    this.ipAlpha = 1;                 // the next, and how far (see smoothed())
     this.maxScale = Infinity;         // CSS pixels a stage unit may be enlarged to (the interface size)
     this.scale = 1;
     this.offsetX = 0;
@@ -102,6 +109,7 @@ export class Renderer {
 
   render(levels, background) {
     const ctx = this.ctx;
+    this.drawCount++;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     ctx.filter = 'none';
@@ -133,9 +141,11 @@ export class Renderer {
 
   drawObject(ctx, obj, parentM, parentCx) {
     if (!obj.$visible || obj.$removed || obj.$maskOf) return;     // a setMask() mask is never drawn
-    const m = mul(parentM, obj.$m);
+    const m = obj.$ipFrame === this.ipFrame || obj.$pointer ? this.smoothed(ctx, obj, parentM) : mul(parentM, obj.$m);
     const cx = cxMul(parentCx, obj.$cx);
     if (cx && cx[3] <= 0 && cx[7] <= 0) return;           // fully transparent
+    if (obj.$cacheAsBitmap && this.drawCached(ctx, obj, m, cx)) return;
+    if (this.cacheBuild && obj.$maskClip) this.cacheBuild.volatile = true;
     const mask = obj.$maskClip;
     if (mask && !mask.$removed) {
       // The mask sits wherever it is in the display list; express its transform relative
@@ -155,6 +165,28 @@ export class Renderer {
     const fl = this.potentFilters(obj.$filters);
     if (fl) return this.drawWithFilters(ctx, obj, m, cx, fl);
     this.drawContent(ctx, obj, m, cx);
+  }
+
+  // Smooth drawing (the screen refreshes more often than the game's 23 frames a second): an
+  // object a script moved in the last frame is drawn part of the way from where it was to where
+  // it is, by how far the clock has got towards the next frame -- unless it was only just made
+  // or shown, or it jumped (160 pixels is further than anything travels in a frame).  And the
+  // game's own pointer is drawn where the mouse is now, not where it was at the last frame.
+  smoothed(ctx, obj, parentM) {
+    const l = obj.$m;
+    if (obj.$pointer) {
+      const m = mul(parentM, l);
+      const mouse = this.player && this.player.mouse;
+      if (ctx === this.ctx && mouse) {
+        m[4] = this.offsetX + mouse[0] * this.scale;
+        m[5] = this.offsetY + mouse[1] * this.scale;
+      }
+      return m;
+    }
+    const dx = l[4] - obj.$ipX, dy = l[5] - obj.$ipY;
+    if (obj.$born === this.ipFrame || obj.$shown === this.ipFrame || dx * dx + dy * dy > 160 * 160) return mul(parentM, l);
+    const back = 1 - this.ipAlpha;
+    return mul(parentM, [l[0], l[1], l[2], l[3], l[4] - dx * back, l[5] - dy * back]);
   }
 
   // A colour matrix on a single shape needs no offscreen work: nothing inside one shape
@@ -198,9 +230,231 @@ export class Renderer {
     return plain ? c : null;
   }
 
+  // Online: a clip that keeps a picture of what it holds (cacheAsBitmap: the game asks it of
+  // its shroud and its scorch marks) is drawn from that picture while nothing in it changes and
+  // it is shown at the same size, the picture made at the size it is shown at.  (Zoomed out,
+  // the shroud is some ten thousand tiles in one drawing.)  Not when the picture would be big
+  // -- close up, where most of it is off the screen and not drawn anyway -- nor turned, filtered
+  // or masked, nor while its size is changing, nor if it changes all the time or holds what
+  // changes without saying so (text, a BitmapData).
+  drawCached(ctx, obj, m, cx) {
+    if (ctx !== this.ctx || obj.$noCache) return false;
+    if (m[1] || m[2] || !(m[0] > 0) || !(m[3] > 0)) return false;
+    if (cx && !(cxAlphaOnly(cx) && cx[3] <= 256)) return false;
+    if (obj.$maskClip || this.potentFilters(obj.$filters)) return false;
+    const e = obj.$cache || (obj.$cache = { canvas: null, key: '', want: '', since: 0, big: '', builds: [], off: 0, x0: 0, y0: 0, job: null });
+    if (this.drawCount < e.off) return false;
+    const key = m[0] + ',' + m[3] + ',' + (this.team || '');
+    if (e.canvas && e.key === key && (!obj.$stale || this.mendCache(e, obj))) return this.blitCache(ctx, e, m, cx);
+    // (Only once it has been shown at this size for a few drawings: not while zooming.)
+    if (e.want !== key) {
+      e.want = key;
+      e.since = this.drawCount;
+      e.job = null;
+      return false;
+    }
+    if (this.drawCount - e.since < 3 || e.big === key) return false;
+    if (e.job && e.job.key === key && !obj.$staleAll) return this.buildSome(e, obj, m, cx);
+    const b = obj.$localBounds();
+    if (!b) return false;
+    const w = Math.ceil((b[2] - b[0]) * m[0]) + 2, h = Math.ceil((b[3] - b[1]) * m[3]) + 2;
+    if (w > 8192 || h > 8192 || w * h > 8e6) {
+      e.big = key;
+      e.canvas = null;
+      return false;
+    }
+    // (Made again more than eight times in a second: it changes too often to keep; for a while
+    // it is drawn as it is.)
+    e.builds.push(this.drawCount);
+    while (e.builds[0] < this.drawCount - 60) e.builds.shift();
+    if (e.builds.length > 8) {
+      e.builds.length = 0;
+      e.off = this.drawCount + 300;
+      e.canvas = null;
+      e.job = null;
+      return false;
+    }
+    // A new picture, made a few milliseconds at a time (buildSome); the old one is gone.
+    let canvas = e.canvas;
+    if (!canvas || canvas.width !== w || canvas.height !== h) {
+      canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+    }
+    e.canvas = null;
+    e.key = '';
+    const kids = obj.$children;
+    // Children are indexed (for mending) unless the clip draws under them itself, masks some
+    // with others, or filters them (a filter draws outside what a child holds); and made a few
+    // at a time unless there are masks.
+    const plain = !(obj.$gfx && obj.$gfx.ops.length) && !kids.some((c) => c.$clipDepth);
+    const indexed = plain && !kids.some((c) => c.$filters);
+    e.job = { key, b, canvas, M: [m[0], 0, 0, m[3], 1 - b[0] * m[0], 1 - b[1] * m[3]], next: -1, plain,
+      kids: indexed ? new Map() : null, order: indexed ? new Map() : null, grid: indexed ? new Map() : null };
+    obj.$stale = false;
+    obj.$staleAll = false;
+    if (obj.$staleKids) obj.$staleKids.clear();
+    return this.buildSome(e, obj, m, cx);
+  }
+
+  // Some more of a picture in the making: its children in order, for a few milliseconds.  When
+  // it is done, what changed meanwhile is mended and it is shown; till then the clip is drawn as
+  // it is (false).
+  buildSome(e, obj, m, cx) {
+    const job = e.job;
+    const g = job.canvas.getContext('2d');
+    const ip = this.ipFrame, outer = this.cacheBuild;
+    const build = this.cacheBuild = { volatile: false };
+    this.ipFrame = -1;
+    const kids = obj.$children;
+    try {
+      if (job.next < 0) {
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.clearRect(0, 0, job.canvas.width, job.canvas.height);
+        job.next = 0;
+        if (!job.plain) {
+          this.drawContent(g, obj, job.M, null);
+          job.next = kids.length;
+        }
+      }
+      const until = performance.now() + 3;
+      while (job.next < kids.length) {
+        const c = kids[job.next];
+        this.draw(g, c, job.M, null);
+        if (job.kids) {
+          job.order.set(c, job.next);
+          const r = this.kidBounds(job, c);
+          job.kids.set(c, r);
+          if (r) this.gridPut(job, c, r, true);
+        }
+        job.next++;
+        if ((job.next & 31) === 0 && performance.now() > until) break;
+      }
+    } finally {
+      this.ipFrame = ip;
+      this.cacheBuild = outer;
+    }
+    if (build.volatile) {
+      obj.$noCache = true;
+      obj.$cache = null;
+      return false;
+    }
+    if (job.next < kids.length) return false;
+    e.job = null;
+    e.canvas = job.canvas;
+    e.key = job.key;
+    e.x0 = job.b[0];
+    e.y0 = job.b[1];
+    e.M = job.M;
+    e.kids = job.kids;
+    e.order = job.order;
+    e.grid = job.grid;
+    if (obj.$stale && !this.mendCache(e, obj)) {
+      e.key = '';
+      return false;
+    }
+    return this.blitCache(this.ctx, e, m, cx);
+  }
+
+  // A child's box in a picture (e, or a picture in the making), in whole pixels and a little
+  // over (for anti-aliased edges).
+  kidBounds(e, c) {
+    if (!c.$visible || c.$removed) return null;
+    const lb = c.$localBounds();
+    if (!lb) return null;
+    const d = boundsOf(mul(e.M, c.$m), lb);
+    const W = e.canvas.width, H = e.canvas.height;
+    const r = [Math.max(0, Math.floor(d[0]) - 2), Math.max(0, Math.floor(d[1]) - 2), Math.min(W, Math.ceil(d[2]) + 2), Math.min(H, Math.ceil(d[3]) + 2)];
+    return r[2] > r[0] && r[3] > r[1] ? r : null;
+  }
+
+  // Which children touch each 256-pixel square of a picture (for mending it).
+  gridPut(e, c, r, add) {
+    for (let gy = r[1] >> 8; gy <= (r[3] - 1) >> 8; gy++) {
+      for (let gx = r[0] >> 8; gx <= (r[2] - 1) >> 8; gx++) {
+        const k = gy * 65536 + gx;
+        let cell = e.grid.get(k);
+        if (add) {
+          if (!cell) e.grid.set(k, (cell = []));
+          cell.push(c);
+        } else if (cell) {
+          const i = cell.indexOf(c);
+          if (i >= 0) cell.splice(i, 1);
+        }
+      }
+    }
+  }
+
+  // Mend a cached clip's picture where the children that changed are and were: each such box
+  // cleared and drawn again, with every child that touches it, in their order.  False when it
+  // has to be made again instead (the clip itself changed, a child came or went, or too many
+  // changed to be worth it).
+  mendCache(e, obj) {
+    const kids = obj.$staleKids;
+    if (!e.kids || obj.$staleAll || !kids || !kids.size || kids.size > 400) return false;
+    for (const k of kids) if (!e.kids.has(k)) return false;
+    const boxes = [];
+    for (const k of kids) {
+      const was = e.kids.get(k);
+      const now = this.kidBounds(e, k);
+      if (was) {
+        boxes.push(was);
+        this.gridPut(e, k, was, false);
+      }
+      if (now) {
+        boxes.push(now);
+        this.gridPut(e, k, now, true);
+      }
+      e.kids.set(k, now);
+    }
+    kids.clear();
+    obj.$stale = false;
+    const g = e.canvas.getContext('2d');
+    const ip = this.ipFrame;
+    this.ipFrame = -1;
+    try {
+      for (const r of boxes) {
+        const touch = new Set();
+        for (let gy = r[1] >> 8; gy <= (r[3] - 1) >> 8; gy++) {
+          for (let gx = r[0] >> 8; gx <= (r[2] - 1) >> 8; gx++) {
+            const cell = e.grid.get(gy * 65536 + gx);
+            if (cell) for (const c of cell) touch.add(c);
+          }
+        }
+        const draw = [];
+        for (const c of touch) {
+          const b = e.kids.get(c);
+          if (b && b[0] < r[2] && b[2] > r[0] && b[1] < r[3] && b[3] > r[1]) draw.push(c);
+        }
+        draw.sort((a, b) => e.order.get(a) - e.order.get(b));
+        g.save();
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.beginPath();
+        g.rect(r[0], r[1], r[2] - r[0], r[3] - r[1]);
+        g.clip();
+        g.clearRect(r[0], r[1], r[2] - r[0], r[3] - r[1]);
+        for (const c of draw) this.draw(g, c, e.M, null);
+        g.restore();
+      }
+    } finally {
+      this.ipFrame = ip;
+    }
+    return true;
+  }
+
+  blitCache(ctx, e, m, cx) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = cx ? Math.max(0, cx[3] / 256) : 1;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(e.canvas, Math.round(m[4] + e.x0 * m[0] - 1), Math.round(m[5] + e.y0 * m[3] - 1));
+    ctx.globalAlpha = 1;
+    return true;
+  }
+
   drawContent(ctx, obj, m, cx) {
+    if (this.cacheBuild && (obj instanceof EditText || obj instanceof BitmapObj)) this.cacheBuild.volatile = true;
     if (obj instanceof MovieClip) {
-      if (obj.$gfx && obj.$gfx.ops.length) this.drawGraphics(ctx, obj.$gfx, m, cx);
+      if (obj.$gfx && obj.$gfx.ops.length) this.drawGraphics(ctx, obj.$gfxFrame === this.ipFrame && obj.$gfxPrev ? this.blendedGfx(obj) : obj.$gfx, m, cx);
       this.drawChildren(ctx, obj.$children, m, cx);
     } else if (obj instanceof ShapeObj) {
       this.drawShape(ctx, obj, m, cx);
@@ -251,8 +505,18 @@ export class Renderer {
     }
     const b = c.$cullBox;
     if (!b) return false;
-    const d = boundsOf(mul(parentM, c.$m), b);
     const pad = 4;
+    const pm = parentM, cm = c.$m;
+    if (!pm[1] && !pm[2] && !cm[1] && !cm[2]) {
+      // (Neither turned nor skewed, as tiles are: the box's corners are two numbers each way.)
+      const sx = pm[0] * cm[0], sy = pm[3] * cm[3];
+      const tx = pm[0] * cm[4] + pm[4], ty = pm[3] * cm[5] + pm[5];
+      let x0 = sx * b[0] + tx, x1 = sx * b[2] + tx, y0 = sy * b[1] + ty, y1 = sy * b[3] + ty;
+      if (x0 > x1) { const t = x0; x0 = x1; x1 = t; }
+      if (y0 > y1) { const t = y0; y0 = y1; y1 = t; }
+      return x1 < -pad || y1 < -pad || x0 > ctx.canvas.width + pad || y0 > ctx.canvas.height + pad;
+    }
+    const d = boundsOf(mul(parentM, c.$m), b);
     return d[2] < -pad || d[3] < -pad || d[0] > ctx.canvas.width + pad || d[1] > ctx.canvas.height + pad;
   }
 
@@ -330,9 +594,11 @@ export class Renderer {
       ctx.fill(path, 'evenodd');
     } else if (t === 'linear' || t === 'radial' || t === 'focal') {
       const g = style.m;
-      // Gradients live in a +/-819.2px square; draw them in that space.
-      ctx.save();
-      ctx.clip(path, 'evenodd');
+      // Gradients live in a +/-819.2px square; the shape is filled in that space (taken there
+      // by the inverse of the gradient's matrix).  (Not a square of gradient clipped to the
+      // shape: the browser makes a clip as a mask on the CPU, at every drawing.)
+      const inGradient = this.pathIn(path, g);
+      if (!inGradient) return;
       this.setTransform(ctx, mul(m, g));
       let grad;
       if (t === 'linear') grad = ctx.createLinearGradient(-819.2, 0, 819.2, 0);
@@ -342,25 +608,42 @@ export class Renderer {
       }
       for (const [ratio, col] of style.stops) grad.addColorStop(ratio / 255, cssColor(colour(col)));
       ctx.fillStyle = grad;
-      // Pad: cover the whole clip region generously in gradient space.
-      ctx.fillRect(-819.2 * 64, -819.2 * 64, 819.2 * 128, 819.2 * 128);
-      ctx.restore();
+      ctx.fill(inGradient, 'evenodd');
     } else if (t === 'bitmap') {
+      // The shape filled with the bitmap as a pattern (not a rectangle of it clipped to the
+      // shape, as above).
       const src = this.bitmapSource(style.id, cx, lib, cm);
-      if (!src) return;
-      ctx.save();
-      ctx.clip(path, 'evenodd');
-      const bm = mul(m, style.m);
-      this.setTransform(ctx, bm);
+      const p = src && this.pattern(ctx, src, style.repeat, style.m);
+      if (!p) return;
       ctx.imageSmoothingEnabled = this.smoothing(style.smooth);
-      if (style.repeat) {
-        ctx.fillStyle = ctx.createPattern(src, 'repeat');
-        ctx.fillRect(-1e5, -1e5, 2e5, 2e5);          // clipped to the path above
-      } else {
-        ctx.drawImage(src, 0, 0);
-      }
-      ctx.restore();
+      ctx.fillStyle = p;
+      ctx.fill(path, 'evenodd');
     }
+  }
+
+  // A pattern of an image placed by the matrix m (from the image to the space being filled),
+  // repeated or once.
+  pattern(ctx, img, repeat, m) {
+    const p = ctx.createPattern(img, repeat ? 'repeat' : 'no-repeat');
+    if (p) p.setTransform({ a: m[0], b: m[1], c: m[2], d: m[3], e: m[4], f: m[5] });
+    return p;
+  }
+
+  // A path taken into the space of the matrix g (by g's inverse), kept with the path for as
+  // long as g is the same.  Null when g flattens everything (nothing to fill).
+  pathIn(path, g) {
+    const key = g.join(',');
+    const had = this.pathsIn.get(path);
+    if (had && had.key === key) return had.p;
+    const det = g[0] * g[3] - g[1] * g[2];
+    let p = null;
+    if (det && Number.isFinite(det)) {
+      const [a, b, c, d, e, f] = invert(g);
+      p = new Path2D();
+      p.addPath(path, { a, b, c, d, e, f });
+    }
+    this.pathsIn.set(path, { key, p });
+    return p;
   }
 
   strokePath(ctx, path, style, m, cx, cm) {
@@ -383,7 +666,7 @@ export class Renderer {
   bitmapSource(id, cx, lib, cm) {
     let img = lib.bitmaps.get(id);
     if (!img) return null;
-    let key = `${lib.movie}:${id}`;
+    let key = this.bitmapKey(lib, id);
     if (this.team) [img, key] = this.teamed(key, img, id, lib, this.team);
     if (cm) [img, key] = this.colourMatrixed(key, img, cm);
     if (cxIsIdentity(cx)) return img;
@@ -393,11 +676,12 @@ export class Renderer {
   // A bitmap put through a colour matrix (on unpremultiplied colour, as Flash's filter),
   // kept in the same cache as tints.  Returns [image, cache key].
   colourMatrixed(key, img, cm) {
-    const k = key + '|cm:' + cm.join(',');
+    let part = this.cmKeys.get(cm);
+    if (part === undefined) this.cmKeys.set(cm, (part = '|cm:' + cm.join(',')));
+    const k = this.joinKey(key, part);
     let c = this.tints.get(k);
     if (c) {
-      this.tints.delete(k);
-      this.tints.set(k, c);
+      c.$used = this.drawCount;
       return [c, k];
     }
     const w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
@@ -435,11 +719,10 @@ export class Renderer {
     const colour = TEAM_COLOURS[team];
     const accent = lib.accents && lib.accents[id];
     if (!colour || !accent || accent[1] === team) return [img, key];
-    const k = key + '|team:' + team;
+    const k = this.joinKey(key, '|team:' + team);
     let c = this.tints.get(k);
     if (c) {
-      this.tints.delete(k);
-      this.tints.set(k, c);
+      c.$used = this.drawCount;
       return [c, k];
     }
     const w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
@@ -523,11 +806,10 @@ export class Renderer {
   }
 
   tinted(key, img, cx) {
-    const k = key + '|' + cxKey(cx);
+    const k = this.joinKey(key, '|' + cxKey(cx));
     let c = this.tints.get(k);
     if (c) {
-      this.tints.delete(k);
-      this.tints.set(k, c);          // LRU: most recent last
+      c.$used = this.drawCount;
       return c;
     }
     const w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
@@ -555,19 +837,40 @@ export class Renderer {
   }
 
   // Colour tweens make a new tint every frame, and six players' colours a copy of each of
-  // their sprites: keep the most recently drawn, about 128MB of them.
+  // their sprites: keep the most recently drawn, about 128MB of them.  (Online, speed: a hit
+  // only stamps its entry with the drawing it was used in; when the cache is too big, the
+  // least recently used go, down to three quarters of it, so that it is not sorted again at
+  // the next new entry.)
   trimTints() {
-    while (this.tintPixels > 32e6 && this.tints.size > 1) {
-      const [oldKey, old] = this.tints.entries().next().value;
-      this.tints.delete(oldKey);
-      this.tintPixels -= old.width * old.height;
+    if (this.tintPixels <= 32e6 || this.tints.size <= 1) return;
+    const byUse = [...this.tints.entries()].sort((a, b) => (a[1].$used || 0) - (b[1].$used || 0));
+    for (const [k, c] of byUse) {
+      if (this.tintPixels <= 24e6 || this.tints.size <= 1) break;
+      this.tints.delete(k);
+      this.tintPixels -= c.width * c.height;
     }
+  }
+
+  // a + b, the same string each time (a frame asks for the same keys thousands of times).
+  joinKey(a, b) {
+    let m = this.keyParts.get(a);
+    if (!m) this.keyParts.set(a, (m = new Map()));
+    let k = m.get(b);
+    if (k === undefined) m.set(b, (k = a + b));
+    return k;
+  }
+
+  bitmapKey(lib, id) {
+    const keys = lib.$keys || (lib.$keys = new Map());
+    let k = keys.get(id);
+    if (k === undefined) keys.set(id, (k = `${lib.movie}:${id}`));
+    return k;
   }
 
   drawBitmapChar(ctx, id, m, cx, lib, smooth, cm) {
     let img = lib.bitmaps.get(id);
     if (!img) return;
-    let key = `${lib.movie}:${id}`;
+    let key = this.bitmapKey(lib, id);
     if (this.team) [img, key] = this.teamed(key, img, id, lib, this.team);
     if (cm) [img, key] = this.colourMatrixed(key, img, cm);
     this.setTransform(ctx, this.snapped(m, img.width, img.height));
@@ -602,6 +905,60 @@ export class Renderer {
   }
 
   // ---- the drawing API ------------------------------------------------------------------
+  // Smooth drawing: a clip drawn again in the last frame, by the same steps as before (the same
+  // kinds of line, fill and move, the same bitmaps), is drawn with its numbers part of the way
+  // from the old drawing's to the new -- points and bitmap fills' placings -- unless one of them
+  // jumped (160 pixels).  Otherwise, or drawn differently, it is the new drawing.
+  blendedGfx(obj) {
+    const now = obj.$gfx, was = obj.$gfxPrev;
+    if (now.$blendFrom !== was) {
+      now.$blendFrom = was;
+      now.$blendable = this.sameSteps(was.ops, now.ops);
+    }
+    if (!now.$blendable) return now;
+    const t = this.ipAlpha, a = was.ops, b = now.ops;
+    const ops = new Array(b.length);
+    for (let i = 0; i < b.length; i++) {
+      const p = a[i], q = b[i];
+      switch (q[0]) {
+        case 'm':
+        case 'l':
+          ops[i] = [q[0], p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t];
+          break;
+        case 'q':
+          ops[i] = ['q', p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t, p[3] + (q[3] - p[3]) * t, p[4] + (q[4] - p[4]) * t];
+          break;
+        case 'bb': {
+          const pm = p[1].m, qm = q[1].m;
+          ops[i] = ['bb', Object.assign({}, q[1], { m: qm.map((v, k) => pm[k] + (v - pm[k]) * t) })];
+          break;
+        }
+        default:
+          ops[i] = q;
+      }
+    }
+    return { ops, bounds: now.bounds };
+  }
+
+  sameSteps(a, b) {
+    if (!a || a.length !== b.length) return false;
+    const far = (x, y) => Math.abs(x - y) > 160;
+    for (let i = 0; i < b.length; i++) {
+      const p = a[i], q = b[i];
+      if (p[0] !== q[0]) return false;
+      if (q[0] === 'm' || q[0] === 'l') {
+        if (far(p[1], q[1]) || far(p[2], q[2])) return false;
+      } else if (q[0] === 'q') {
+        if (far(p[1], q[1]) || far(p[2], q[2]) || far(p[3], q[3]) || far(p[4], q[4])) return false;
+      } else if (q[0] === 'bb') {
+        const pm = p[1].m, qm = q[1].m;
+        if (p[1].bmd !== q[1].bmd || far(pm[4], qm[4]) || far(pm[5], qm[5])) return false;
+        for (let k = 0; k < 4; k++) if (Math.abs(pm[k] - qm[k]) > 0.5) return false;
+      }
+    }
+    return true;
+  }
+
   drawGraphics(ctx, g, m, cx) {
     let fill = null;        // {kind, style}
     let fillPath = null;
@@ -633,22 +990,23 @@ export class Renderer {
             Math.max(0, Math.min(255, Math.round(s.a * 2.55)))]));
           ctx.fill(fillPath, 'evenodd');
         } else if (fill.kind === 'bitmap') {
+          // (As fillPath's bitmap fills: the shape filled with a pattern, not clipped.  Faded
+          // only, it fades by the canvas's alpha rather than by a faded copy.)
           const s = fill.style;
           const bmd = s.bmd;
           const src = bmd && (bmd.$canvas || null);
           if (src) {
-            ctx.save();
-            ctx.clip(fillPath, 'evenodd');
-            this.setTransform(ctx, mul(m, s.m));
-            ctx.imageSmoothingEnabled = this.smoothing(s.smooth);
-            const img = cxIsIdentity(cx) ? src : this.tinted(`bmd${bmd.$id}:${bmd.$version}`, src, cx);
-            if (s.repeat) {
-              ctx.fillStyle = ctx.createPattern(img, 'repeat');
-              ctx.fillRect(-1e5, -1e5, 2e5, 2e5);
-            } else {
-              ctx.drawImage(img, 0, 0);
+            let img = src;
+            if (cxIsIdentity(cx)) ctx.globalAlpha = 1;
+            else if (cxAlphaOnly(cx) && cx[3] <= 256 && cx[7] === 0) ctx.globalAlpha = Math.max(0, cx[3] / 256);
+            else img = this.tinted(`bmd${bmd.$id}:${bmd.$version}`, src, cx);
+            const p = this.pattern(ctx, img, s.repeat, s.m);
+            if (p) {
+              ctx.imageSmoothingEnabled = this.smoothing(s.smooth);
+              ctx.fillStyle = p;
+              ctx.fill(fillPath, 'evenodd');
             }
-            ctx.restore();
+            ctx.globalAlpha = 1;
           }
         }
       }

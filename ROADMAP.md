@@ -53,6 +53,11 @@ As listed, plus later additions:
      compacts the list, keeping players ahead of bots, and players who no longer have a
      slot become spectators.
    - Hosting on GitHub Pages if possible, otherwise on the owner's Windows 10 server.
+   - With two or more people playing, pausing doesn't stop the match: Esc opens the menu
+     for that player only.
+   - A player who disconnects forfeits. If at least two teams are still standing, all
+     their units and buildings blow up, "<Playername> has surrendered!" is shown, and the
+     match goes on.
 8. **Settings, kept in the browser.**
    - name, preferred faction, preferred colour
    - preferred map palette (All/Mars/Snowy), which overrides the host's choice on that
@@ -76,7 +81,10 @@ As listed, plus later additions:
 ## Status
 
 - **1. Screen and controls: done.** The game fills the window, the wheel zooms, WASD
-  scrolls, right-click deselects.
+  scrolls, right-click deselects. It is drawn at the screen's refresh rate, what moves
+  shown between the game's 23 frames a second, and the pointer where the mouse is; the
+  zoomed-out map keeps its shroud as a picture (the game's own cacheAsBitmap), mended where
+  it changes. When something goes wrong, a notice offers an error report to copy.
 - **2. Skirmish core: under way.** Units and buildings belong to players (up to six, in
   teams) with their own money and power; the story's levels play as two players, unchanged.
   Conflict mode starts a skirmish against the computer on Eclipse. Still to come in this
