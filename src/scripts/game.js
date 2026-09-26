@@ -6748,6 +6748,129 @@
          var other = faction == "good" ? "evil" : "good";
          return {map:10,mode:"all",cash:10000,prebuilt:false,units:3,shroud:true,superweapons:true,palette:"mars",players:[{name:"Player",faction:faction,colour:faction == "good" ? "orange" : "green",control:"local"},{name:"Computer",faction:other,colour:other == "good" ? "orange" : "green",control:"bot"}]};
       };
+      // Online: a player's production without the sidebar -- what a computer player (and,
+      // later, a remote one) builds with.  It keeps the sidebar's rules: one building and one
+      // unit at a time, each paid for as it progresses at the sidebar's rate (halved when the
+      // owner's power is low); a finished unit comes out at its home, and a finished building
+      // waits to be placed (place) where the building site would allow it.
+      Production = function Production(level, owner)
+      {
+         this.level = level;
+         this.owner = owner;
+         this.speed = 8;
+         this.building = false;
+         this.unit = false;
+         this.handle = function ()
+         {
+            this.advance?.(this.building);
+            this.advance?.(this.unit);
+         };
+         // Start building or training a type, if the owner may and nothing of its kind is under
+         // way.  Returns whether it started.
+         this.start = function (type)
+         {
+            var isBuilding = type?.charAt?.(0) == "B";
+            if(isBuilding && this.building || !isBuilding && this.unit)
+            {
+               return false;
+            }
+            if(!this.level?.techFor?.(this.owner)?.[type] || !(this.level?.countOwned?.(type, this.owner) < this.max?.(type)))
+            {
+               return false;
+            }
+            var item = isBuilding ? new BuildingStats(type) : new UnitStats(type);
+            item.progress = 0;
+            if(isBuilding)
+            {
+               this.building = item;
+            }
+            else
+            {
+               this.unit = item;
+            }
+            return true;
+         };
+         this.max = function (type)
+         {
+            var stats = type?.charAt?.(0) == "B" ? new BuildingStats(type) : new UnitStats(type);
+            return stats?.max == undefined ? 1 : stats?.max;
+         };
+         // The sidebar's Construction.construct, for this owner.
+         this.advance = function (item)
+         {
+            if(!item || item.progress == item.constructionTime)
+            {
+               return undefined;
+            }
+            var step = this.speed;
+            if(this.owner?.powerLow)
+            {
+               step *= 0.5;
+            }
+            step = Math.ceil(step);
+            var over = item.progress + step - item.constructionTime;
+            if(over > 0)
+            {
+               step -= over;
+            }
+            var price = Math.ceil(step / item.constructionTime * item.cost);
+            if(this.owner?.cash < price)
+            {
+               return undefined;
+            }
+            this.owner.cash -= price;
+            item.progress = min?.(item.progress + step, item.constructionTime);
+            if(item.progress == item.constructionTime && item.isUnit && !item.superweapon)
+            {
+               this.level?.units?.push?.(new Unit(this.level, item.type, undefined, undefined, 0.125 * random?.(8), this.owner));
+               this.unit = false;
+            }
+         };
+         // A finished building, waiting for somewhere to go.
+         this.ready = function ()
+         {
+            return this.building && this.building.progress == this.building.constructionTime ? this.building.type : false;
+         };
+         this.place = function (x, y)
+         {
+            var type = this.ready?.();
+            if(!type || !this.level?.siteValid?.(type, this.owner, x, y))
+            {
+               return false;
+            }
+            this.level?.buildings?.push?.(new Building(this.level, type, x, y, this.owner));
+            this.building = false;
+            return true;
+         };
+         // Give up what is under way, with the money back for what is not yet built.
+         this.cancel = function (isBuilding)
+         {
+            var item = isBuilding ? this.building : this.unit;
+            if(!item)
+            {
+               return undefined;
+            }
+            this.owner.cash += item.progress / item.constructionTime * item.cost;
+            if(isBuilding)
+            {
+               this.building = false;
+            }
+            else
+            {
+               this.unit = false;
+            }
+         };
+         // A finished superweapon, spent.
+         this.fire = function ()
+         {
+            if(this.unit?.superweapon && this.unit?.progress == this.unit?.constructionTime)
+            {
+               this.unit = false;
+               return true;
+            }
+            return false;
+         };
+      };
       Level = function Level(parent, level)
       {
          this.parent = parent;
@@ -7605,6 +7728,162 @@
                   this.units?.[index]?.destroy?.();
                }
             }
+         };
+         // Online: what a player may build: the sidebar's prerequisites (Construction.
+         // doPrerequisites), for any player, by the buildings that player owns.  (The story's
+         // levels hold some of it back from the player; that is the sidebar's business.)
+         this.techFor = function (owner)
+         {
+            var tech = {};
+            var factions = new Array(owner?.faction, owner?.faction == "good" ? "evil" : "good");
+            var index = 0;
+            var f;
+            var has = (type) => !!this.findBuilding?.(type, owner);
+            while(index < factions?.length)
+            {
+               f = factions?.[index];
+               index++;
+               if(has("BA_" + f) || has("BK_" + f))
+               {
+                  if(has("BA_" + f))
+                  {
+                     tech["UD_" + f] = true;
+                  }
+                  if(has("BK_" + f))
+                  {
+                     tech["UP_" + f] = true;
+                     tech["BL_" + f] = true;
+                  }
+                  tech["BB_" + f] = true;
+                  if(has("BB_" + f))
+                  {
+                     tech["BC_" + f] = true;
+                  }
+                  if(has("BC_" + f))
+                  {
+                     tech["BD_" + f] = tech["BE_" + f] = tech["BF_" + f] = true;
+                  }
+                  if(has("BE_" + f) && has("BF_" + f))
+                  {
+                     tech["BG_" + f] = tech["UF_" + f] = true;
+                     if(has("BG_" + f))
+                     {
+                        tech["BH_" + f] = true;
+                        if(has("BH_" + f))
+                        {
+                           tech["UK_" + f] = true;
+                        }
+                     }
+                  }
+               }
+               if(has("BC_" + f))
+               {
+                  tech["UA_" + f] = tech["UB_" + f] = true;
+                  if(has("BG_" + f))
+                  {
+                     tech["UC_" + f] = true;
+                  }
+               }
+               if(has("BE_" + f))
+               {
+                  tech["UE_" + f] = true;
+                  if(has("BL_" + f))
+                  {
+                     tech["UR_" + f] = true;
+                  }
+               }
+               if(has("BF_" + f))
+               {
+                  tech["UG_" + f] = true;
+                  if(has("BE_" + f) && has("BG_" + f))
+                  {
+                     tech["UH_" + f] = true;
+                  }
+               }
+            }
+            tech.BL_evil = false;
+            if(this.skirmish && !this.skirmish?.superweapons)
+            {
+               tech.UK_good = tech.UK_evil = false;
+            }
+            return tech;
+         };
+         // Could a building go here for a player -- the building site's test (BuildingSite.handle):
+         // near enough to one of the owner's powered buildings (if it uses power), and on free
+         // ground (a driller on crystals).  x and y are the tile the site would be dropped on.
+         this.siteValid = function (type, owner, x, y)
+         {
+            var stats = new BuildingStats({type:type,tilePos:{x:0,y:0},parent:this});
+            var near = !stats?.power;
+            var cx = x + stats?.topLeftX - stats?.powerMargin;
+            var cy;
+            var used;
+            while(!near && cx < x + stats?.topLeftX + stats?.width + stats?.powerMargin)
+            {
+               cy = y + stats?.topLeftY - stats?.powerMargin;
+               while(cy < y + stats?.topLeftY + stats?.height + stats?.powerMargin)
+               {
+                  used = this.arena?.useds?.[cx]?.[cy];
+                  if(used?.isBuilding && used?.owner == owner && used?.stats?.power)
+                  {
+                     near = true;
+                     break;
+                  }
+                  cy++;
+               }
+               cx++;
+            }
+            if(!near)
+            {
+               return false;
+            }
+            cx = x + stats?.topLeftX;
+            while(cx < x + stats?.topLeftX + stats?.width)
+            {
+               cy = y + stats?.topLeftY;
+               while(cy < y + stats?.topLeftY + stats?.height)
+               {
+                  used = this.arena?.useds?.[cx]?.[cy];
+                  if(cx < 1 || cy < 1 || cx > this.arena?.cols || cy > this.arena?.rows)
+                  {
+                     return false;
+                  }
+                  if(stats?.refinery && !this.arena?.baits?.[cx]?.[cy] || used && (!stats?.refinery || String?.(used) == "[object Object]" || this.arena?.tiles?.[cx]?.[cy]))
+                  {
+                     return false;
+                  }
+                  cy++;
+               }
+               cx++;
+            }
+            return true;
+         };
+         // The valid site for a building nearest a point, searching outwards ring by ring (up
+         // to radius tiles away), or undefined.
+         this.siteNear = function (type, owner, point, radius)
+         {
+            var r = 0;
+            var dx;
+            var dy;
+            while(!(r > radius))
+            {
+               dy = -r;
+               while(!(dy > r))
+               {
+                  dx = -r;
+                  while(!(dx > r))
+                  {
+                     if(Math.max(Math.abs(dx), Math.abs(dy)) == r && this.siteValid?.(type, owner, point?.x + dx, point?.y + dy))
+                     {
+                        return {x:point?.x + dx,y:point?.y + dy};
+                     }
+                     dx++;
+                  }
+                  dy++;
+               }
+               r++;
+            }
+            return undefined;
          };
          // Online: the players.  A story level has two -- this browser's, playing the side the
          // player chose, and the opponent -- and a skirmish those its settings list.
