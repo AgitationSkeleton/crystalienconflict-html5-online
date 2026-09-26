@@ -313,6 +313,12 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
   for (const t of ['gesturestart', 'gesturechange']) document.addEventListener(t, (e) => e.preventDefault(), { passive: false });
 
   return {
+    // Online: the view moved by a drag of so many CSS pixels (the mouse's middle or right
+    // button held down: see main.js).
+    panBy(dx, dy) {
+      const k = scale();
+      pan(dx / k, dy / k);
+    },
     // each refresh: a release waiting on the game; the pointer out of the way; the buttons while
     // a match is on; and a double tap's allowance (the game's, in frames, a little longer).
     frame(touchMode) {

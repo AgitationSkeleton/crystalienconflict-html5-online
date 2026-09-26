@@ -14,6 +14,29 @@
 // seeded random().
 
 const TICKS_PER_FRAME = 15 / 23;
+
+// How each difficulty plays (the online game's own: the mod's opponent is Hard, as it was).
+// Medium and Easy build slower, mine with fewer miners, keep smaller armies and fewer guns, stay
+// quiet longer at the start -- no raids either -- then raid and attack less often and with
+// fewer units, and answer an attack more slowly; Easy builds no superweapon.  (Times in the
+// mod's ticks, fifteen a second.)
+//   speed        building speed (a player's is 8)
+//   miners       how many miners it keeps
+//   army         how many vehicles, and how many infantry, at most
+//   guns         defences at most
+//   quiet        no attack before this (and, but for Hard, no raid)
+//   attackEvery  the time between attacks, times this
+//   share        of 4, how many of its armed units go on an attack
+//   raidEvery    a raid this often, unthreatened; raidThreatened when under attack
+//   raidSize     units sent on a raid (three more when under attack)
+//   aggression, patrol  how often it looks for trouble and patrols
+//   react        as a person must click: how long after one thing is made it starts the next,
+//                and after a building is ready it puts it down
+const PROFILES = {
+  easy: { react: 90, speed: 3, miners: 2, army: 4, guns: 2, quiet: 5400, attackEvery: 3, share: 2, raidEvery: 1800, raidThreatened: 360, raidSize: 2, aggression: 90, patrol: 900, superweapon: false },
+  medium: { react: 45, speed: 5, miners: 3, army: 7, guns: 6, quiet: 2700, attackEvery: 1.5, share: 3, raidEvery: 900, raidThreatened: 240, raidSize: 4, aggression: 45, patrol: 450, superweapon: true },
+  hard: { react: 15, speed: 8, miners: 4, army: 10, guns: 40, quiet: 900, attackEvery: 1, share: 3, raidEvery: 450, raidThreatened: 180, raidSize: 7, aggression: 30, patrol: 300, superweapon: true },
+};
 const CELL = 96;                              // a tile, in world pixels
 
 const NONE = 0, LOW = 1, MEDIUM = 2, HIGH = 3, CRITICAL = 4;
@@ -45,7 +68,8 @@ export class Bot {
     this.level = level;
     this.player = player;
     this.random = rng;                       // (n) => 0..n-1, the game's seeded generator
-    this.difficulty = player.difficulty || 'medium';
+    this.difficulty = PROFILES[player.difficulty] ? player.difficulty : 'medium';
+    this.profile = PROFILES[this.difficulty];
     this.tick = 0;
     this.clock = 0;
     this.id = 4 + player.index;              // the mod's house enum, for phase offsets
@@ -56,12 +80,15 @@ export class Bot {
     this.roundRobin = 0;
     this.lastHit = -1e9;                     // §4.3: when an own building last took damage
     this.defended = new Map();               // §6.3: attacker -> tick its response may repeat
-    this.attackTimer = 900;                  // §6.4: the first minute is quiet
+    this.attackTimer = this.profile.quiet;   // §6.4: the first minute is quiet (longer, below Hard)
     this.expertTimer = 75;
     this.scouted = null;                     // §4.6
     this.placeWait = 0;
-    // Building speed: a player's is 8; the computer never waits to click, so it builds slower.
-    this.speed = { easy: 4, medium: 6, hard: 8 }[this.difficulty] || 6;
+    this.placing = null;
+    this.readyAt = { unit: 0, building: 0 };  // when it may start the next of each (react)
+    // Building speed: a player's is 8; the computer never waits to click, so below Hard it
+    // builds slower.
+    this.speed = this.profile.speed;
     this.production = null;                  // set by the level (Production)
   }
 
@@ -89,6 +116,9 @@ export class Bot {
   }
   pizzaProtected(b) { return this.settings.mode === 'pizza' && b.isBuilding && this.code(b) === 'BA'; }
   underAttack() { return this.tick - this.lastHit < 900; }
+  // Below Hard, the quiet start: nothing sent out -- no raid, patrol, hunt or capture -- unless
+  // it is attacked.
+  calm() { return this.difficulty !== 'hard' && this.tick < this.profile.quiet && !this.underAttack(); }
 
   // ---- the clock -----------------------------------------------------------------------------
   // Called by the level every frame, after this player's production.
@@ -107,9 +137,9 @@ export class Bot {
   runTick() {
     const t = this.tick;
     if (this.every(7) && (t + 7 * this.id) % 15 === 0) this.collect();
-    if (this.every(this.difficulty === 'easy' ? 60 : 30)) this.aggression();
-    if ((t + this.id) % (this.underAttack() ? 180 : 450) === 0) this.raid();
-    if (!this.underAttack() && this.every(this.difficulty === 'easy' ? 600 : 300, 13 * this.id)) this.patrol();
+    if (this.every(this.profile.aggression)) this.aggression();
+    if ((t + this.id) % (this.underAttack() ? this.profile.raidThreatened : this.profile.raidEvery) === 0) this.raid();
+    if (!this.underAttack() && this.every(this.profile.patrol, 13 * this.id)) this.patrol();
     if (this.every(7)) this.repair();
     if (this.settings.mode === 'ctf' && this.every(7)) this.flagRun();
     if (this.settings.mode === 'ctf' && this.every(30)) this.flagGuard();
@@ -190,7 +220,8 @@ export class Bot {
     if (this.want.building && !this.canBuild(this.want.building)) this.want.building = null;
     if (!this.want.building) this.want.building = this.plan();
     const p = this.production;
-    if (this.want.building && !p.building && this.player.cash > 10) {
+    if (p.building) this.readyAt.building = this.tick + this.profile.react;
+    if (this.want.building && !p.building && this.tick >= this.readyAt.building && this.player.cash > 10) {
       if (p.start(this.want.building)) this.want.building = null;
     }
   }
@@ -219,8 +250,8 @@ export class Bot {
     if (curBE < roundUp(RATIO.factory, N) && curBE < 2 && (cash > 2000 || income) && this.canBuild(be) && this.affordable(be)) offer(be, curBE > 0 ? LOW : MEDIUM);
     const bd = this.slot('BD');
     const curBD = cur('BD');
-    if (curBD < roundUp(RATIO.defence, N) && curBD < 40 && this.canBuild(bd) && this.canPower(bd) && this.affordable(bd)) offer(bd, MEDIUM);
-    if (curBD < roundUp(RATIO.aa, N) && curBD < 10 && this.airThreat()) {
+    if (curBD < roundUp(RATIO.defence, N) && curBD < this.profile.guns && this.canBuild(bd) && this.canPower(bd) && this.affordable(bd)) offer(bd, MEDIUM);
+    if (curBD < roundUp(RATIO.aa, N) && curBD < Math.min(10, this.profile.guns) && this.airThreat()) {
       const bf = this.slot('BF');
       if (cur('BF') === 0 && this.canBuild(bf) && this.affordable(bf)) offer(bf, HIGH);
       if (this.canBuild(bd) && this.affordable(bd)) offer(bd, MEDIUM);
@@ -276,7 +307,9 @@ export class Bot {
 
   place() {
     const type = this.production.ready();
-    if (!type) { this.placeWait = 0; return; }
+    if (!type) { this.placeWait = 0; this.placing = null; return; }
+    // (a person takes a moment to put it down)
+    if (this.placing !== type) { this.placing = type; this.placeWait = this.profile.react; }
     if (this.placeWait > 0) { this.placeWait--; return; }
     const site = this.findSite(type);
     if (site && this.production.place(site.x, site.y)) return;
@@ -380,8 +413,8 @@ export class Bot {
 
   ceiling(kind) {
     // §3.2: the ceilings come to about ten of each (the mod never finds an enemy to average).
-    if (kind === 'vehicle') return Math.max(this.settings.units || 0, 10);
-    return 10;
+    if (kind === 'vehicle') return Math.max(this.settings.units || 0, this.profile.army);
+    return this.profile.army;
   }
 
   units() {
@@ -390,7 +423,8 @@ export class Bot {
     this.chooseInfantry(n);
     this.chooseAircraft(n);
     const p = this.production;
-    if (p.unit || this.player.cash <= 10) return;
+    if (p.unit) this.readyAt.unit = this.tick + this.profile.react;
+    if (p.unit || this.tick < this.readyAt.unit || this.player.cash <= 10) return;
     // One unit queue for the mod's several factories (§3.1 [port]): the pizza, then a miner,
     // then vehicles, infantry and aircraft in turn.
     const order = [];
@@ -417,7 +451,7 @@ export class Bot {
 
   chooseVehicle(n) {
     // §3.3: miners first.
-    const want = this.ownBuildings((b) => b.type === this.mine('BA')).length ? 4 : 0;
+    const want = this.ownBuildings((b) => b.type === this.mine('BA')).length ? this.profile.miners : 0;
     if (want > this.miners()) {
       const miner = this.buildable('UD')[0];
       if (miner) { this.want.vehicle = miner; return; }
@@ -658,6 +692,7 @@ export class Bot {
       return;
     }
     const reclaim = this.underAttack();
+    if (this.calm()) return;
     for (const u of this.own()) {
       if (!this.armed(u) || this.isMiner(u) || this.isBoomerang(u) || u.flag) continue;
       if (this.isEngineer(u) || this.isDecoy(u)) continue;
@@ -671,6 +706,7 @@ export class Bot {
   // ---- §4.3 raid ---------------------------------------------------------------------------------
   raid() {
     const threatened = this.underAttack();
+    if (this.calm()) return;
     const c = this.baseCentre();
     if (!c) return;
     let aim = null;
@@ -687,7 +723,7 @@ export class Bot {
     if (!aim && (this.player.faction === 'evil' || this.settings.mode === 'pizza')) aim = this.revenueTarget(c);
     if (!aim) aim = this.bestAssault(c);
     if (!aim) return;
-    const want = (threatened ? 8 : 5) + (this.difficulty === 'hard' ? 2 : 0);
+    const want = this.profile.raidSize + (threatened ? 3 : 0);
     let sent = 0;
     for (const u of this.own((x) => this.vehicle(x))) {
       if (sent >= want) break;
@@ -738,6 +774,7 @@ export class Bot {
 
   // ---- §4.4 patrol -----------------------------------------------------------------------------
   patrol() {
+    if (this.calm()) return;
     const force = this.own((u) => this.armed(u) && !this.isMiner(u) && !u.flag && !this.aircraft(u) && !this.isEngineer(u) && !this.isDecoy(u));
     if (force.length < 4) return;
     const want = Math.floor(force.length / 2);
@@ -846,13 +883,13 @@ export class Bot {
         }
         u.target = false;
       }
-      const best = this.bestRaid(u, giveup);
+      const best = this.calm() ? null : this.bestRaid(u, giveup);
       if (best) {
         this.order(u, 'capture', { target: best });
         this.escort(best, 2);
         continue;
       }
-      const explore = this.unscoutedPoint(u);
+      const explore = this.calm() ? null : this.unscoutedPoint(u);
       if (explore) { this.order(u, 'move', { dest: explore }); continue; }
       const home = this.ownBuildings()[0];
       if (home && cells(u.posX, u.posY, home.posX, home.posY) > 1.5) this.order(u, 'move', { dest: { x: home.stats.dockX, y: home.stats.dockY } });
@@ -1113,12 +1150,11 @@ export class Bot {
     }
     this.attackTimer -= 75;
     if (this.attackTimer > 0) return;
-    this.attackTimer = 3 * (450 + this.random(1351));
-    if (this.difficulty === 'easy') this.attackTimer *= 2;
+    this.attackTimer = 3 * (450 + this.random(1351)) * this.profile.attackEvery;
     if (this.random(3) === 0 || !this.ownBuildings().length) {
       for (const u of this.own((x) => this.armed(x) && !this.isMiner(x))) {
         if (this.isBoomerang(u) && u.weaponPayload !== u.stats.maxWeaponPayload) continue;
-        if (this.random(4) < 3) this.order(u, 'hunt', { target: this.huntPick(u) });
+        if (this.random(4) < this.profile.share) this.order(u, 'hunt', { target: this.huntPick(u) });
       }
     } else {
       const c = this.baseCentre();
@@ -1149,6 +1185,6 @@ export class Bot {
       if (target && p.fire()) this.level.launchSuperweapon(target.posX, target.posY);
       return;
     }
-    if (!p.unit && this.tick % 45 === 0 && this.canBuild(uk) && this.player.cash > this.statsOf(uk).cost + 2000) p.start(uk);
+    if (!p.unit && this.profile.superweapon && this.tick % 45 === 0 && this.canBuild(uk) && this.player.cash > this.statsOf(uk).cost + 2000) p.start(uk);
   }
 }

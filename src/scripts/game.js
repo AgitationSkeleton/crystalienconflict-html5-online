@@ -3573,7 +3573,7 @@
                   __as.set(_loc5_, "_x", (_loc3_ - 1) * this.arena?.tileSize);
                   __as.set(_loc5_, "_y", (_loc2_ - 1) * this.arena?.tileSize2);
                   _loc5_?.gotoAndStop?.("valid");
-                  if(tooFarAway || this.stats?.refinery && !this.arena?.baits?.[_loc3_]?.[_loc2_] || this.arena?.useds?.[_loc3_]?.[_loc2_] && (!this.stats?.refinery || String?.(this.arena?.useds?.[_loc3_]?.[_loc2_]) == "[object Object]" || this.arena?.tiles?.[_loc3_]?.[_loc2_]))
+                  if(tooFarAway || this.stats?.refinery && !this.arena?.baits?.[_loc3_]?.[_loc2_] || this.arena?.useds?.[_loc3_]?.[_loc2_] && (!this.stats?.refinery || String?.(this.arena?.useds?.[_loc3_]?.[_loc2_]) == "[object Object]" || this.arena?.tiles?.[_loc3_]?.[_loc2_]) || this.parent?.parent?.flagAt?.(_loc3_, _loc2_))
                   {
                      _loc5_?.gotoAndStop?.("invalid");
                      this.valid = false;
@@ -4875,6 +4875,8 @@
                if(this.still > 100)
                {
                   delete this.path;
+                  // (Online: a miner's work is taken up again -- see below.)
+                  this.resume = this.stats?.miner && this.parent?.parent?.skirmish;
                }
                return undefined;
             }
@@ -4894,6 +4896,22 @@
                      this.voyage?.(this.lastFed?.x, this.lastFed?.y, false, false, true);
                      this.feeding = true;
                      __as.set(this.parent, "hilite", true);
+                  }
+               }
+               // Online: a miner that gave its way up, blocked too long (as miners crowding a
+               // headquarters are), would stand there for good, neither mining nor home -- it
+               // mines as it reaches crystals.  It takes its work up again: home with a full
+               // load, or on to the nearest crystals it can reach.
+               else if(this.resume)
+               {
+                  this.resume = false;
+                  if(!(this.parent?.cargo < this.stats?.maxCargo))
+                  {
+                     this.returnHome?.();
+                  }
+                  else
+                  {
+                     this.voyage?.(undefined, undefined, false, true);
                   }
                }
                if(this.parent?.stats?.boomerang)
@@ -8989,7 +9007,9 @@
             flag.arrow = undefined;
             this.showFlag?.(flag);
          };
-         // Home with an enemy's flag: its owner is out.
+         // Home with an enemy's flag: its owner is out.  (Online: once it has been taken home
+         // as many times as the host's Capture limit says; until then the flag goes back to
+         // its own home.)
          this.captureFlag = function (flag, carrier)
          {
             var victim = flag.owner;
@@ -8998,6 +9018,13 @@
             {
                this.parent?.sfx?.play?.("INT_optionsadd");
                this.parent?.hud?.showMessage?.(dialogue?.("int_flag_captured"));
+            }
+            victim.flagsLost = (victim.flagsLost || 0) + 1;
+            if(victim.flagsLost < (Number(this.skirmish?.captures) || 1))
+            {
+               flag.cell = {x:flag.home.x,y:flag.home.y};
+               this.showFlag?.(flag);
+               return undefined;
             }
             this.knockOut?.(victim);
          };
@@ -9650,6 +9677,20 @@
          // Could a building go here for a player -- the building site's test (BuildingSite.handle):
          // near enough to one of the owner's powered buildings (if it uses power), and on free
          // ground (a driller on crystals).  x and y are the tile the site would be dropped on.
+         // Online: a flag of Capture the Flag lies on this tile, or has its home there (where its
+         // carriers must reach): nothing is built there.
+         this.flagAt = function (x, y)
+         {
+            for(var index of __as.keys(this.flags))
+            {
+               var flag = this.flags[index];
+               if(flag?.home?.x == x && flag?.home?.y == y || flag?.cell?.x == x && flag?.cell?.y == y)
+               {
+                  return true;
+               }
+            }
+            return false;
+         };
          this.siteValid = function (type, owner, x, y)
          {
             var stats = new BuildingStats({type:type,tilePos:{x:0,y:0},parent:this});
@@ -9687,7 +9728,7 @@
                   {
                      return false;
                   }
-                  if(stats?.refinery && !this.arena?.baits?.[cx]?.[cy] || used && (!stats?.refinery || String?.(used) == "[object Object]" || this.arena?.tiles?.[cx]?.[cy]))
+                  if(stats?.refinery && !this.arena?.baits?.[cx]?.[cy] || used && (!stats?.refinery || String?.(used) == "[object Object]" || this.arena?.tiles?.[cx]?.[cy]) || this.flagAt?.(cx, cy))
                   {
                      return false;
                   }

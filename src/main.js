@@ -178,14 +178,53 @@ canvas.addEventListener('pointercancel', (ev) => {
   if (player.mouseDown) player.pointerUp(x, y);
 });
 // The middle and right buttons only ever reached the game as key codes (the game uses the
-// middle one to deselect).  Middle-clicking must not start the browser's autoscroll.
+// middle one to deselect; online, the right one too).  Middle-clicking must not start the
+// browser's autoscroll.
+// (Online: over the map in a match, either held and dragged moves the view, as C&C's does --
+// the map follows the pointer; let go without dragging, it is the click it was, given then and
+// held for two of the game's frames so that the game sees it.)
+const DRAG_VIEW = 6;                       // CSS pixels a held button moves before it drags
+let heldButton = null;                     // {button, x, y, dragging}
+const inMatch = () => {
+  const g = player.levels[1];
+  return !!(g && g.panel && g.panel.game && g.panel.game.level);
+};
+function clickButton(button) {
+  player.mouseButton(button, true);
+  const at = player.frame + 2;
+  const up = () => {
+    if (player.frame >= at) player.mouseButton(button, false);
+    else requestAnimationFrame(up);
+  };
+  requestAnimationFrame(up);
+}
 canvas.addEventListener('mousedown', (ev) => {
   if (ev.button === 0) return;
-  player.mouseButton(ev.button, true);
   ev.preventDefault();
+  if ((ev.button === 1 || ev.button === 2) && inMatch() && stagePoint(ev)[0] >= 150) {
+    heldButton = { button: ev.button, x: ev.clientX, y: ev.clientY, dragging: false };
+    return;
+  }
+  player.mouseButton(ev.button, true);
+});
+addEventListener('mousemove', (ev) => {
+  const h = heldButton;
+  if (!h) return;
+  if (!h.dragging && Math.hypot(ev.clientX - h.x, ev.clientY - h.y) < DRAG_VIEW) return;
+  h.dragging = true;
+  touch.panBy(ev.clientX - h.x, ev.clientY - h.y);
+  h.x = ev.clientX;
+  h.y = ev.clientY;
 });
 addEventListener('mouseup', (ev) => {
-  if (ev.button !== 0) player.mouseButton(ev.button, false);
+  if (ev.button === 0) return;
+  const h = heldButton;
+  if (h && h.button === ev.button) {
+    heldButton = null;
+    if (!h.dragging) clickButton(ev.button);
+    return;
+  }
+  player.mouseButton(ev.button, false);
 });
 canvas.addEventListener('auxclick', (ev) => ev.preventDefault());
 // The original replaced Flash's right-click menu with a single "www.lego.com" item; here

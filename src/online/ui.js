@@ -22,6 +22,7 @@ const MATCH = [
   { key: 'crateRate', label: 'Crates appear', ready: true, choices: [['rare', 'Rarely'], ['normal', 'Normally'], ['often', 'Often']], when: (m) => m.crates },
   { key: 'income', label: 'Passive income', ready: true, choices: [[0, 'None'], [200, '$200 a minute'], [400, '$400 a minute'], [800, '$800 a minute']] },
   { key: 'pizzaCost', label: 'Pizza cost', ready: true, when: (m) => m.mode === 'pizza', choices: [[25000, '$25,000'], [50000, '$50,000'], [100000, '$100,000']] },
+  { key: 'captures', label: 'Capture limit', ready: true, when: (m) => m.mode === 'ctf', choices: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => [n, n === 1 ? 'Once: out' : n + ' times']) },
   { key: 'speed', label: 'Unit speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Faster'], [2, 'Fastest']] },
   { key: 'build', label: 'Build speed', ready: true, choices: [[0.5, 'Slow'], [1, 'Normal'], [2, 'Fast'], [3, 'Faster'], [10, 'Quickbuild (ten times)']] },
   { key: 'queue', label: 'Unit queue', ready: true, choices: [[false, 'Off'], [true, "Up to each unit's maximum"]] },
@@ -38,7 +39,7 @@ const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', pizza
 const MATCH_DEFAULTS = {
   map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true,
   christmas: false, crateRate: 'normal', income: 0, pizzaCost: 50000, speed: 1, shroud: true,
-  superweapons: true, factions: 'all', regrowth: 1, palette: 'mars', build: 1, queue: false, shields: false,
+  superweapons: true, factions: 'all', regrowth: 1, palette: 'mars', build: 1, queue: false, shields: false, captures: 1,
 };
 
 // The palette a match is seen in: the host's, unless this player prefers one; either may be
@@ -449,7 +450,7 @@ export class OnlineUI {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
-      build: m.build || 1, queue: !!m.queue, shields: !!m.shields,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1,
       players,
     };
     // Watching: a grey sidebar, with nothing on it to build.
@@ -804,7 +805,7 @@ export class OnlineUI {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette: m.palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
-      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, players,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, players,
     };
     net.start(settings);
   }
