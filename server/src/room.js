@@ -310,7 +310,9 @@ export class Room extends DurableObject {
       return conn.ws.close(4003, 'kicked');
     }
     let mem = [...this.members.values()].find((x) => x.token === token && !x.left);
+    let arrived = false;
     if (!mem) {
+      arrived = true;
       if (r.passHash && (await sha256Hex(r.code + '|' + String(m.password || ''))) !== r.passHash) {
         this.send(conn.ws, { type: 'error', reason: 'password' });
         return conn.ws.close(4001, 'password');
@@ -344,6 +346,8 @@ export class Room extends DurableObject {
     clearTimeout(this.timers.expire);
     this.startHeartbeat();
     this.send(conn.ws, { type: 'welcome', you: mem.id, room: this.view() });
+    // (everyone is told who has come in -- not the room's maker, alone in it)
+    if (arrived && [...this.members.values()].some((x) => x !== mem && x.connected)) this.notice(mem.name + ' joined');
     // A match under way: the newcomer watches it (or, back after losing their connection, plays
     // on), from wherever their page has got to (have) or the start.
     if (this.game) {
@@ -395,7 +399,13 @@ export class Room extends DurableObject {
       r.host = next ? next.id : null;
     }
     if (![...this.members.values()].some((x) => x.connected)) this.expireSoon();
+    else this.notice(mem.name + (why === 'kicked' ? ' was asked to leave' : ' left'));
     this.changed();
+  }
+
+  // A line in everyone's chat from the room itself (someone coming or going).
+  notice(text) {
+    this.broadcast({ type: 'chat', system: true, text });
   }
 
   unseat(id) {

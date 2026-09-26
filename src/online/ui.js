@@ -856,7 +856,9 @@ export class OnlineUI {
   }
 
   renderChat() {
-    this.chatLog.replaceChildren(...this.chatLines.map((c) => el('div', { class: 'line' }, el('b', { text: c.name + ': ' }), c.text)));
+    this.chatLog.replaceChildren(...this.chatLines.map((c) => (c.system
+      ? el('div', { class: 'line system', text: c.text })
+      : el('div', { class: 'line' }, el('b', { text: c.name + ': ' }), c.text))));
     this.chatLog.scrollTop = this.chatLog.scrollHeight;
   }
 

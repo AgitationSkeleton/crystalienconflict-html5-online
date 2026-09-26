@@ -293,6 +293,7 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 .chat { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
 .chatlog { flex: 1; min-height: 150px; height: 0; overflow-y: auto; font-size: 13px; text-transform: none; letter-spacing: 0; line-height: 1.35; }
 .chatlog b { color: var(--orange-hi); font-weight: 600; }
+.chatlog .system { color: #b9b3a6; font-style: italic; }    /* someone coming or going */
 .toast {
   position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; max-width: min(560px, calc(100vw - 24px));
   padding: 10px 14px; background: var(--panel); border: 1px solid var(--orange); border-radius: 8px; color: var(--ink);
