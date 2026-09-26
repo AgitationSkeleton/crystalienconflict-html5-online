@@ -758,16 +758,17 @@ function makeFlashPackage(player) {
     b.$ctx.drawImage(this.$canvas, 0, 0);
     return b;
   };
-  BitmapData.loadBitmap = function (name) {
+  BitmapData.loadBitmap = function (name, teamColour) {
     // A library bitmap by linkage name, as a BitmapData.  Online: "#id" names a bitmap the
     // game movie never exported, by its character id; the topmost level's library has it.
+    // With a team colour, the bitmap comes in that player's colour (Renderer.teamed).
     name = String(name);
     const byId = name.charAt(0) === '#';
     for (const l of byId ? player.levels.slice().reverse() : player.levels) {
       if (!l) continue;
       const id = byId ? +name.slice(1) : l.$lib.exportId(name);
       if (id === null) continue;
-      const img = l.$lib.bitmaps.get(id);
+      const img = teamColour ? player.renderer.teamedImage(l.$lib, id, String(teamColour)) : l.$lib.bitmaps.get(id);
       if (!img) continue;
       const b = new BitmapData(img.width, img.height, true, 0);
       b.$ctx.drawImage(img, 0, 0);

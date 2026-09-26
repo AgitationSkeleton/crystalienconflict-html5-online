@@ -709,6 +709,10 @@ export class MovieClip extends DisplayObject {
   set useHandCursor(v) { this.$handCursor = !!v; }
   get cacheAsBitmap() { return this.$cacheAsBitmap; }
   set cacheAsBitmap(v) { this.$cacheAsBitmap = !!v; }
+  // Online: the colour of the player this clip belongs to.  Bitmaps below it that wear the
+  // faction's colour are drawn in this one instead (Renderer.teamed).
+  get teamColour() { return this.$team; }
+  set teamColour(v) { this.$team = v ? String(v) : undefined; }
 
   play() { if (!this.$removed) this.$playing = true; }
   stop() { if (!this.$removed) this.$playing = false; }

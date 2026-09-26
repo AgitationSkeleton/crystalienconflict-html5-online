@@ -10,6 +10,23 @@ import { MovieClip, ShapeObj, MorphObj, TextObj, EditText, ButtonObj, BitmapObj 
 import { GLFilters, filterPadding, scaleBlur } from './filters.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
+
+// Online: the players' colours.  h is the hue a faction's accent is turned to, in degrees; s and
+// v scale the accent's own saturation and value (black and tan are mostly those); plate is the
+// saturation the grey baseplates are given.
+export const TEAM_COLOURS = {
+  orange: { h: 30, s: 1, v: 1, plate: 0.45 },
+  green: { h: 95, s: 1, v: 1, plate: 0.45 },
+  red: { h: 358, s: 1, v: 1, plate: 0.5 },
+  blue: { h: 218, s: 1, v: 1, plate: 0.5 },
+  purple: { h: 282, s: 1, v: 0.95, plate: 0.45 },
+  black: { h: 0, s: 0.08, v: 0.35, plate: 0 },
+  tan: { h: 36, s: 0.4, v: 1, plate: 0.25 },
+  cyan: { h: 185, s: 1, v: 1, plate: 0.45 },
+};
+const TEAM_BAND = 22;             // degrees either side of the art's accent
+const TEAM_MIN_SAT = 0.30;        // below this a pixel is neutral, and left alone
+const TEAM_MIN_VAL = 0.15;
 const MIN_STAGE_W = 600;       // the narrowest stage: the original 600x400, menus and all
 
 // A colour through a Flash colour matrix: 4 rows of [r, g, b, a, offset], offsets in 0..255.
@@ -34,6 +51,7 @@ export class Renderer {
     this.offsetX = 0;
     this.offsetY = 0;
     this.tints = new Map();           // "bitmapId|cx" -> canvas, least recently used first
+    this.team = undefined;            // the colour of the player whose object is being drawn
     this.tintPixels = 0;
     this.filterDefs = new Map();      // key -> { id, el }
     this.filterIds = 1;
@@ -92,7 +110,19 @@ export class Renderer {
   }
 
   // ---- the tree ----------------------------------------------------------------------
+  // A clip with a teamColour draws everything below it in that player's colour.
   draw(ctx, obj, parentM, parentCx) {
+    if (obj.$team === undefined) return this.drawObject(ctx, obj, parentM, parentCx);
+    const outer = this.team;
+    this.team = obj.$team;
+    try {
+      return this.drawObject(ctx, obj, parentM, parentCx);
+    } finally {
+      this.team = outer;
+    }
+  }
+
+  drawObject(ctx, obj, parentM, parentCx) {
     if (!obj.$visible || obj.$removed || obj.$maskOf) return;     // a setMask() mask is never drawn
     const m = mul(parentM, obj.$m);
     const cx = cxMul(parentCx, obj.$cx);
@@ -308,6 +338,7 @@ export class Renderer {
     let img = lib.bitmaps.get(id);
     if (!img) return null;
     let key = `${lib.movie}:${id}`;
+    if (this.team) [img, key] = this.teamed(key, img, id, lib, this.team);
     if (cm) [img, key] = this.colourMatrixed(key, img, cm);
     if (cxIsIdentity(cx)) return img;
     return this.tinted(key, img, cx);
@@ -342,7 +373,87 @@ export class Renderer {
     }
     this.tints.set(k, c);
     this.tintPixels += w * h;
+    this.trimTints();
     return [c, k];
+  }
+
+  // Online: a library bitmap in a player's colour.  Pixels of the art's accent (its hue, from
+  // tools/team_accents.py, within TEAM_BAND and saturated enough to be a colour at all) take
+  // the colour's hue and keep their own saturation and value, so the shading stays; a grey
+  // baseplate (accent -1) is coloured all over.  Art already in that colour, and art with no
+  // accent, is left alone.  Returns [image, cache key], in the tints cache.
+  teamed(key, img, id, lib, team) {
+    const colour = TEAM_COLOURS[team];
+    const accent = lib.accents && lib.accents[id];
+    if (!colour || !accent || accent[1] === team) return [img, key];
+    const k = key + '|team:' + team;
+    let c = this.tints.get(k);
+    if (c) {
+      this.tints.delete(k);
+      this.tints.set(k, c);
+      return [c, k];
+    }
+    const w = img.width || img.naturalWidth, h = img.height || img.naturalHeight;
+    c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    if (w && h) {
+      const d = g.getImageData(0, 0, w, h);
+      const p = d.data;
+      const plate = accent[0] < 0;
+      const centre = accent[0];
+      for (let i = 0; i < p.length; i += 4) {
+        if (!p[i + 3]) continue;
+        const r = p[i] / 255, gr = p[i + 1] / 255, b = p[i + 2] / 255;
+        const max = Math.max(r, gr, b), min = Math.min(r, gr, b), delta = max - min;
+        let hue, sat;
+        const val = max;
+        if (plate) {
+          sat = colour.plate;
+        } else {
+          sat = max ? delta / max : 0;
+          if (sat < TEAM_MIN_SAT || val < TEAM_MIN_VAL || !delta) continue;
+          if (max === r) hue = 60 * (((gr - b) / delta) % 6);
+          else if (max === gr) hue = 60 * ((b - r) / delta + 2);
+          else hue = 60 * ((r - gr) / delta + 4);
+          if (hue < 0) hue += 360;
+          const off = Math.abs(hue - centre) % 360;
+          if (Math.min(off, 360 - off) > TEAM_BAND) continue;
+          sat *= colour.s;
+        }
+        const v = Math.min(1, val * colour.v);
+        const s = Math.min(1, sat);
+        // HSV back to RGB, at the colour's hue.
+        const hh = colour.h / 60, f = hh - Math.floor(hh);
+        const pp = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
+        let rr, gg, bb;
+        switch (Math.floor(hh) % 6) {
+          case 0: rr = v; gg = t; bb = pp; break;
+          case 1: rr = q; gg = v; bb = pp; break;
+          case 2: rr = pp; gg = v; bb = t; break;
+          case 3: rr = pp; gg = q; bb = v; break;
+          case 4: rr = t; gg = pp; bb = v; break;
+          default: rr = v; gg = pp; bb = q; break;
+        }
+        p[i] = Math.round(rr * 255);
+        p[i + 1] = Math.round(gg * 255);
+        p[i + 2] = Math.round(bb * 255);
+      }
+      g.putImageData(d, 0, 0);
+    }
+    this.tints.set(k, c);
+    this.tintPixels += w * h;
+    this.trimTints();
+    return [c, k];
+  }
+
+  // A library bitmap in a player's colour, as a canvas (for BitmapData.loadBitmap).
+  teamedImage(lib, id, team) {
+    const img = lib.bitmaps.get(id);
+    if (!img) return null;
+    return this.teamed(`${lib.movie}:${id}`, img, id, lib, team)[0];
   }
 
   tinted(key, img, cx) {
@@ -372,20 +483,26 @@ export class Renderer {
       g.putImageData(d, 0, 0);
     }
     this.tints.set(k, c);
-    // Colour tweens make a new tint every frame; keep about 64MB of them.
     this.tintPixels += w * h;
-    while (this.tintPixels > 16e6 && this.tints.size > 1) {
+    this.trimTints();
+    return c;
+  }
+
+  // Colour tweens make a new tint every frame, and six players' colours a copy of each of
+  // their sprites: keep the most recently drawn, about 128MB of them.
+  trimTints() {
+    while (this.tintPixels > 32e6 && this.tints.size > 1) {
       const [oldKey, old] = this.tints.entries().next().value;
       this.tints.delete(oldKey);
       this.tintPixels -= old.width * old.height;
     }
-    return c;
   }
 
   drawBitmapChar(ctx, id, m, cx, lib, smooth, cm) {
     let img = lib.bitmaps.get(id);
     if (!img) return;
     let key = `${lib.movie}:${id}`;
+    if (this.team) [img, key] = this.teamed(key, img, id, lib, this.team);
     if (cm) [img, key] = this.colourMatrixed(key, img, cm);
     this.setTransform(ctx, this.snapped(m, img.width, img.height));
     ctx.imageSmoothingEnabled = this.smoothing(smooth);
@@ -713,7 +830,7 @@ export class Renderer {
     if (w <= 0 || h <= 0) return;
     if (w * h > 16e6) return this.drawContent(ctx, obj, m, cx);
 
-    const key = `${m[0]},${m[1]},${m[2]},${m[3]}|${clamp}|${JSON.stringify(filters)}|${this.contentSig(obj)}`;
+    const key = `${m[0]},${m[1]},${m[2]},${m[3]}|${clamp}|${JSON.stringify(filters)}|${this.team || ''}|${this.contentSig(obj)}`;
     let e = this.fcache.get(obj);
     if (!e || e.key !== key) {
       if (e) this.fcachePixels -= e.canvas.width * e.canvas.height;
@@ -775,6 +892,7 @@ export class Renderer {
     const parts = [];
     const walk = (o, top) => {
       parts.push(o.$id);
+      if (o.$team) parts.push('t' + o.$team);
       if (!top) {
         parts.push(o.$visible ? 1 : 0, o.$m.join(','));
         if (o.$cx) parts.push(o.$cx.join(','));

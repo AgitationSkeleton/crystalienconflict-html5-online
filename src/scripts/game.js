@@ -1163,6 +1163,10 @@
                __as.set(_loc3_, "_x", _loc2_?.posX * this.scaler + this.marginX);
                __as.set(_loc3_, "_y", _loc2_?.posY * this.scaler + this.marginY);
                _loc3_?.gotoAndStop?.(_loc2_?.team);
+               if(TEAM_RGB?.[_loc2_?.owner?.colour] != undefined)
+               {
+                  new Color(_loc3_)?.setRGB?.(TEAM_RGB?.[_loc2_?.owner?.colour]);
+               }
                if(_loc2_?.isBuilding)
                {
                   __as.set(_loc3_, "_width", this.tileSize * _loc2_?.stats?.width);
@@ -3268,6 +3272,7 @@
          this.weaponCharge = this.stats?.maxWeaponCharge;
          this.weaponPayload = this.stats?.maxWeaponPayload;
          this.MC = this.parent?.arena?.MC?.createEmptyMovieClip?.("building_" + __as.upd(this.parent, "uniqid", 1, false), this.parent?.arena?.MC?.getNextHighestDepth?.());
+         __as.set(this.MC, "teamColour", this.owner?.colour);
          this.MCbaseplate = this.MC?.attachMovie?.("baseplate", "baseplate", 1);
          if(this.stats?.width == 1)
          {
@@ -4608,6 +4613,7 @@
          }
          this.healthPerc = Math.ceil(this.health / this.stats?.maxHealth * 100);
          this.MC = this.parent?.arena?.MC?.createEmptyMovieClip?.("unit_" + __as.upd(this.parent, "uniqid", 1, false), this.parent?.arena?.MC?.getNextHighestDepth?.());
+         __as.set(this.MC, "teamColour", this.owner?.colour);
          this.MCsprite = this.MC?.attachMovie?.("unit", "unit", 1);
          this.MCsprite?.gotoAndStop?.(this.type);
          __as.set(this.MCsprite?.unit, "_x", __as.set(this.MCsprite?.shadow, "_x", -this.MCsprite?.unit?.bank?._width / 2));
@@ -4841,6 +4847,7 @@
             }
             __as.set(this.target, "hilite", true);
             __as.set(this.target, "owner", this.owner);
+            __as.set(this.target?.MC, "teamColour", this.owner?.colour);
             __as.set(this.target, "team", this.team);
             __as.set(this.target, "friend", this.friend);
             this.target?.setBlock?.(this.parent?.skirmish ? this.parent?.allied?.(this.owner) : true);
@@ -6731,6 +6738,8 @@
       };
       // Online: the maps a skirmish can be played on -- the story's, by level number -- and
       // where on each the players' bases go.  A map without markers gets them in its corners.
+      // The players' colours, as the radar shows them.
+      TEAM_RGB = {orange:0xFF8A00,green:0x6FD12A,red:0xE0201C,blue:0x2A6FE8,purple:0x9A3EE0,black:0x303030,tan:0xD2B48C,cyan:0x20D0E0};
       SKIRMISH_MAPS = {10:{name:"Eclipse",bases:[{x:5,y:20},{x:25,y:12}]}};
       // The match the Conflict button starts: this browser's player against the computer on
       // Eclipse, playing the faction chosen.
@@ -8511,7 +8520,8 @@
          // Online: the frame art (the sidebar, and the scanlines and shading over the arena) is
          // one 600x400 bitmap.  It is redrawn at the stage's width: the sidebar and the arena's
          // edges as they are, the rest of the arena part stretched between them.
-         this.frameArt = flash.display.BitmapData?.loadBitmap?.("#4511");
+         this.frameArt = flash.display.BitmapData?.loadBitmap?.("#4511", this.parent?.localColour);
+         __as.set(this.MC, "teamColour", this.parent?.localColour);
          this.frameMC = this.MC?.createEmptyMovieClip?.("frame", -16358);    // replaces the timeline's art at depth 26
          this.layoutWidth = 0;
          this.layout = function ()
@@ -8755,6 +8765,16 @@
          __as.set(this.flasher, "_width", SCREENX);
          __as.set(this.flasher, "_height", SCREENY);
          this.MC?.setMask?.(this.mask);
+         // Online: the colour this browser's player plays in, as a skirmish's settings say,
+         // which the sidebar takes.  (The story's sidebar is the original's.)
+         this.localColour = undefined;
+         for(var slot of __as.keys(this.parent?.skirmish?.players))
+         {
+            if(this.parent?.skirmish?.players?.[slot]?.control == "local")
+            {
+               this.localColour = this.parent?.skirmish?.players?.[slot]?.colour;
+            }
+         }
          this.hud = new Hud(this);
          // Online: the mask and the flash follow the stage's width, paused or not.
          this.stageWidth = SCREENX;

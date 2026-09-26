@@ -80,6 +80,10 @@ As listed, plus later additions:
   teams) with their own money and power; the story's levels play as two players, unchanged.
   Conflict mode starts a skirmish against the computer on Eclipse. Still to come in this
   step: the match's random seed and the determinism the online game needs.
+- **3. Team colours: done.** Each player's units and buildings wear their colour in place of
+  the faction's (the C&C mod's method: the faction's accent hue is repainted, keeping the
+  art's shading; `tools/team_accents.py`), baseplates are coloured all over, the radar shows
+  each player in their colour, and the sidebar takes the player's.
 
 ## Order
 

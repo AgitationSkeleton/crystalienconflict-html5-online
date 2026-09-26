@@ -23,12 +23,14 @@ function loadScript(src) {
   });
 }
 
-// A movie is its library (data + media) and its translated ActionScript.
+// A movie is its library (data + media) and its translated ActionScript.  The game's comes with
+// the accents its art is painted in, for team colours (tools/team_accents.py).
 function openMovie(name) {
   const lib = new Library(name, `assets/${name}/`);
   const ready = Promise.all([
     lib.load(`data/${name}.json`, sizes),
     globalThis.__scripts && globalThis.__scripts[name] ? null : loadScript(`src/scripts/${name}.js`),
+    name === 'game' ? fetch('data/accents.json').then((r) => r.json()).then((a) => { lib.accents = a; }) : null,
   ]);
   return { lib, ready };
 }
