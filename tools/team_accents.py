@@ -46,6 +46,12 @@ ACCENT_OVERRIDE = {
     'UB_good': 32.0,
 }
 
+# Where the band either side of the accent (22 degrees, as the mod's) leaves some of it out: the
+# Astro Defence Station's turret, one facing of which has its orange run to yellow (55-60).
+ACCENT_BAND = {
+    'BD_good': 26.0,
+}
+
 # Where each faction's accent may lie: window centres, in degrees ('wheel': anywhere).
 ACCENT_RANGE = {'orange': (12, 52), 'green': (45, 135), 'wheel': (0, 359)}
 
@@ -176,8 +182,9 @@ def main():
         report.append('%-12s %-6s %s  (%d bitmaps)' % (name, native, '-' if hue is None else '%5.1f' % hue, len(ids)))
         if hue is None:
             return
+        entry = [hue, native] if name not in ACCENT_BAND else [hue, native, [], ACCENT_BAND[name]]
         for bid in ids:
-            out.setdefault(str(bid), [hue, native])
+            out.setdefault(str(bid), entry)
 
     for symbol in ('unit', 'building'):
         labels = chars[str(game['exports'][symbol])]['labels']

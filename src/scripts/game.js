@@ -10924,12 +10924,13 @@
             __as.set(this.MC?.power, "_yscale", 210 + extra);
             // The pause popup: over the view beside the sidebar, where it has the room (the
             // original's, on its 600, crosses the sidebar's edge, and still does at 600), and
-            // smaller on a stage narrower or lower than the original's.
+            // smaller on a stage narrower or lower than the original's.  Its bars meet the top
+            // and bottom of the stage, as the original's do (see fitPopup).
             var popupScale = Math.min(1, SCREENX / 600, SCREENY / 400);
             __as.set(this.MC?.popup, "_xscale", 100 * popupScale);
             __as.set(this.MC?.popup, "_yscale", 100 * popupScale);
             __as.set(this.MC?.popup, "_x", Math.round(popupScale < 1 ? (SCREENX - 600 * popupScale) / 2 : Math.min(centre - 300, SCREENX - 600)));
-            __as.set(this.MC?.popup, "_y", Math.round((SCREENY - 400 * popupScale) / 2));
+            __as.set(this.MC?.popup, "_y", Math.round(popupScale < 1 ? (SCREENY - 400 * popupScale) / 2 : 0));
          };
          this.layout();
          // The pause popup's two dimming layers (timeline depths 1 and 2) are stretched across
@@ -10953,6 +10954,26 @@
                   __as.set(dim, "fittedTo", fit);
                }
                depth++;
+            }
+            // (the bottom bar, which the popup's timeline slides up to the foot of the original's
+            // 400, at the foot of the stage: lowered by the stage's extra height after the
+            // timeline has placed it each frame -- its own place kept, so that the lowering is
+            // never added twice -- rather than set, which would stop the timeline moving it)
+            var bottom = popup?.bottom;
+            var drop = scale < 1 ? 0 : SCREENY - 400;
+            if(bottom?.$m)
+            {
+               if(bottom.$m[5] !== bottom.fitY)
+               {
+                  bottom.fitBase = bottom.$m[5];
+               }
+               var lowered = bottom.fitBase + drop;
+               if(bottom.$m[5] !== lowered)
+               {
+                  bottom.$m[5] = lowered;
+                  bottom.$changed?.();
+               }
+               bottom.fitY = lowered;
             }
             // (and the bars the buttons sit on, drawn across the view beside the sidebar, however
             // wide it is: the original's reach from near one edge of its 600 to the other.  The

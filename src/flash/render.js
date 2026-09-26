@@ -741,6 +741,7 @@ export class Renderer {
       const centre = accent[0];
       const keep = new Map();
       for (const [ky, x0, x1] of accent[2] || []) keep.set(ky, [x0, x1]);
+      const band = accent[3] || TEAM_BAND;     // (wider for a few: tools/team_accents.py)
       for (let i = 0; i < p.length; i += 4) {
         if (!p[i + 3]) continue;
         if (keep.size) {
@@ -768,7 +769,7 @@ export class Renderer {
           const off = Math.abs(hue - centre) % 360;
           let turn = hue - TEAM_KEY;
           if (turn > 180) turn -= 360;
-          if (Math.min(off, 360 - off) <= TEAM_BAND) turn = 0;
+          if (Math.min(off, 360 - off) <= band) turn = 0;
           else if (Math.abs(turn) > TEAM_BAND) continue;
           hue = (colour.h + turn + 360) % 360;
           sat *= colour.s;
