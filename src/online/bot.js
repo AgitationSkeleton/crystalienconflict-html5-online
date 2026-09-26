@@ -665,7 +665,8 @@ export class Bot {
   // however it is mined, and shows it -- the nearest of any.  One whose crystals have run low is
   // sent to rich ones, once it has unloaded, if there are any (the engine takes it back to where
   // it last mined, and looks for more only a little way round that).  A field it cannot reach
-  // -- over water, walled in -- is passed over for the next nearest, and remembered.
+  // -- over water, walled in -- is passed over for the next nearest (next time), and
+  // remembered.
   harvest(u) {
     const nav = u.nav;
     const arena = this.arena;
@@ -681,7 +682,8 @@ export class Bot {
     // (mining a thin field, or on its way back to one: only for rich crystals elsewhere)
     const least = fed ? 25 : 0;
     if (!u.botFarFields) u.botFarFields = new Set();
-    for (let tries = 0; tries < 6; tries++) {
+    // (one way looked for a second at most: a whole map's is dear, on a big one)
+    for (let tries = 0; tries < 1; tries++) {
       const field = this.nearestCrystal(u.tilePos, u.botFarFields, 25) || (least ? null : this.nearestCrystal(u.tilePos, u.botFarFields, 0));
       if (!field) {
         if (!least) u.botFarFields.clear();         // (try them all again, another time)
