@@ -1,6 +1,9 @@
 // The high-score table's server (docs/high-score-server.md), and the name a score goes under.
 // LEGO's server knew who was logged in; here the player is asked, when a finished Conflict
-// run's score is about to be sent, with the last name they gave filled in.
+// run's score is about to be sent, with the last name they gave filled in.  (A name with a word
+// the profanity filter stars out is asked again: src/online/profanity.js.)
+
+import { isClean } from './online/profanity.js';
 
 // The server; ?server=URL (the server's root) points the game at another, for testing.
 export function scoreServer(params) {
@@ -68,6 +71,12 @@ export function askScoreName(suggested = '') {
       const name = input.value.replace(/\s+/g, ' ').trim().slice(0, 15);
       if (!name) {
         input.focus();
+        return;
+      }
+      if (!isClean(name)) {
+        box.querySelector('p').textContent = 'Please choose another name for the high-score table:';
+        input.focus();
+        input.select();
         return;
       }
       remember(name);

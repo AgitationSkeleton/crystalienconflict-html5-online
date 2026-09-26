@@ -59,9 +59,9 @@ export function cleanName(v, max = 15) {
   return s || null;
 }
 
-// Words a name may not hold (a short list: the table's owner can delete the rest by hand).
-const BLOCKED = ['fuck', 'shit', 'cunt', 'nigg', 'fag', 'rape', 'nazi', 'hitler', 'porn', 'http', 'www.', '.com'];
+// A name that is not a link (profanity is starred out: src/online/profanity.js).
+const LINKS = ['http', 'www.', '.com'];
 export function decentName(name) {
-  const flat = name.toLowerCase().replace(/[^a-z0-9.]/g, '').replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's');
-  return !BLOCKED.some((w) => flat.includes(w));
+  const flat = name.toLowerCase().replace(/[^a-z0-9.]/g, '');
+  return !LINKS.some((w) => flat.includes(w));
 }

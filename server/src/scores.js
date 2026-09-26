@@ -14,6 +14,7 @@
 //   DELETE /hiscore/scores/ID            remove a row
 
 import { json, text, sha1Hex, sha256Hex, clientIp, cleanName, decentName } from './http.js';
+import { censor } from '../../src/online/profanity.js';
 
 const GAMES = /^[A-Za-z0-9_-]{1,40}$/;
 // The fastest a Conflict run could plausibly be: five minutes of the game's 23 frames a second.
@@ -31,7 +32,8 @@ export async function top(env, game, limit = 15) {
        SELECT name, score, created, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY score DESC, created ASC) AS r
        FROM scores WHERE game = ?1)
      WHERE r = 1 ORDER BY score DESC, created ASC LIMIT ?2`).bind(game, limit).all();
-  return results || [];
+  // (names starred out as they are shown, those saved before the filter too)
+  return (results || []).map((r) => Object.assign({}, r, { name: censor(r.name) }));
 }
 
 export async function handleScores(request, env, url) {
@@ -59,7 +61,9 @@ export async function handleScores(request, env, url) {
     const game = form.get('gamename') || '';
     const scoreText = form.get('score') || '';
     const hash = (form.get('hash') || '').toLowerCase();
-    const name = cleanName(form.get('username'));
+    // (profanity starred out, not turned away: the game would lose the score)
+    const given = cleanName(form.get('username'));
+    const name = given && censor(given);
     const score = Number(scoreText);
     if (!GAMES.test(game) || !/^\d{1,9}$/.test(scoreText)) return text(env, request, 'result=error&reason=fields', 400);
     if (hash !== await sha1Hex(env.SCORE_SECRET + 'SaveScore' + game + scoreText)) return text(env, request, 'result=error&reason=hash', 403);

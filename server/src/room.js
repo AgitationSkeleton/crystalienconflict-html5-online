@@ -35,6 +35,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import { json, allowedOrigin, sha256Hex, cleanName } from './http.js';
+import { censor } from '../../src/online/profanity.js';
 
 const CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 const CODE_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/;
@@ -110,7 +111,7 @@ export class Room extends DurableObject {
     const access = ['public', 'password', 'invite'].includes(opts.access) ? opts.access : 'public';
     this.room = {
       code,
-      name: cleanName(opts.name, 32) || 'A game',
+      name: censor(cleanName(opts.name, 32) || 'A game'),
       access,
       passHash: access === 'password' && opts.password ? await sha256Hex(code + '|' + String(opts.password)) : null,
       created: Date.now(),
@@ -216,7 +217,8 @@ export class Room extends DurableObject {
         conn.chat = conn.chat.filter((t) => now - t < 5000);
         if (conn.chat.length >= 5) return;
         conn.chat.push(now);
-        const text = String(m.text || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
+        // (profanity starred out: src/online/profanity.js)
+        const text = censor(String(m.text || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200));
         if (text) this.broadcast({ type: 'chat', from: mem.id, name: mem.name, text });
         break;
       }
@@ -327,7 +329,7 @@ export class Room extends DurableObject {
         this.send(conn.ws, { type: 'error', reason: 'full' });
         return conn.ws.close(4002, 'full');
       }
-      mem = { id: randomId(), token, name: cleanName(m.name, 16) || 'Player', ws: null, connected: false, rtt: 0, joined: Date.now(), left: false };
+      mem = { id: randomId(), token, name: censor(cleanName(m.name, 16) || 'Player'), ws: null, connected: false, rtt: 0, joined: Date.now(), left: false };
       this.members.set(mem.id, mem);
       if (r.phase === 'lobby') {
         const i = r.slots.slice(0, r.count).findIndex((s) => s.kind === 'open');
