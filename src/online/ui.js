@@ -22,12 +22,15 @@ const MATCH = [
   { key: 'crateRate', label: 'Crates appear', ready: true, choices: [['rare', 'Rarely'], ['normal', 'Normally'], ['often', 'Often']], when: (m) => m.crates },
   { key: 'income', label: 'Passive income', ready: true, choices: [[0, 'None'], [200, '$200 a minute'], [400, '$400 a minute'], [800, '$800 a minute']] },
   { key: 'pizzaCost', label: 'Pizza cost', ready: true, when: (m) => m.mode === 'pizza', choices: [[25000, '$25,000'], [50000, '$50,000'], [100000, '$100,000']] },
-  { key: 'speed', label: 'Game speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Fastest']] },
+  { key: 'speed', label: 'Unit speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Faster'], [2, 'Fastest']] },
+  { key: 'build', label: 'Build speed', ready: true, choices: [[0.5, 'Slow'], [1, 'Normal'], [2, 'Fast'], [3, 'Faster'], [10, 'Quickbuild (ten times)']] },
+  { key: 'queue', label: 'Unit queue', ready: true, choices: [[false, 'Off'], [true, "Up to each unit's maximum"]] },
+  { key: 'shields', label: 'Triple shields', ready: true, choices: [[false, 'Off'], [true, 'On, for everyone']] },
   { key: 'shroud', label: 'Shroud', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'superweapons', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'factions', label: 'Factions', ready: true, choices: [['all', 'Astro and Alien'], ['good', 'Astro only'], ['evil', 'Alien only'], ['random', 'All random']] },
   { key: 'regrowth', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
-  { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy']] },
+  { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy'], ['random', 'Random']] },
 ];
 
 const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', pizza: 'Pizza mode', ctf: 'Capture the flag' };
@@ -35,8 +38,17 @@ const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', pizza
 const MATCH_DEFAULTS = {
   map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true,
   christmas: false, crateRate: 'normal', income: 0, pizzaCost: 50000, speed: 1, shroud: true,
-  superweapons: true, factions: 'all', regrowth: 1, palette: 'mars',
+  superweapons: true, factions: 'all', regrowth: 1, palette: 'mars', build: 1, queue: false, shields: false,
 };
+
+// The palette a match is seen in: the host's, unless this player prefers one; either may be
+// Random, Mars or Snowy for the match (the host's the same for everyone, by the match's seed:
+// the palette changes only how the map looks).
+function paletteFor(host, mine, seed) {
+  const pick = (p, n) => (p === 'random' ? (n % 2 ? 'snowy' : 'mars') : p);
+  if (mine && mine !== 'all') return pick(mine, Math.floor(Math.random() * 2));
+  return pick(host || 'mars', seed === undefined ? Math.floor(Math.random() * 2) : Math.abs(Math.trunc(seed)));
+}
 
 // Which base marker each player starts on (players given by colour, their team): the
 // assignment that keeps the nearest two enemies furthest apart, then enemies apart overall,
@@ -427,11 +439,12 @@ export class OnlineUI {
       });
     });
     // The palette is the host's choice, unless this player prefers one.
-    const palette = this.settings.palette === 'all' ? m.palette : this.settings.palette;
+    const palette = paletteFor(m.palette, this.settings.palette);
     const settings = {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields,
       players,
     };
     // Watching: a grey sidebar, with nothing on it to build.
@@ -783,7 +796,8 @@ export class OnlineUI {
     const settings = {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette: m.palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
-      crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost, players,
+      crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, players,
     };
     net.start(settings);
   }
@@ -802,7 +816,7 @@ export class OnlineUI {
       status: (text) => { if (this.roomNotice && text) this.roomNotice.textContent = text; },
       // A match: this page's player's palette, the match's seed, and the game.
       start: (settings) => {
-        if (this.settings.palette !== 'all') settings.palette = this.settings.palette;
+        settings.palette = paletteFor(settings.palette, this.settings.palette, net.match.seed);
         if (this.settings.faction && settings.spectator) settings.spectator = undefined;
         this.player.seedRandom(net.match.seed);
         if (this.hooks.setSpeed) this.hooks.setSpeed(settings.speed);
@@ -862,7 +876,8 @@ export class OnlineUI {
     const palette = el('select', { 'aria-label': 'Map palette', onchange: (e) => { st.palette = e.target.value; save(); } },
       el('option', { value: 'all', text: 'As the host chooses', selected: st.palette === 'all' }),
       el('option', { value: 'mars', text: 'Always Mars', selected: st.palette === 'mars' }),
-      el('option', { value: 'snowy', text: 'Always Snowy', selected: st.palette === 'snowy' }));
+      el('option', { value: 'snowy', text: 'Always Snowy', selected: st.palette === 'snowy' }),
+      el('option', { value: 'random', text: 'Random each match', selected: st.palette === 'random' }));
     const size = el('select', { 'aria-label': 'Interface size', onchange: (e) => { st.size = e.target.value; save(); if (this.hooks.setSize) this.hooks.setSize(st.size); } },
       el('option', { value: 'small', text: 'Small: see more', selected: st.size === 'small' }),
       el('option', { value: 'medium', text: 'Medium', selected: st.size === 'medium' }),
@@ -882,6 +897,7 @@ export class OnlineUI {
       el('label', { text: 'Interface size' }), size,
       el('label', { text: 'Scroll at the edges' }), onOff('edgeScroll', 'Scroll at the edges'),
       el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
+      el('label', { text: 'Show how many you have' }), onOff('ownedCounts', 'Show how many you have'),
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface' }), slider('ui'),
@@ -899,7 +915,7 @@ export class OnlineUI {
 
   // What the game reads of the settings while it plays.
   applyPrefs() {
-    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false };
+    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts };
   }
 
   applyVolumes() {

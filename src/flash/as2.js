@@ -293,6 +293,21 @@ export function installBuiltins(player) {
   B.Sound = makeSound(player);
   B.Color = makeColor(player, clipOf);
 
+  // ---- TextFormat (Online: for fields made with createTextField) --------------------------------
+  // Of Flash's properties, those a field made here uses: the font (one of the movie's, by
+  // name), size, colour, boldness and alignment.  Unset ones leave the field's as they are.
+  B.TextFormat = function TextFormat(font, size, color, bold, italic, underline, url, target, align) {
+    this.font = font === undefined ? null : font;
+    this.size = size === undefined ? null : size;
+    this.color = color === undefined ? null : color;
+    this.bold = bold === undefined ? null : bold;
+    this.italic = italic === undefined ? null : italic;
+    this.underline = underline === undefined ? null : underline;
+    this.url = url === undefined ? null : url;
+    this.target = target === undefined ? null : target;
+    this.align = align === undefined ? null : align;
+  };
+
   // ---- ContextMenu (the right-click menu) ------------------------------------------------------
   B.ContextMenu = function ContextMenu(cb) {
     this.customItems = [];

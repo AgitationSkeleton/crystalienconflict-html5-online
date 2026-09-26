@@ -5,6 +5,7 @@
 // ActionScript stores on the same objects; __as.keys() leaves those out of for..in.
 
 import { mul, invert, apply, boundsOf, unionBounds, twip, cxMul } from './geom.js';
+import { findFont } from './text.js';
 
 export const DEPTH_OFFSET = -16384;      // SWF depth d is ActionScript depth d - 16384
 
@@ -432,6 +433,7 @@ export class BitmapObj extends DisplayObject {
 // ---- the drawing API ------------------------------------------------------------------
 
 let nextGraphics = 1;
+let nextField = 1;
 
 export class Graphics {
   constructor() {
@@ -839,6 +841,30 @@ export class MovieClip extends DisplayObject {
     return this.$player.attach(this, this.$lib, null, String(name), Math.trunc(+depth), null);
   }
 
+  // Online: createTextField(name, depth, x, y, width, height), as Flash 8's, returning the
+  // field.  It has a definition of its own (the movie's fields share theirs), and no font
+  // until a TextFormat names one of the movie's (setNewTextFormat): every field here is drawn
+  // from embedded outlines.
+  createTextField(name, depth, x, y, width, height) {
+    if (this.$removed) return undefined;
+    const id = '$field' + nextField++;
+    this.$lib.chars[id] = {
+      t: 'edittext', b: [0, 0, +width || 0, +height || 0], html: 0, useOutlines: 1, wordWrap: 0,
+      multiline: 0, readOnly: 1, noSelect: 1, fontHeight: 12, color: [0, 0, 0, 255], align: 'left',
+      text: '', variable: '',
+    };
+    const field = this.$player.create(this.$lib, id);
+    field.$name = String(name);
+    field.$ownChar = true;
+    const d = Math.trunc(+depth);
+    const old = this.$childAt(d);
+    if (old) this.$remove(old);
+    this.$insert(field, d);
+    field._x = +x || 0;
+    field._y = +y || 0;
+    return field;
+  }
+
   removeMovieClip() {
     // Only clips at non-negative depths can be removed -- in practice, those a script
     // created (timeline clips sit at negative depths until swapDepths moves them).  The
@@ -1060,4 +1086,38 @@ export class EditText extends DisplayObject {
 
   get variable() { return this.$variable || null; }
   set variable(v) { this.$variable = v ? String(v) : ''; }
+
+  get html() { return this.$html; }
+  set html(v) { this.$html = !!v; }
+
+  // (Online: the text's width, its widest line's, as it is laid out.)
+  get textWidth() {
+    this.$player.text.bind(this);
+    const { lines } = this.$player.text.layout(this);
+    return lines.reduce((w, L) => Math.max(w, L.width), 0);
+  }
+
+  // Online: a TextFormat, for the whole field (a field here has the one format): its font (one
+  // of the movie's, by name), size, colour, boldness and alignment.
+  setTextFormat(...args) { this.$format(args[args.length - 1]); }
+  setNewTextFormat(fmt) { this.$format(fmt); }
+  $format(fmt) {
+    if (!fmt || typeof fmt !== 'object') return;
+    if (!this.$ownChar) {
+      this.$char = { ...this.$char };
+      this.$ownChar = true;
+    }
+    const ch = this.$char;
+    const had = ch.font !== undefined ? this.$lib.char(ch.font) : null;
+    const face = fmt.font != null ? String(fmt.font) : had && had.name;
+    const bold = fmt.bold != null ? !!fmt.bold : !!(had && had.bold);
+    if (face) {
+      const id = findFont(this.$lib, face, bold);
+      if (id !== null) ch.font = id;
+    }
+    if (fmt.size != null) ch.fontHeight = +fmt.size;
+    if (fmt.color != null) this.textColor = fmt.color;
+    if (fmt.align != null) ch.align = String(fmt.align);
+    this.$changed();
+  }
 }

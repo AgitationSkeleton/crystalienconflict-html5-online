@@ -9,6 +9,8 @@
 //   press, hold, then drag     draws a selection box too
 //   a drag on the map          moves the view
 //   a drag on the sidebar      scrolls the list it starts on
+//   a long press on the sidebar  is a right-click there (with the host's Unit queue, it takes
+//                              one of a unit off)
 //   two fingers                pinch to zoom (about the fingers), drag to move the view
 //   placing a building         a touch puts it there (drag it about); a tap on it builds it
 //
@@ -35,6 +37,7 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
   let down = null;                // a press, waiting for the game to be ready for it
   let downAfter = -1;             // ... after this frame
   let park = null;                // when to put the pointer out of the way
+  let right = null;               // a right-click: {down: after this frame, up: at this one}
   let lastTap = null;             // the last tap on the map, for double taps
 
   const level = () => {
@@ -78,6 +81,16 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     flush();
   };
   const flush = () => {
+    // (a right-click: the button down once the game has seen the pointer where it is, and up
+    // two frames later)
+    if (right && right.up === null && player.frame > right.down) {
+      player.mouseButton(2, true);
+      right.up = player.frame + 2;
+    } else if (right && right.up !== null && player.frame >= right.up) {
+      player.mouseButton(2, false);
+      right = null;
+      park = { at: player.frame + 2 };
+    }
     if (down && player.frame > downAfter) {
       player.pointerDown(down[0], down[1]);
       down = null;
@@ -92,7 +105,7 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     // nor while a building is being placed, which follows the pointer)
     if (park && player.frame >= park.at) {
       park = null;
-      if (!gesture && !release && !down && !placing()) player.pointerMove(AWAY, AWAY);
+      if (!gesture && !release && !down && !right && !placing()) player.pointerMove(AWAY, AWAY);
     }
   };
 
@@ -121,7 +134,19 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
       const pt = stagePoint(ev);
       const now = performance.now();
       const g = gesture = { id: ev.pointerId, mode: 'wait', x0: ev.clientX, y0: ev.clientY, x: ev.clientX, y: ev.clientY, pt, sidebar: pt[0] < SIDEBAR, listPixels: 0 };
-      if (g.sidebar || !inMatch()) return;
+      if (!inMatch()) return;
+      if (g.sidebar) {
+        // Held still on the sidebar: a right-click there.
+        g.hold = setTimeout(() => {
+          if (gesture !== g || g.mode !== 'wait') return;
+          g.mode = 'held';
+          park = null;
+          player.pointerMove(g.pt[0], g.pt[1]);
+          right = { down: player.frame, up: null };
+          if (navigator.vibrate) navigator.vibrate(12);
+        }, HOLD_MS);
+        return;
+      }
       if (placing()) {
         // A building being placed: this touch puts it here (a drag moves it about); a tap on
         // it, where it already is, builds it.
@@ -255,7 +280,7 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     } else if (g.mode === 'site' && g.confirm) {
       const at = player.mouse ? [player.mouse[0], player.mouse[1]] : g.pt;
       letGo(at, press(at));
-    } else if (g.mode !== 'site') {
+    } else if (g.mode !== 'site' && g.mode !== 'held') {
       park = { at: player.frame };
     }
   };

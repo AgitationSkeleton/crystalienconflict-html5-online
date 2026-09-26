@@ -62,7 +62,7 @@ def main():
             page.evaluate("() => onlineUI.show('lobby')")
             time.sleep(0.3)
             page.screenshot(path=os.path.join(args.out, orient + '-3-lobby.png'), full_page=False)
-            page.evaluate('() => onlineUI.start()')
+            page.evaluate('() => { onlineUI.match.queue = true; onlineUI.start(); }')
             page.wait_for_function('() => { const g = player.levels[1].panel.game; return g && g.level && g.level.count > 30; }', timeout=60000)
             time.sleep(1)
             page.screenshot(path=os.path.join(args.out, orient + '-4-game.png'))
@@ -94,7 +94,7 @@ OPTION = '''(kind) => { const lv = player.levels[1].panel.game.level, c = lv.con
   const opts = Object.values(c.options).filter((o) => o && o.MC && o.active && !o.disabled && (kind === 'building' ? o.isBuilding : o.isUnit));
   opts.sort((p, q) => p.constructionTime - q.constructionTime);
   for (const o of opts) { const w = o.MC.$worldMatrix(); const x = w[4] + w[0] * c.mugshotWidth / 2, y = w[5] + w[3] * c.mugshotHeight / 2;
-    if (c.mask.hitTest(x, y, true)) return [b.left + (r.offsetX + x * r.scale) / d, b.top + (r.offsetY + y * r.scale) / d, o.title]; }
+    if (c.mask.hitTest(x, y, true)) return [b.left + (r.offsetX + x * r.scale) / d, b.top + (r.offsetY + y * r.scale) / d, o.title, o.type]; }
   return null; }'''
 
 # Where this player's buildings are: [x, y] each.
@@ -182,6 +182,17 @@ def play(page, out, orient):
           lit: !!c.overOption, stats: !!%s.arena.radar.stats._visible }; }''' % (LV, json.dumps(o[2]), LV))
         results['a tap on the sidebar makes %s' % o[2]] = st['made']
         results['and leaves nothing lit %s' % st] = not st['lit'] and not st['stats']
+        # (the Unit queue is on) tap it again: another waits its turn; hold it: one off
+        making = '() => %s.localPlayer.production.making(%s)' % (LV, json.dumps(o[3]))
+        tap(o[0], o[1])
+        time.sleep(0.6)
+        m2 = page.evaluate(making)
+        touch('touchStart', [(o[0], o[1])])
+        time.sleep(0.7)
+        touch('touchEnd', [])
+        time.sleep(0.6)
+        m1 = page.evaluate(making)
+        results['tap again queues another (%d), a long press takes one off (%d)' % (m2, m1)] = m2 == 2 and m1 == 1
     else:
         results['a unit on the sidebar to tap'] = False
     # zoom in with a pinch (the pointer left over the sidebar, where the wheel scrolls a list)

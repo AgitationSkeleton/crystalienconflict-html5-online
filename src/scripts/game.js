@@ -2632,7 +2632,13 @@
          this.constructingBuilding = false;
          this.constructingUnit = false;
          this.speed = 8;
-         if(this.parent?.parent?.parent?.cheatBuildspeed)
+         // (Online: a skirmish's at its Build speed; the cheat not over the network, where
+         // everyone's must be the same.)
+         if(this.parent?.skirmish)
+         {
+            this.speed *= this.parent?.buildRate?.();
+         }
+         if(this.parent?.parent?.parent?.cheatBuildspeed && !(this.parent?.skirmish && Online?.net?.active))
          {
             this.speed *= 10;
          }
@@ -2826,6 +2832,107 @@
                }
             }
             __as.set(this.parent?.arena?.radar?.stats, "_visible", _loc9_);
+            this.showCounts?.();
+         };
+         // Online: numbers in the bottom corners of the options' pictures: on the right, how many
+         // of a unit are being made and wait their turn (the host's Unit queue); on the left, how
+         // many of a thing this player has (a setting of theirs, "Show how many you have").
+         this.showCounts = function ()
+         {
+            var production = this.production?.();
+            var queuing = !!production?.queuing;
+            var owned = !!Online?.prefs?.ownedCounts && !this.parent?.spectating;
+            var have = {};
+            var index;
+            var thing;
+            if(owned)
+            {
+               for(index of __as.keys(this.parent?.units))
+               {
+                  thing = this.parent.units[index];
+                  if(thing?.active && thing.owner == this.parent?.localPlayer)
+                  {
+                     have[thing.type] = (have[thing.type] || 0) + 1;
+                  }
+               }
+               for(index of __as.keys(this.parent?.buildings))
+               {
+                  thing = this.parent.buildings[index];
+                  if(thing?.active && thing.owner == this.parent?.localPlayer)
+                  {
+                     have[thing.type] = (have[thing.type] || 0) + 1;
+                  }
+               }
+            }
+            var option;
+            for(var key of __as.keys(this.options))
+            {
+               option = this.options[key];
+               if(!option?.MC)
+               {
+                  continue;
+               }
+               this.badge?.(option, "making", 1001, queuing && option.isUnit ? production.making?.(option.type) : 0, true);
+               this.badge?.(option, "having", 1002, owned ? have[option.type] || 0 : 0, false);
+            }
+         };
+         // A number on a dark patch in a bottom corner of an option's picture (none for 0).
+         this.badge = function (option, name, depth, count, right)
+         {
+            var mc = option.MC[name];
+            if(!count)
+            {
+               if(mc?._visible)
+               {
+                  __as.set(mc, "_visible", false);
+               }
+               return undefined;
+            }
+            if(!mc)
+            {
+               mc = option.MC.createEmptyMovieClip(name, depth);
+               var field = mc.createTextField("count", 1, 0, -2.5, 30, 16);
+               field.setNewTextFormat(new TextFormat("NissanD", 10, 16777215, true));
+               mc.shown = 0;
+            }
+            if(!mc._visible)
+            {
+               __as.set(mc, "_visible", true);
+            }
+            if(mc.shown != count)
+            {
+               mc.shown = count;
+               mc.count.text = String(count);
+               var w = Math.ceil(mc.count.textWidth) + 4;
+               mc.clear();
+               mc.beginFill(0, 70);
+               mc.moveTo(2, 0);
+               mc.lineTo(w - 2, 0);
+               mc.curveTo(w, 0, w, 2);
+               mc.lineTo(w, 9);
+               mc.curveTo(w, 11, w - 2, 11);
+               mc.lineTo(2, 11);
+               mc.curveTo(0, 11, 0, 9);
+               mc.lineTo(0, 2);
+               mc.curveTo(0, 0, 2, 0);
+               mc.endFill();
+               __as.set(mc, "_x", right ? this.mugshotWidth - w - 1 : 1);
+               __as.set(mc, "_y", this.mugshotHeight - 12);
+            }
+         };
+         // Online: a right-click on a unit being made, with the host's Unit queue, takes one of
+         // it off (the last waiting its turn first).  Returns whether it did.
+         this.unqueue = function ()
+         {
+            var production = this.production?.();
+            var option = this.overOption;
+            if(!production?.queuing || !option?.isUnit || !production.making?.(option.type))
+            {
+               return false;
+            }
+            this.parent?.issue?.({t:"cancel",building:false,type:option.type});
+            this.parent?.parent?.sfx?.play?.("INT_invalid");
+            return true;
          };
          // Online: the wheel over one of the lists scrolls it, as its arrows do.
          this.wheel = function (x, y, steps)
@@ -3096,13 +3203,24 @@
                __as.set(this.parent?.control, "advancedCursorState", "superweapon");
                return undefined;
             }
-            if(current?.inProgress)
+            // (Online: with the host's Unit queue, a unit is one more of it, if it may have more;
+            // a right-click takes one off -- see unqueue.)
+            var production = this.production?.();
+            if(current?.isUnit && production?.queuing && !current?.superweapon && !this.constructingUnit?.superweapon)
+            {
+               if(!(this.parent?.countOwned?.(current.type, this.parent?.localPlayer) + production.making?.(current.type) < production.max?.(current.type)))
+               {
+                  this.parent?.parent?.sfx?.play?.("INT_invalid");
+                  return true;
+               }
+            }
+            else if(current?.inProgress)
             {
                this.parent?.issue?.({t:"cancel",building:!!current?.isBuilding});
                this.parent?.parent?.sfx?.play?.("INT_invalid");
                return true;
             }
-            if(current?.isBuilding && this.constructingBuilding || current?.isUnit && this.constructingUnit)
+            else if(current?.isBuilding && this.constructingBuilding || current?.isUnit && this.constructingUnit)
             {
                this.parent?.parent?.sfx?.play?.("INT_invalid");
                return true;
@@ -3712,6 +3830,11 @@
             {
                this.maxHealth *= 3;
             }
+         }
+         // Online: a skirmish's Triple Shields: the n00b cheat's, for everyone's.
+         if(SKIRMISH?.shields && !this.pickup)
+         {
+            this.maxHealth *= 3;
          }
          this.constructionTime = this.cost;
          this.size2 = this.size / 2;
@@ -4585,6 +4708,11 @@
                this.maxHealth *= 3;
             }
          }
+         // Online: a skirmish's Triple Shields: the n00b cheat's, for everyone's.
+         if(SKIRMISH?.shields && !this.pickup)
+         {
+            this.maxHealth *= 3;
+         }
          this.checkMax = function (total)
          {
             this.disabled = !(total < this.max);
@@ -5021,13 +5149,13 @@
                }
             }
          };
-         this.returnHome = function ()
+         this.returnHome = function (depot)
          {
             // Online: a miner unloads at whichever of its owner's headquarters -- or, if the
-            // settings say so, Ops Ships and Hives -- is nearest.
+            // settings say so, Ops Ships and Hives -- is nearest, or at the one it was sent to.
             if(this.stats?.miner && this.parent?.parent?.skirmish)
             {
-               var nearest = this.parent?.parent?.nearestDepot?.(this.parent);
+               var nearest = this.parent?.parent?.isDepot?.(depot, this.parent) ? depot : this.parent?.parent?.nearestDepot?.(this.parent);
                if(nearest)
                {
                   __as.set(this.stats, "home", nearest);
@@ -7383,7 +7511,9 @@
       // later, a remote one) builds with.  It keeps the sidebar's rules: one building and one
       // unit at a time, each paid for as it progresses at the sidebar's rate (halved when the
       // owner's power is low); a finished unit comes out at its home, and a finished building
-      // waits to be placed (place) where the building site would allow it.
+      // waits to be placed (place) where the building site would allow it.  With the host's
+      // Unit queue, more units wait their turn, as C&C's do, up to each one's maximum: each is
+      // paid for as it is made, when its turn comes.
       Production = function Production(level, owner)
       {
          this.level = level;
@@ -7391,6 +7521,8 @@
          this.speed = 8;
          this.building = false;
          this.unit = false;
+         this.queue = new Array();
+         this.queuing = !!level?.skirmish?.queue;
          this.handle = function ()
          {
             // What can no longer be made -- its factory or its prerequisites gone -- is given up,
@@ -7401,6 +7533,19 @@
                if(this.building && !tech?.[this.building.type] && this.building.progress < this.building.constructionTime)
                {
                   this.cancel?.(true);
+               }
+               // (and what waits its turn, as it is: nothing is paid for it yet)
+               var waiting = 0;
+               while(waiting < this.queue.length)
+               {
+                  if(tech?.[this.queue[waiting]])
+                  {
+                     waiting++;
+                  }
+                  else
+                  {
+                     this.queue.splice(waiting, 1);
+                  }
                }
                if(this.unit && !tech?.[this.unit.type])
                {
@@ -7415,13 +7560,23 @@
          this.start = function (type)
          {
             var isBuilding = type?.charAt?.(0) == "B";
-            if(isBuilding && this.building || !isBuilding && this.unit)
+            if(isBuilding && this.building || !isBuilding && this.unit && !this.queuing)
             {
                return false;
             }
-            if(!this.level?.techFor?.(this.owner)?.[type] || !(this.level?.countOwned?.(type, this.owner) < this.max?.(type)))
+            if(!this.level?.techFor?.(this.owner)?.[type] || !(this.level?.countOwned?.(type, this.owner) + this.making?.(type) < this.max?.(type)))
             {
                return false;
+            }
+            if(!isBuilding && this.unit)
+            {
+               // (Online: another waits its turn -- not a superweapon, which is used, not kept.)
+               if(this.unit.superweapon || new UnitStats(type).superweapon)
+               {
+                  return false;
+               }
+               this.queue.push(type);
+               return true;
             }
             var item = isBuilding ? new BuildingStats(type) : new UnitStats(type);
             item.progress = 0;
@@ -7439,6 +7594,36 @@
          {
             var stats = type?.charAt?.(0) == "B" ? new BuildingStats(type) : new UnitStats(type);
             return stats?.max == undefined ? 1 : stats?.max;
+         };
+         // Online: how many of a unit are being made or wait their turn.
+         this.making = function (type)
+         {
+            var count = this.unit && this.unit.type == type ? 1 : 0;
+            for(var index of __as.keys(this.queue))
+            {
+               if(this.queue[index] == type)
+               {
+                  count++;
+               }
+            }
+            return count;
+         };
+         // The next unit waiting its turn, if any, now that none is being made: one that can
+         // still be made (the rest are given up).
+         this.next = function ()
+         {
+            var type;
+            var item;
+            while(!this.unit && this.queue.length)
+            {
+               type = this.queue.shift();
+               if(this.level?.techFor?.(this.owner)?.[type] && this.level?.countOwned?.(type, this.owner) < this.max?.(type))
+               {
+                  item = new UnitStats(type);
+                  item.progress = 0;
+                  this.unit = item;
+               }
+            }
          };
          // The sidebar's Construction.construct, for this owner.
          this.advance = function (item)
@@ -7480,6 +7665,7 @@
                      this.level?.units?.push?.(new Unit(this.level, item.type, undefined, undefined, 0.125 * random?.(8), this.owner));
                   }
                   this.unit = false;
+                  this.next?.();
                }
             }
          };
@@ -7499,11 +7685,19 @@
             this.building = false;
             return true;
          };
-         // Give up what is under way, with the money back for what is not yet built.
-         this.cancel = function (isBuilding)
+         // Give up what is under way, with the money back for what is not yet built.  (Online:
+         // of a unit named, the last of it waiting its turn goes first -- nothing is paid for
+         // it yet -- and what is under way only if none of it waits; then the next one's turn.)
+         this.cancel = function (isBuilding, type)
          {
+            var waiting = !isBuilding && type ? this.queue.lastIndexOf(type) : -1;
+            if(waiting >= 0)
+            {
+               this.queue.splice(waiting, 1);
+               return undefined;
+            }
             var item = isBuilding ? this.building : this.unit;
-            if(!item)
+            if(!item || type && item.type != type)
             {
                return undefined;
             }
@@ -7515,6 +7709,7 @@
             else
             {
                this.unit = false;
+               this.next?.();
             }
          };
          // A finished superweapon, spent.
@@ -7523,6 +7718,7 @@
             if(this.unit?.superweapon && this.unit?.progress == this.unit?.constructionTime)
             {
                this.unit = false;
+               this.next?.();
                return true;
             }
             return false;
@@ -8454,16 +8650,21 @@
                this.issue?.({t:"move",u:[unit.id],x:(best.x - 0.5) * this.arena?.tileSize,y:(best.y - 0.5) * this.arena?.tileSize});
             }
          };
+         // Online: where a unit's miner may unload: its owner's headquarters, or (if the settings
+         // say so) Ops Ships and Hives.
+         this.isDepot = function (building, unit)
+         {
+            var code = building?.type?.substr?.(0, 2);
+            return !!(building?.active && building.isBuilding && building.owner == unit?.owner && (code == "BA" || code == "BK" && this.skirmish?.opsHQ !== false));
+         };
          this.nearestDepot = function (unit)
          {
             var best;
             var bestD = Infinity;
             var d;
-            var code;
             for(var index of __as.keys(this.buildings))
             {
-               code = this.buildings[index]?.type?.substr?.(0, 2);
-               if(this.buildings[index]?.active && this.buildings[index]?.owner == unit?.owner && (code == "BA" || code == "BK" && this.skirmish?.opsHQ !== false))
+               if(this.isDepot?.(this.buildings[index], unit))
                {
                   d = Math.abs(this.buildings[index].posX - unit.posX) + Math.abs(this.buildings[index].posY - unit.posY);
                   if(d < bestD)
@@ -9284,7 +9485,7 @@
                   for(index = 0; index < mine.length; index++)
                   {
                      mine[index]?.wakeUp?.();
-                     mine[index]?.nav?.returnHome?.();
+                     mine[index]?.nav?.returnHome?.(o);
                   }
                   if(o)
                   {
@@ -9309,7 +9510,7 @@
                   who.production?.start?.(c.type);
                   break;
                case "cancel":
-                  who.production?.cancel?.(c.building);
+                  who.production?.cancel?.(c.building, c.type);
                   break;
                case "place":
                   who.production?.place?.(c.x, c.y);
@@ -9572,15 +9773,23 @@
                      return random?.(n);
                   });
                   this.players[index].production = new Production(this, this.players[index]);
-                  this.players[index].production.speed = this.players[index].bot.speed;
+                  this.players[index].production.speed = this.players[index].bot.speed * this.buildRate?.();
                   this.players[index].bot.production = this.players[index].production;
                }
                else if(this.skirmish)
                {
                   this.players[index].production = new Production(this, this.players[index]);
+                  this.players[index].production.speed *= this.buildRate?.();
                }
                index++;
             }
+         };
+         // Online: how much faster than the original a skirmish builds: its Build speed (the
+         // Quickbuild cheat's ten times at most), whatever its Unit speed -- the game's pace --
+         // so that it takes the same time on the clock.
+         this.buildRate = function ()
+         {
+            return this.skirmish ? (Number(this.skirmish.build) || 1) / (Number(this.skirmish.speed) || 1) : 1;
          };
          // The player a unit or building belongs to: named, or (as the story's scripts do it)
          // the player of the faction named.
@@ -9963,7 +10172,12 @@
             }
             // Online: a right-click deselects too, once per click.
             var rightButton = ASnative?.(800, 2)?.(2);
-            if(this.FIRE || ASnative?.(800, 2)?.(4) || rightButton && !this.rightButton)
+            // (Online: over a unit being made, with the host's Unit queue, it takes one off.)
+            if(rightButton && !this.rightButton && _xmouse < 150 && this.parent?.construction?.unqueue?.())
+            {
+               this.rightButton = rightButton;
+            }
+            else if(this.FIRE || ASnative?.(800, 2)?.(4) || rightButton && !this.rightButton)
             {
                this.parent?.parent?.sfx?.play?.("INT_invalid");
                this.resetSelected?.();
@@ -10108,7 +10322,8 @@
                   {
                      this.cursorState = "standard";
                   }
-                  if(this.selected?.length == 1 && this.selected?.[0]?.stats?.home == this.activeTarget && (this.selected?.[0]?.stats?.miner || this.selected?.[0]?.stats?.boomerang))
+                  // (Online: a miner, to any of the places it may unload -- see Level.isDepot.)
+                  if(this.selected?.length == 1 && (this.selected?.[0]?.stats?.home == this.activeTarget || this.selected?.[0]?.stats?.miner && this.parent?.skirmish && this.parent?.isDepot?.(this.activeTarget, this.selected?.[0])) && (this.selected?.[0]?.stats?.miner || this.selected?.[0]?.stats?.boomerang))
                   {
                      this.cursorState = "infiltrate";
                      return undefined;

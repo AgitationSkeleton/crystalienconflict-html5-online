@@ -483,7 +483,7 @@ function parseHtml(html, base, player, lib) {
   return runs;
 }
 
-function findFont(lib, face, bold) {
+export function findFont(lib, face, bold) {
   let fallback = null;
   for (const id of Object.keys(lib.chars)) {
     const c = lib.chars[id];

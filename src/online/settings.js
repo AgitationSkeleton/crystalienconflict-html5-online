@@ -22,13 +22,14 @@ export const DEFAULTS = {
   name: 'Player',
   faction: 'good',          // 'good' (Astro), 'evil' (Alien) or 'random'
   colour: 'orange',
-  palette: 'all',           // 'all' (as the host chose), 'mars' or 'snowy'
+  palette: 'all',           // 'all' (as the host chose), 'mars', 'snowy' or 'random' (each match)
   music: 0.8,
   sound: 0.9,
   ui: 0.9,
   size: 'medium',           // the interface size: a key of UI_SCALES
   edgeScroll: true,         // the view scrolls when the pointer is at its edge
   autoMine: true,           // a new miner of yours goes to the nearest crystals
+  ownedCounts: false,       // the sidebar shows how many of each thing you have
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -44,9 +45,9 @@ export function loadSettings() {
   s.name = s.name.slice(0, 16);
   if (!['good', 'evil', 'random'].includes(s.faction)) s.faction = DEFAULTS.faction;
   if (!COLOURS.includes(s.colour)) s.colour = DEFAULTS.colour;
-  if (!['all', 'mars', 'snowy'].includes(s.palette)) s.palette = DEFAULTS.palette;
+  if (!['all', 'mars', 'snowy', 'random'].includes(s.palette)) s.palette = DEFAULTS.palette;
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
-  for (const k of ['edgeScroll', 'autoMine']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
+  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);
     s[k] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULTS[k];
