@@ -709,6 +709,9 @@ export class MovieClip extends DisplayObject {
   set useHandCursor(v) { this.$handCursor = !!v; }
   get cacheAsBitmap() { return this.$cacheAsBitmap; }
   set cacheAsBitmap(v) { this.$cacheAsBitmap = !!v; }
+  // Online: a clip the renderer may skip when it is wholly off the canvas (Renderer.offCanvas).
+  get cullable() { return !!this.$cullable; }
+  set cullable(v) { this.$cullable = !!v; }
   // Online: the colour of the player this clip belongs to.  Bitmaps below it that wear the
   // faction's colour are drawn in this one instead (Renderer.teamed).
   get teamColour() { return this.$team; }

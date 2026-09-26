@@ -157,7 +157,7 @@ export class OnlineUI {
     const all = (this.game && this.game.skirmishMaps && this.game.skirmishMaps()) || { 10: { name: 'Eclipse', bases: [{}, {}] } };
     const order = { undefined: 0, cnc: 1, lego: 2 };
     return Object.entries(all)
-      .map(([id, m]) => ({ id: String(id), name: m.name, source: m.source, bases: (m.bases || []).length || 2, info: m }))
+      .map(([id, m]) => ({ id: String(id), name: m.name, source: m.source, bases: Math.min(6, (m.bases || []).length || 2), info: m }))
       .sort((a, b) => (order[a.source] || 0) - (order[b.source] || 0) || a.name.localeCompare(b.name));
   }
 

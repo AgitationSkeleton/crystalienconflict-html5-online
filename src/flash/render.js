@@ -190,6 +190,7 @@ export class Renderer {
   drawChildren(ctx, children, m, cx) {
     for (let i = 0; i < children.length; i++) {
       const c = children[i];
+      if (c.$cullable && this.offCanvas(ctx, c, m)) continue;
       if (c.$clipDepth) {
         // A mask: everything above it up to clipDepth is drawn through its shape.
         let j = i + 1;
@@ -208,6 +209,21 @@ export class Renderer {
       }
       this.draw(ctx, c, m, cx);
     }
+  }
+
+  // Online: is a cullable clip (a map tile, a patch of shroud) wholly off the canvas?  A big
+  // map has tens of thousands of them, and drawing them all every frame is most of a frame.
+  // Their bounds are kept for the frame they show.
+  offCanvas(ctx, c, parentM) {
+    if (c.$cullFrame !== c.$cur || !c.$cullBox) {
+      c.$cullBox = c.$localBounds();
+      c.$cullFrame = c.$cur;
+    }
+    const b = c.$cullBox;
+    if (!b) return false;
+    const d = boundsOf(mul(parentM, c.$m), b);
+    const pad = 4;
+    return d[2] < -pad || d[3] < -pad || d[0] > ctx.canvas.width + pad || d[1] > ctx.canvas.height + pad;
   }
 
   collectMask(path, obj, m) {

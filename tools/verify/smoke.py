@@ -66,6 +66,11 @@ SCENARIOS = {
     # Online: skirmishes -- Conflict mode's, and four players in two teams.
     'skirmish': ['step 70', "eval player.levels[1].panel.pressConflict('good')", 'step 30', SOAK, 'shot end'],
     'skirmish-4': ['step 70', 'eval player.levels[1].panel.startSkirmish(' + FOUR + ')', 'step 30', SOAK, 'shot end'],
+    # A map converted from LEGO Battles' (tools/convert_maps.py), three players.
+    'skirmish-lego': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'lego-mp01',mode:'all',cash:10000,units:3,"
+                      "prebuilt:true,shroud:true,superweapons:true,palette:'mars',players:[{name:'Me',faction:'good',colour:'orange',"
+                      "control:'local'},{name:'B',faction:'evil',colour:'green',control:'bot'},{name:'C',faction:'good',colour:'red',control:'bot'}]})",
+                      'step 30', SOAK, 'shot end'],
 }
 
 

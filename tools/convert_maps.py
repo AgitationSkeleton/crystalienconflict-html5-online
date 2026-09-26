@@ -17,12 +17,18 @@ counting, for every piece in them, the blocked neighbours around it (ROCK_TILES 
 
 What each source's cells become (the target game's owner decided the LEGO Battles ones):
 
-    .  clear, r road, = bridge ................ open ground (there are no bridge tiles)
+    .  clear, r road, = bridge ................ open ground (there are no bridge tiles; a LEGO
+                                                 Battles bridge site, where a bridge could be
+                                                 built, is open ground too, so the map stays
+                                                 connected as its designers meant)
     ^  rock, cliff, # other blockers .......... rock
     ~  water, river ........................... acid pool
     *  tiberium / crystal ..................... crystals
     T  tree ................................... rock in C&C, crystals in LEGO Battles
     w  well tap ............................... crystals
+
+Which maps: Command & Conquer's skirmish maps, and LEGO Battles' free-play maps (mp01 to
+mp30), not either game's campaign.  (Of CrystAlien Conflict's own, the skirmish has Eclipse.)
 """
 
 import json
@@ -39,7 +45,7 @@ OPEN, ROCK, POOL, CRYSTAL = 0, 1, 2, 3
 ROCK_TILES = {'interior': (12, 13, 16), 'N': 1, 'E': 2, 'S': 3, 'W': 4, 'NE': 5, 'SE': 6, 'SW': 7, 'NW': 8,
               'in_NE': 11, 'in_SE': 12, 'in_SW': 13, 'in_NW': 14, 'in_SE_NW': 15, 'in_NE_SW': 16,
               'tip_S': 17, 'tip_N': 22, 'tip_E': 23, 'tip_W': 19, 'alone': 20}
-POOL_TILES = {'interior': (37, 37, 38), 'N': 29, 'E': 30, 'S': 31, 'W': 32, 'NE': 33, 'SE': 34, 'SW': 35, 'NW': 36,
+POOL_TILES = {'interior': (37, 37, 37, 37, 37, 37, 37, 38), 'N': 29, 'E': 30, 'S': 31, 'W': 32, 'NE': 33, 'SE': 34, 'SW': 35, 'NW': 36,
               'in_NE': 39, 'in_SE': 40, 'in_SW': 41, 'in_NW': 42, 'in_SE_NW': 44, 'in_NE_SW': 43}
 CRYSTAL_TILE = 47
 
@@ -79,6 +85,87 @@ def clean(grid, w, h):
             if not vertical and not horizontal:
                 out[y][x] = OPEN
     return out
+
+
+STEPS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))
+
+
+def reachable(grid, w, h, x0, y0):
+    """The cells a ground unit at (x0, y0) can walk to."""
+    seen = [[False] * w for _ in range(h)]
+    todo = [(x0, y0)]
+    while todo:
+        x, y = todo.pop()
+        if not (0 <= x < w and 0 <= y < h) or seen[y][x] or grid[y][x] in (ROCK, POOL):
+            continue
+        seen[y][x] = True
+        todo.extend((x + dx, y + dy) for dx, dy in STEPS)
+    return seen
+
+
+def causeway(grid, w, h, starts):
+    """If some base cannot walk to the first, lay ground across the least water that joins
+    them (two cells wide, never through rock), and say so.  Islands a LEGO Battles player
+    crossed by boat or by a bridge the map never records become reachable on foot."""
+    land = reachable(grid, w, h, starts[0]['x'], starts[0]['y'])
+    cut = [st for st in starts if not land[st['y']][st['x']]]
+    if not cut:
+        return False
+    other = reachable(grid, w, h, cut[0]['x'], cut[0]['y'])
+    # Breadth-first from all of the first base's land, through water only, to the other's.
+    from collections import deque
+    back = {}
+    todo = deque()
+    for y in range(h):
+        for x in range(w):
+            if land[y][x]:
+                back[(x, y)] = None
+                todo.append((x, y))
+    end = None
+    while todo and end is None:
+        x, y = todo.popleft()
+        for dx, dy in STEPS[:4]:
+            nx, ny = x + dx, y + dy
+            if not (0 <= nx < w and 0 <= ny < h) or (nx, ny) in back:
+                continue
+            if other[ny][nx]:
+                back[(nx, ny)] = (x, y)
+                end = (nx, ny)
+                break
+            if grid[ny][nx] == POOL:
+                back[(nx, ny)] = (x, y)
+                todo.append((nx, ny))
+    if end is None:
+        return False
+    cell = back[end]
+    laid = 0
+    while cell is not None and not land[cell[1]][cell[0]]:
+        x, y = cell
+        for cx, cy in ((x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)):
+            if 0 <= cx < w and 0 <= cy < h and grid[cy][cx] == POOL:
+                grid[cy][cx] = OPEN
+                laid += 1
+        cell = back[cell]
+    print('  causeway of %d cells to the base at %d,%d' % (laid, cut[0]['x'], cut[0]['y']))
+    return True
+
+
+def report_unreachable(grid, w, h, starts, name):
+    """Warn about base markers that cannot reach the first by land."""
+    if not starts:
+        return
+    seen = [[False] * w for _ in range(h)]
+    sx, sy = starts[0]['x'], starts[0]['y']
+    todo = [(sx, sy)]
+    while todo:
+        x, y = todo.pop()
+        if not (0 <= x < w and 0 <= y < h) or seen[y][x] or grid[y][x] in (ROCK, POOL):
+            continue
+        seen[y][x] = True
+        todo.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1), (x + 1, y + 1), (x - 1, y - 1), (x + 1, y - 1), (x - 1, y + 1)))
+    cut = [i for i, st in enumerate(starts) if not seen[st['y']][st['x']] if 0 <= st['x'] < w and 0 <= st['y'] < h]
+    if cut:
+        print('  %s: base markers %s cannot reach marker 0 by land' % (name, cut))
 
 
 def piece(grid, w, h, x, y):
@@ -131,11 +218,31 @@ def piece(grid, w, h, x, y):
     return 'alone'
 
 
+def tidy(name):
+    """The maps' names as the lobby shows them: the community maps' author tags and version
+    notes dropped, and names in capitals in title case."""
+    name = re.sub(r'^\s*[\[(][^\])]*[\])]\s*', '', name)
+    name = re.sub(r'\s*\((Symmetrical|v)[^)]*\)\s*$', '', name)
+    if name.isupper():
+        name = name.title()
+    return name.strip()
+
+
 def convert(path, source, table):
     src = json.load(open(path, encoding='utf-8'))
     w, h = src['width'], src['height']
     grid = [[classify(ch, source) for ch in row[:w].ljust(w, '.')] for row in src['cells'][:h]]
+    for site in src.get('bridge_sites', []):
+        for y in range(site['y'], site['y'] + site['h']):
+            for x in range(site['x'], site['x'] + site['w']):
+                if 0 <= x < w and 0 <= y < h and grid[y][x] in (ROCK, POOL):
+                    grid[y][x] = OPEN
     grid = clean(grid, w, h)
+    starts = src.get('starts', [])[:6]
+    for _ in range(len(starts)):
+        if not causeway(grid, w, h, starts):
+            break
+    report_unreachable(grid, w, h, starts, os.path.basename(path))
     ids = []
     for y in range(h):
         for x in range(w):
@@ -155,7 +262,7 @@ def convert(path, source, table):
                 ids.append(0)
     encoded = table[w] + table[h] + ''.join(table[i] for i in ids)
     bases = [{'x': s['x'] + 1, 'y': s['y'] + 1} for s in src.get('starts', [])]
-    return {'name': src.get('name', os.path.splitext(os.path.basename(path))[0]), 'source': src.get('source', source),
+    return {'name': tidy(src.get('name', os.path.splitext(os.path.basename(path))[0])), 'source': source,
             'cols': w, 'rows': h, 'map': encoded, 'bases': bases, 'players': len(bases)}
 
 
@@ -171,6 +278,8 @@ def main():
             continue
         for f in sorted(os.listdir(d)):
             if not f.endswith('.json') or f == 'index.json':
+                continue
+            if source == 'lego' and not re.match(r'mp\d+\.json$', f):
                 continue
             m = convert(os.path.join(d, f), source, table)
             mid = source + '-' + re.sub(r'[^a-z0-9]+', '-', os.path.splitext(f)[0].lower()).strip('-')

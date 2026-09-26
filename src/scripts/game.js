@@ -1362,6 +1362,10 @@
             this.ignoreObstructions = ignoreObstructions;
             this.allowApproximation = allowApproximation;
             this.endFound = false;
+            if(this.safety > 200 && !this.bait)
+            {
+               return this.searchLarge?.();
+            }
             this.openList = new Array(this.startNode);
             this.closedList = new Array();
             while(current = this.openList?.shift?.())
@@ -1400,6 +1404,115 @@
                return this.cacheRet = this.footsteps?.(current);
             }
             return false;
+         };
+         // Online: the same search on a map bigger than the story's, which needs a bigger
+         // budget than 200 steps to cross (Arena.layoutTiles sets it by the map's size): the
+         // open list is a binary heap rather than an array sorted after every step, and a node
+         // since reached more cheaply is skipped.  The heuristic, the costs and the fallback to
+         // the nearest point reached are the original's.
+         this.searchLarge = function ()
+         {
+            var heap = new Array(this.startNode);
+            var budget = this.safety;
+            var node;
+            var reached = new Array();
+            var adjacent;
+            var index;
+            var less = (a, b) => a.f < b.f || a.f == b.f && a.h < b.h;
+            var push = (n) =>
+            {
+               heap.push(n);
+               var i = heap.length - 1;
+               var up;
+               while(i > 0)
+               {
+                  up = (i - 1) >> 1;
+                  if(!less(heap[i], heap[up]))
+                  {
+                     break;
+                  }
+                  var t = heap[i];
+                  heap[i] = heap[up];
+                  heap[up] = t;
+                  i = up;
+               }
+            };
+            var pop = () =>
+            {
+               var top = heap[0];
+               var last = heap.pop();
+               if(heap.length)
+               {
+                  heap[0] = last;
+                  var i = 0;
+                  while(true)
+                  {
+                     var l = i * 2 + 1;
+                     var r = l + 1;
+                     var m = i;
+                     if(l < heap.length && less(heap[l], heap[m]))
+                     {
+                        m = l;
+                     }
+                     if(r < heap.length && less(heap[r], heap[m]))
+                     {
+                        m = r;
+                     }
+                     if(m == i)
+                     {
+                        break;
+                     }
+                     var t = heap[i];
+                     heap[i] = heap[m];
+                     heap[m] = t;
+                     i = m;
+                  }
+               }
+               return top;
+            };
+            while(heap.length)
+            {
+               node = pop();
+               if(this.trail["P_" + node.x + "_" + node.y] != node && node != this.startNode)
+               {
+                  continue;
+               }
+               if(!(budget = budget - 1))
+               {
+                  break;
+               }
+               reached.push(node);
+               adjacent = this.getAdjacent(node);
+               index = 0;
+               while(index < adjacent.length)
+               {
+                  push(adjacent[index]);
+                  index++;
+               }
+               if(this.endFound)
+               {
+                  break;
+               }
+            }
+            if(this.endFound)
+            {
+               return this.cacheRet = this.footsteps?.(this.endNode);
+            }
+            if(!this.allowApproximation)
+            {
+               return false;
+            }
+            var best = reached[0];
+            index = 1;
+            while(index < reached.length)
+            {
+               if(reached[index].h < best.h)
+               {
+                  best = reached[index];
+               }
+               index++;
+            }
+            return this.cacheRet = this.footsteps?.(best);
          };
          this.getAdjacent = function (node)
          {
@@ -1640,6 +1753,7 @@
                   if(_loc2_ || _loc3_)
                   {
                      _loc4_ = this.MC?.attachMovie?.("shroud", "shroud_" + _loc2_ + "_" + _loc3_, this.MC?.getNextHighestDepth?.());
+                     __as.set(_loc4_, "cullable", true);
                      __as.set(_loc4_, "_x", (_loc2_ - 1) * this.parent?.tileSize);
                      __as.set(_loc4_, "_y", (_loc3_ - 1) * this.parent?.tileSize2);
                      _loc4_?.gotoAndStop?.("s0000");
@@ -1958,6 +2072,7 @@
          }
          __as.set(this.MC, "_x", this.posX);
          __as.set(this.MC, "_y", this.posY / 2);
+         __as.set(this.MC, "cullable", true);
       };
       }
    };
@@ -2184,6 +2299,12 @@
             this.width = this.cols * this.tileSize;
             this.height = this.rows * this.tileSize2;
             this.pathFinder = new PathFinder(this, this.tiles, this.baits);
+            // Online: a map bigger than the story's (thirty tiles square at most) gets a search
+            // budget to match.
+            if(this.cols * this.rows > 900)
+            {
+               this.pathFinder.safety = Math.round(this.cols * this.rows / 2);
+            }
             this.fitView();
             this.radar = new Radar(this);
             this.shroud = new Shroud(this);

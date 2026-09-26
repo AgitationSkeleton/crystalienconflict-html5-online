@@ -13,7 +13,8 @@ As listed, plus later additions:
    CrystAlien Conflict mod for Command & Conquer. Up to six bots, depending on the map.
 2. **Maps from Command & Conquer.** Research how terrain is placed in both games and port
    the C&C skirmish maps' layouts, including their base markers.
-3. **Maps from LEGO Battles.** The same for the LEGO Battles levels. Their trees and
+3. **Maps from LEGO Battles.** The same for the LEGO Battles free-play maps (not the
+   campaign's; likewise only C&C's skirmish maps, and of CrystAlien's own, only Eclipse). Their trees and
    crystals are solid, so they become walkable crystal tiles; well taps become plain
    crystal tiles; bridge placement tiles are dropped. Every map gets base markers for at
    least 3 players.
@@ -89,6 +90,10 @@ As listed, plus later additions:
   slots and every match setting (those the game does not use yet are marked as coming); and
   settings kept in the browser (name, faction, colour, palette, and music, sound and
   interface volumes). The story is reached through the original menus.
+- **6. Maps: done.** 34 Command & Conquer skirmish maps and LEGO Battles' 30 free-play maps,
+  extracted (`tools/maps/`) and drawn with CrystAlien's own rock, acid-pool and crystal tiles
+  (`tools/convert_maps.py`). LEGO bridge sites are ground; islands a LEGO player reached by
+  boat get a causeway across the narrowest water so every base can reach every other.
 - **4. Bots: under way.** The computer can build by the player's rules (tech tree,
   production queue, building sites); its decision-making, ported from the C&C mod, is next.
 

@@ -1,1 +1,514 @@
-[]
+[
+ {
+  "id": "cnc-scm01ea",
+  "name": "Green Acres",
+  "source": "cnc",
+  "cols": 58,
+  "rows": 49,
+  "players": 8
+ },
+ {
+  "id": "cnc-scm02ea",
+  "name": "Sand Trap",
+  "source": "cnc",
+  "cols": 57,
+  "rows": 58,
+  "players": 8
+ },
+ {
+  "id": "cnc-scm03ea",
+  "name": "Lost Arena",
+  "source": "cnc",
+  "cols": 59,
+  "rows": 61,
+  "players": 8
+ },
+ {
+  "id": "cnc-scm04ea",
+  "name": "River Raid",
+  "source": "cnc",
+  "cols": 56,
+  "rows": 59,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm05ea",
+  "name": "Eye of the Storm",
+  "source": "cnc",
+  "cols": 57,
+  "rows": 61,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm06ea",
+  "name": "Lakefront Clash",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 61,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm07ea",
+  "name": "Desert Madness",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 57,
+  "players": 10
+ },
+ {
+  "id": "cnc-scm08ea",
+  "name": "Pitfall",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 8
+ },
+ {
+  "id": "cnc-scm09ea",
+  "name": "Moosehead Barrens",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 8
+ },
+ {
+  "id": "cnc-scm10ea",
+  "name": "Red Sands",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 61,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm50ea",
+  "name": "Emerald Highlands",
+  "source": "cnc",
+  "cols": 44,
+  "rows": 58,
+  "players": 8
+ },
+ {
+  "id": "cnc-scm51ea",
+  "name": "Four Corners",
+  "source": "cnc",
+  "cols": 53,
+  "rows": 55,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm52ea",
+  "name": "Cactus Valley",
+  "source": "cnc",
+  "cols": 56,
+  "rows": 58,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm60ea",
+  "name": "Monkey in the Middle",
+  "source": "cnc",
+  "cols": 60,
+  "rows": 60,
+  "players": 4
+ },
+ {
+  "id": "cnc-scm61ea",
+  "name": "King of the Mountain",
+  "source": "cnc",
+  "cols": 60,
+  "rows": 60,
+  "players": 8
+ },
+ {
+  "id": "cnc-scm62ea",
+  "name": "Surgical Incision",
+  "source": "cnc",
+  "cols": 60,
+  "rows": 60,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm70ea",
+  "name": "Winter Waterland",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm71ea",
+  "name": "One Pass Fits All",
+  "source": "cnc",
+  "cols": 38,
+  "rows": 48,
+  "players": 6
+ },
+ {
+  "id": "cnc-scm72ea",
+  "name": "Straight and Narrow",
+  "source": "cnc",
+  "cols": 38,
+  "rows": 62,
+  "players": 6
+ },
+ {
+  "id": "cnc-scm73ea",
+  "name": "King Takes Pawn",
+  "source": "cnc",
+  "cols": 56,
+  "rows": 56,
+  "players": 6
+ },
+ {
+  "id": "cnc-scm74ea",
+  "name": "Nowhere To Hide",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 6
+ },
+ {
+  "id": "cnc-scm75ea",
+  "name": "Village of the Unfortunate",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 6
+ },
+ {
+  "id": "cnc-scm77ea",
+  "name": "Marooned",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 7
+ },
+ {
+  "id": "cnc-scm90ea",
+  "name": "A Long Way from Home",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 6
+ },
+ {
+  "id": "cnc-scm96ea",
+  "name": "Tiberium Garden",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 6
+ },
+ {
+  "id": "cnc-scm97ea",
+  "name": "Northern Explosion",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 9
+ },
+ {
+  "id": "cnc-scm98ea",
+  "name": "Diverse Region",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 10
+ },
+ {
+  "id": "cnc-scmc0ea",
+  "name": "Canyon Pursuit",
+  "source": "cnc",
+  "cols": 52,
+  "rows": 54,
+  "players": 3
+ },
+ {
+  "id": "cnc-scmc1ea",
+  "name": "Electric Avenue",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 6
+ },
+ {
+  "id": "cnc-scmc2ea",
+  "name": "Elevation",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 61,
+  "players": 3
+ },
+ {
+  "id": "cnc-scmc3ea",
+  "name": "Heavy Metal",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 4
+ },
+ {
+  "id": "cnc-scmc4ea",
+  "name": "Quarry",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 3
+ },
+ {
+  "id": "cnc-scmc5ea",
+  "name": "Tournament Middle Camp",
+  "source": "cnc",
+  "cols": 61,
+  "rows": 61,
+  "players": 3
+ },
+ {
+  "id": "cnc-scmc6ea",
+  "name": "Tournament Dessert",
+  "source": "cnc",
+  "cols": 62,
+  "rows": 62,
+  "players": 3
+ },
+ {
+  "id": "lego-mp01",
+  "name": "The Pond",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 4
+ },
+ {
+  "id": "lego-mp02",
+  "name": "Entrenched",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp03",
+  "name": "Avast",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp04",
+  "name": "River Crossing",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 4
+ },
+ {
+  "id": "lego-mp05",
+  "name": "Exile",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 3
+ },
+ {
+  "id": "lego-mp06",
+  "name": "Alpha Sector",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp07",
+  "name": "Enclave",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 3
+ },
+ {
+  "id": "lego-mp08",
+  "name": "The Black Seas",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 4
+ },
+ {
+  "id": "lego-mp09",
+  "name": "Omega Quadrant",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 4
+ },
+ {
+  "id": "lego-mp10",
+  "name": "King's Landing",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp11",
+  "name": "The Bayou",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp12",
+  "name": "Dead End",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp13",
+  "name": "The Groves",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp14",
+  "name": "Le Poisson",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp15",
+  "name": "The Divide",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 4
+ },
+ {
+  "id": "lego-mp16",
+  "name": "The North Lands",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp17",
+  "name": "The Junction",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 4
+ },
+ {
+  "id": "lego-mp18",
+  "name": "Outbreak",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 4
+ },
+ {
+  "id": "lego-mp19",
+  "name": "Crossover",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 3
+ },
+ {
+  "id": "lego-mp20",
+  "name": "Tri-Star",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 3
+ },
+ {
+  "id": "lego-mp21",
+  "name": "Dryside",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 3
+ },
+ {
+  "id": "lego-mp22",
+  "name": "Dark Waters",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 3
+ },
+ {
+  "id": "lego-mp23",
+  "name": "Lost Lagoon",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 3
+ },
+ {
+  "id": "lego-mp24",
+  "name": "Pulsar",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 3
+ },
+ {
+  "id": "lego-mp25",
+  "name": "Devil's Horn",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 3
+ },
+ {
+  "id": "lego-mp26",
+  "name": "Kahuka's Strait",
+  "source": "lego",
+  "cols": 96,
+  "rows": 96,
+  "players": 4
+ },
+ {
+  "id": "lego-mp27",
+  "name": "Crossed Island",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 4
+ },
+ {
+  "id": "lego-mp28",
+  "name": "Proving Grounds",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 4
+ },
+ {
+  "id": "lego-mp29",
+  "name": "The Dead Marsh",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 4
+ },
+ {
+  "id": "lego-mp30",
+  "name": "Ruthless",
+  "source": "lego",
+  "cols": 64,
+  "rows": 64,
+  "players": 4
+ }
+]
