@@ -27,6 +27,16 @@ What each source's cells become (the target game's owner decided the LEGO Battle
     T  tree ................................... rock in C&C, crystals in LEGO Battles
     w  well tap ............................... crystals
 
+The story's pieces are drawn for masses at least two cells thick, joined side to side.  The
+other games draw thinner and diagonal features -- a cliff one cell wide, a river that steps
+diagonally -- which those pieces cannot: a diagonal step came out as loose pieces, with gaps
+that looked open, and a thin line as flat tops with no edges.  So before choosing pieces:
+
+    diagonal steps (two blocked cells touching only at a corner) are joined: the notch filled,
+    where the open cells beside it meet some other way (a wall's step), or the step opened,
+    where they do not (a corridor's pinch, which would close)
+    lines one cell thick are made two, where there is room (at least two open cells beyond)
+
 Which maps: Command & Conquer's skirmish maps, and LEGO Battles' free-play maps (mp01 to
 mp30), not either game's campaign.  (Of CrystAlien Conflict's own, the skirmish has Eclipse.)
 """
@@ -48,9 +58,12 @@ ROCK_TILES = {'interior': (9,), 'N': 1, 'E': 2, 'S': 3, 'W': 4, 'NE': 5, 'SE': 6
               'in_NE': 11, 'in_SE': 12, 'in_SW': 13, 'in_NW': 14, 'in_SE_NW': 15, 'in_NE_SW': 16,
               'tip_S': 17, 'tip_N': 22, 'tip_E': 23, 'tip_W': 19, 'alone': 20}
 # Open water is the plain green sea (37), as the story's seas are (the Aliens' level 6); the piece
-# with rocks standing in it (38) reads as rock, so it is left out.
+# with rocks standing in it (38) reads as rock, so it is left out.  The pools have no tips or
+# lone pieces: a tip takes the edge of the side it faces (so it has a shore), and a lone cell
+# (there are none once the lines are thickened) the northern edge.
 POOL_TILES = {'interior': (37,), 'N': 29, 'E': 30, 'S': 31, 'W': 32, 'NE': 33, 'SE': 34, 'SW': 35, 'NW': 36,
-              'in_NE': 39, 'in_SE': 40, 'in_SW': 41, 'in_NW': 42, 'in_SE_NW': 44, 'in_NE_SW': 43}
+              'in_NE': 39, 'in_SE': 40, 'in_SW': 41, 'in_NW': 42, 'in_SE_NW': 44, 'in_NE_SW': 43,
+              'tip_S': 29, 'tip_N': 31, 'tip_E': 32, 'tip_W': 30, 'alone': 29}
 CRYSTAL_TILE = 47
 
 
@@ -92,6 +105,96 @@ def clean(grid, w, h):
 
 
 STEPS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))
+
+
+def blocked(grid, w, h, x, y):
+    """A cell the pieces draw as blocked (off the map counts as blocked)."""
+    return not (0 <= x < w and 0 <= y < h) or grid[y][x] in (ROCK, POOL)
+
+
+def meet_nearby(grid, w, h, a, b, around, r=3):
+    """Whether open cells a and b are joined through open cells side to side within r of
+    around, without passing through the cells of the window itself."""
+    ax, ay = around
+    seen = {a}
+    todo = [a]
+    while todo:
+        x, y = todo.pop()
+        if (x, y) == b:
+            return True
+        for dx, dy in STEPS[:4]:
+            nx, ny = x + dx, y + dy
+            if (nx, ny) in seen or abs(nx - ax) > r or abs(ny - ay) > r:
+                continue
+            if blocked(grid, w, h, nx, ny):
+                continue
+            seen.add((nx, ny))
+            todo.append((nx, ny))
+    return False
+
+
+def join_diagonals(grid, w, h):
+    """Two blocked cells touching only at a corner, the other two of their square open: fill
+    one of the open ones (with the kind of its blocked neighbours) where the open cells meet
+    some other way nearby -- a notch in a wall -- else open one of the blocked ones -- the pinch
+    of a corridor.  Until there are none."""
+    changed = 0
+    for _ in range(8):
+        any_change = False
+        for y in range(h - 1):
+            for x in range(w - 1):
+                cells = [(x, y), (x + 1, y), (x, y + 1), (x + 1, y + 1)]
+                b = [blocked(grid, w, h, cx, cy) for cx, cy in cells]
+                if b == [True, False, False, True]:
+                    walls, gaps = [cells[0], cells[3]], [cells[1], cells[2]]
+                elif b == [False, True, True, False]:
+                    walls, gaps = [cells[1], cells[2]], [cells[0], cells[3]]
+                else:
+                    continue
+                if meet_nearby(grid, w, h, gaps[0], gaps[1], (x, y)):
+                    # a wall's notch: filled, on the side with more blocked around it
+                    def weight(c):
+                        return sum(blocked(grid, w, h, c[0] + dx, c[1] + dy) for dx, dy in STEPS)
+                    fill = max(gaps, key=weight)
+                    kinds = [grid[cy][cx] for cx, cy in walls if 0 <= cx < w and 0 <= cy < h]
+                    grid[fill[1]][fill[0]] = POOL if POOL in kinds else ROCK
+                else:
+                    # a corridor's pinch: opened, the blocked cell with fewer blocked around it
+                    def weight(c):
+                        return sum(blocked(grid, w, h, c[0] + dx, c[1] + dy) for dx, dy in STEPS)
+                    opened = min(walls, key=weight)
+                    grid[opened[1]][opened[0]] = OPEN
+                any_change = True
+                changed += 1
+        if not any_change:
+            break
+    return changed
+
+
+def thicken(grid, w, h):
+    """Lines one cell thick made two, where there is room: a blocked cell with nothing blocked
+    on either side across the line takes one of those sides too, if the two cells beyond it are
+    open (a passage is left two cells wide at least) and it is not a base's ground."""
+    changed = 0
+    for y in range(h):
+        for x in range(w):
+            c = grid[y][x]
+            if c not in (ROCK, POOL):
+                continue
+            for (dx, dy), (ex, ey) in (((1, 0), (-1, 0)), ((0, 1), (0, -1))):
+                if blocked(grid, w, h, x + dx, y + dy) or blocked(grid, w, h, x + ex, y + ey):
+                    continue
+                # a line across this axis: grow it one side, whichever has room
+                for sx, sy in ((dx, dy), (ex, ey)):
+                    tx, ty = x + sx, y + sy
+                    if not (0 <= tx < w and 0 <= ty < h) or grid[ty][tx] == CRYSTAL:
+                        continue
+                    if blocked(grid, w, h, tx + sx, ty + sy) or blocked(grid, w, h, tx + 2 * sx, ty + 2 * sy):
+                        continue
+                    grid[ty][tx] = c
+                    changed += 1
+                    break
+    return changed
 
 
 def reachable(grid, w, h, x0, y0):
@@ -242,7 +345,17 @@ def convert(path, source, table):
                 if 0 <= x < w and 0 <= y < h and grid[y][x] in (ROCK, POOL):
                     grid[y][x] = OPEN
     grid = clean(grid, w, h)
+    joined = join_diagonals(grid, w, h)
+    thick = thicken(grid, w, h)
+    joined += join_diagonals(grid, w, h)
     starts = src.get('starts', [])[:6]
+    # (a base's own ground stays open: the headquarters is put there)
+    for st in starts:
+        for yy in range(st['y'] - 2, st['y'] + 3):
+            for xx in range(st['x'] - 2, st['x'] + 3):
+                if 0 <= xx < w and 0 <= yy < h and grid[yy][xx] in (ROCK, POOL) and src['cells'][yy][xx:xx + 1] not in ('^', '#', '~', 'T'):
+                    grid[yy][xx] = OPEN
+    print('  %d diagonal steps joined, %d cells thickened' % (joined, thick))
     for _ in range(len(starts)):
         if not causeway(grid, w, h, starts):
             break
