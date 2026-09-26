@@ -18,13 +18,13 @@ const MATCH = [
   { key: 'crates', label: 'Crates', ready: false, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'christmas', label: 'Christmas crate', ready: false, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'crateRate', label: 'Crates appear', ready: false, choices: [['rare', 'Rarely'], ['normal', 'Normally'], ['often', 'Often']] },
-  { key: 'income', label: 'Passive income', ready: false, choices: [[0, 'None'], [200, '$200 a minute'], [400, '$400 a minute'], [800, '$800 a minute']] },
+  { key: 'income', label: 'Passive income', ready: true, choices: [[0, 'None'], [200, '$200 a minute'], [400, '$400 a minute'], [800, '$800 a minute']] },
   { key: 'pizzaCost', label: 'Pizza cost', ready: false, choices: [[25000, '$25,000'], [50000, '$50,000'], [100000, '$100,000']] },
   { key: 'speed', label: 'Game speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Fastest']] },
   { key: 'shroud', label: 'Shroud', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'superweapons', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'factions', label: 'Factions', ready: true, choices: [['all', 'Astro and Alien'], ['good', 'Astro only'], ['evil', 'Alien only']] },
-  { key: 'regrowth', label: 'Crystal regrowth', ready: false, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
+  { key: 'regrowth', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
   { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy']] },
 ];
 
@@ -276,18 +276,41 @@ export class OnlineUI {
     return null;
   }
 
+  // The map as the radar would show it -- rock, crystals and open ground, each cell twice as
+  // wide as it is tall, as the game draws them -- with the base markers in their players'
+  // colours.
   drawPreview(map) {
-    // The map itself comes with the map files; until then, its base markers on a plain
-    // Mars ground.
-    const c = this.mapPreview, g = c.getContext('2d');
-    g.fillStyle = '#7a3a16';
+    const c = this.mapPreview;
+    const game = this.game;
+    const data = game && game.mapData && game.mapData();
+    const cells = data && data['map' + map.level];
+    const num = (ch) => (game && game.ascii2num ? game.ascii2num(ch) : 0);
+    const cols = cells ? num(cells[0]) : 30;
+    const rows = cells ? num(cells[1]) : 30;
+    c.width = cols * 4;
+    c.height = rows * 2;
+    const g = c.getContext('2d');
+    g.fillStyle = '#9a4a20';
     g.fillRect(0, 0, c.width, c.height);
-    const info = this.game && this.game.SKIRMISH_MAPS && this.game.SKIRMISH_MAPS[map.level];
+    if (cells && data.tiles) {
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const flags = num(data.tiles[num(cells[2 + y * cols + x])]);
+          if (flags & 0x20) g.fillStyle = '#3d1c0b';
+          else if (flags & 0x10) g.fillStyle = '#b8f060';
+          else continue;
+          g.fillRect(x * 4, y * 2, 4, 2);
+        }
+      }
+    }
+    const info = game && game.SKIRMISH_MAPS && game.SKIRMISH_MAPS[map.level];
     const bases = (info && info.bases) || [];
     bases.forEach((b, i) => {
       const slot = this.slots[i];
       g.fillStyle = slot && i < this.match.slots && slot.kind !== 'closed' ? COLOUR_CSS[slot.colour] : '#999';
-      g.fillRect(Math.round((b.x / 30) * 64) - 3, Math.round((b.y / 30) * 64) - 3, 7, 7);
+      g.strokeStyle = '#000';
+      g.fillRect((b.x - 1) * 4 - 3, (b.y - 1) * 2 - 3, 8, 6);
+      g.strokeRect((b.x - 1) * 4 - 3.5, (b.y - 1) * 2 - 3.5, 9, 7);
     });
   }
 
