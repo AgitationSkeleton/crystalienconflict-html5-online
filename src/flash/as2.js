@@ -3,6 +3,7 @@
 // JavaScript and ActionScript disagree.
 
 import { asString, stringToNumber, parseFloatAS2 } from './text.js';
+import * as detMath from './detmath.js';
 
 // ---- __as: where the two languages differ --------------------------------------------------
 
@@ -90,6 +91,12 @@ export function installBuiltins(player) {
   // a test can seed (player.seedRandom) to make a run repeatable.
   const AS2Math = Object.create(Math);
   AS2Math.random = () => player.random();
+  // Online: trigonometry that gives the same bits in every browser, so that a match played
+  // in lockstep does not drift (see detmath.js).
+  AS2Math.sin = detMath.sin;
+  AS2Math.cos = detMath.cos;
+  AS2Math.atan = detMath.atan;
+  AS2Math.atan2 = detMath.atan2;
   Object.assign(B, {
     Math: AS2Math, Array, Object, Boolean, Date, Function, Error, parseInt, NaN, Infinity,
   });
