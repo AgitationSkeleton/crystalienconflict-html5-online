@@ -3612,7 +3612,11 @@
          this.parent?.parent?.control?.resetSelected?.();
          this.handle = function ()
          {
-            var _loc4_ = this.parent?.parent?.control?.tilePos;
+            // (Online: the square under the pointer on the map as it is drawn now -- the map
+            // eases after the camera, and has moved since Control looked -- so that the site stays
+            // under the pointer while the view moves; the building goes where the site is shown.)
+            var _loc4_ = this.parent?.parent?.control?.pointedTile?.() || this.parent?.parent?.control?.tilePos;
+            this.at = _loc4_;
             this.MC?.removeMovieClip?.();
             this.MC = this.arena?.MC?.createEmptyMovieClip?.("buildingsite", 99996);
             __as.set(this.MC, "_alpha", 50);
@@ -3669,16 +3673,19 @@
                return undefined;
             }
             __as.upd(this.parent?.parent, "outcomeFutures", 1, false);
+            var at = this.at || this.parent?.parent?.control?.tilePos;
             if(this.parent?.parent?.skirmish)
             {
-               this.parent?.parent?.issue?.({t:"place",x:this.parent?.parent?.control?.tilePos?.x,y:this.parent?.parent?.control?.tilePos?.y});
+               // (Online: a skirmish's building goes down when the command comes round, if the
+               // ground is still clear then; Production.place says so, going down or not.)
+               this.parent?.parent?.issue?.({t:"place",x:at?.x,y:at?.y});
             }
             else
             {
-               this.parent?.parent?.buildings?.push?.(new Building(this.parent?.parent, this.type, this.parent?.parent?.control?.tilePos?.x, this.parent?.parent?.control?.tilePos?.y, this.parent?.parent?.localPlayer));
+               this.parent?.parent?.buildings?.push?.(new Building(this.parent?.parent, this.type, at?.x, at?.y, this.parent?.parent?.localPlayer));
+               this.parent?.parent?.parent?.sfx?.play?.("INT_breakground");
             }
             this.destroy?.(true);
-            this.parent?.parent?.parent?.sfx?.play?.("INT_breakground");
             return true;
          };
          this.destroy = function (success)
@@ -7782,12 +7789,22 @@
          this.place = function (x, y)
          {
             var type = this.ready?.();
+            // (Online: its owner hears whether it went down -- the click only asked.)
+            var mine = this.owner == this.level?.localPlayer;
             if(!type || !this.level?.siteValid?.(type, this.owner, x, y))
             {
+               if(mine)
+               {
+                  this.level?.parent?.sfx?.play?.("INT_invalid");
+               }
                return false;
             }
             this.level?.buildings?.push?.(new Building(this.level, type, x, y, this.owner));
             this.building = false;
+            if(mine)
+            {
+               this.level?.parent?.sfx?.play?.("INT_breakground");
+            }
             return true;
          };
          // Give up what is under way, with the money back for what is not yet built.  (Online:
@@ -10202,8 +10219,13 @@
             {
                __as.set(this.parent?.camera, "focus", this.parent?.findBuilding?.("BA_" + this.parent?.parent?.team, this.parent?.localPlayer) || this.parent?.findBuilding?.("BK_" + this.parent?.parent?.team, this.parent?.localPlayer));
             }
-            this.posX = Math.round((limit?.(_xmouse, 151, SCREENX) - 150) / this.parent?.arena?.zoom - this.parent?.arena?.posX);
-            this.posY = Math.round(limit?.(_ymouse, 1, this.parent?.arena?.viewHeightPx) / this.parent?.arena?.zoom - this.parent?.arena?.posY) * 2;
+            // (Online: from where the map is drawn, which eases after the camera, rather than
+            // where it is going: what the pointer is over is what it points at, the view moving
+            // or not.)
+            var shownX = this.parent?.arena?.MC ? this.parent.arena.MC._x / this.parent.arena.zoom : this.parent?.arena?.posX;
+            var shownY = this.parent?.arena?.MC ? this.parent.arena.MC._y / this.parent.arena.zoom : this.parent?.arena?.posY;
+            this.posX = Math.round((limit?.(_xmouse, 151, SCREENX) - 150) / this.parent?.arena?.zoom - shownX);
+            this.posY = Math.round(limit?.(_ymouse, 1, this.parent?.arena?.viewHeightPx) / this.parent?.arena?.zoom - shownY) * 2;
             if(this.prevMouseX == _xmouse && this.prevMouseY == _ymouse && this.parent?.count > 20)
             {
                this.still++;
@@ -10388,6 +10410,19 @@
                key++;
             }
             return false;
+         };
+         // Online: the square the pointer is over, on the map as it is drawn at this moment (for
+         // the building site, which is placed after the map has moved in a frame).
+         this.pointedTile = function ()
+         {
+            var arena = this.parent?.arena;
+            if(!arena?.MC)
+            {
+               return undefined;
+            }
+            var x = Math.round((limit?.(_xmouse, 151, SCREENX) - 150) / arena.zoom - arena.MC._x / arena.zoom);
+            var y = Math.round(limit?.(_ymouse, 1, arena.viewHeightPx) / arena.zoom - arena.MC._y / arena.zoom) * 2;
+            return arena.translatePos?.(x, y);
          };
          this.doCursor = function ()
          {
