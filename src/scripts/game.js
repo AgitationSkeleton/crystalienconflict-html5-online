@@ -2131,7 +2131,7 @@
          };
          this.layoutTiles = function ()
          {
-            var _loc5_ = this.parent?.parent?.data?.["map" + this.parent?.level]?.slice?.();
+            var _loc5_ = this.parent?.parent?.data?.["map" + this.parent?.mapLevel]?.slice?.();
             this.cols = Number?.(ascii2num?.(_loc5_?.shift?.()));
             this.rows = Number?.(ascii2num?.(_loc5_?.shift?.()));
             this.tileHandles = new Object();
@@ -2581,7 +2581,7 @@
                   this.parent?.parent?.sfx?.play?.("INT_invalid");
                   return true;
                }
-               if(this.parent?.cash)
+               if(this.parent?.localPlayer?.cash)
                {
                   __as.set(current, "inProgress", true);
                   this.constructingBuilding = current;
@@ -2599,7 +2599,7 @@
                   this.parent?.parent?.sfx?.play?.("INT_invalid");
                   return true;
                }
-               if(this.parent?.cash)
+               if(this.parent?.localPlayer?.cash)
                {
                   __as.set(current, "inProgress", true);
                   this.constructingUnit = current;
@@ -2622,7 +2622,7 @@
             __as.set(item, "inProgress", false);
             if(item?.progress < item?.constructionTime || refund)
             {
-               __as.op(this.parent, "cash", "+", item?.progress / item?.constructionTime * item?.cost);
+               __as.op(this.parent?.localPlayer, "cash", "+", item?.progress / item?.constructionTime * item?.cost);
             }
             __as.set(item, "progress", 0);
             if(item?.isBuilding)
@@ -2659,12 +2659,12 @@
                _loc3_ -= _loc4_;
             }
             var _loc5_ = Math.ceil(_loc3_ / item?.constructionTime * item?.cost);
-            if(this.parent?.cash < _loc5_)
+            if(this.parent?.localPlayer?.cash < _loc5_)
             {
                this.sufficientFunds = false;
                return undefined;
             }
-            __as.op(this.parent, "cash", "-", _loc5_);
+            __as.op(this.parent?.localPlayer, "cash", "-", _loc5_);
             __as.op(item, "progress", "+", _loc3_);
             __as.set(item, "progress", min?.(item?.progress, item?.constructionTime));
             var _loc6_ = Math.ceil(100 * item?.progress / item?.constructionTime);
@@ -2677,7 +2677,7 @@
                {
                   if(!item?.superweapon)
                   {
-                     this.parent?.units?.push?.(new Unit(this.parent, item?.type, undefined, undefined, 0.125 * random?.(8), this.parent?.parent?.team));
+                     this.parent?.units?.push?.(new Unit(this.parent, item?.type, undefined, undefined, 0.125 * random?.(8), this.parent?.localPlayer));
                      this.cancel?.(item);
                      this.parent?.parent?.sfx?.play?.("INT_constructioncomplete_unit");
                   }
@@ -2710,63 +2710,63 @@
             while(_loc3_ < _loc4_?.length)
             {
                _loc2_ = _loc4_?.[_loc3_];
-               if(this.parent?.findBuilding?.("BA_" + _loc2_, this.parent?.parent?.team)?.friend || this.parent?.findBuilding?.("BK_" + _loc2_, this.parent?.parent?.team)?.friend)
+               if(this.parent?.findBuilding?.("BA_" + _loc2_, this.parent?.localPlayer) || this.parent?.findBuilding?.("BK_" + _loc2_, this.parent?.localPlayer))
                {
-                  if(this.parent?.findBuilding?.("BA_" + _loc2_, this.parent?.parent?.team)?.friend)
+                  if(this.parent?.findBuilding?.("BA_" + _loc2_, this.parent?.localPlayer))
                   {
                      __as.set(this.shortcuts?.["UD_" + _loc2_], "active", true);
                   }
-                  if(this.parent?.findBuilding?.("BK_" + _loc2_, this.parent?.parent?.team)?.friend)
+                  if(this.parent?.findBuilding?.("BK_" + _loc2_, this.parent?.localPlayer))
                   {
                      __as.set(this.shortcuts?.["UP_" + _loc2_], "active", true);
                      __as.set(this.shortcuts?.["BL_" + _loc2_], "active", true);
                   }
                   __as.set(this.shortcuts?.["BB_" + _loc2_], "active", true);
-                  if(this.parent?.findBuilding?.("BB_" + _loc2_, this.parent?.parent?.team)?.friend)
+                  if(this.parent?.findBuilding?.("BB_" + _loc2_, this.parent?.localPlayer))
                   {
                      __as.set(this.shortcuts?.["BC_" + _loc2_], "active", true);
                   }
-                  if(this.parent?.findBuilding?.("BC_" + _loc2_, this.parent?.parent?.team)?.friend)
+                  if(this.parent?.findBuilding?.("BC_" + _loc2_, this.parent?.localPlayer))
                   {
                      __as.set(this.shortcuts?.["BD_" + _loc2_], "active", true);
                      __as.set(this.shortcuts?.["BE_" + _loc2_], "active", true);
                      __as.set(this.shortcuts?.["BF_" + _loc2_], "active", true);
                   }
-                  if(this.parent?.findBuilding?.("BE_" + _loc2_, this.parent?.parent?.team)?.friend && this.parent?.findBuilding?.("BF_" + _loc2_, this.parent?.parent?.team)?.friend)
+                  if(this.parent?.findBuilding?.("BE_" + _loc2_, this.parent?.localPlayer) && this.parent?.findBuilding?.("BF_" + _loc2_, this.parent?.localPlayer))
                   {
                      __as.set(this.shortcuts?.["BG_" + _loc2_], "active", true);
                      __as.set(this.shortcuts?.["UF_" + _loc2_], "active", true);
-                     if(this.parent?.findBuilding?.("BG_" + _loc2_, this.parent?.parent?.team)?.friend)
+                     if(this.parent?.findBuilding?.("BG_" + _loc2_, this.parent?.localPlayer))
                      {
                         __as.set(this.shortcuts?.["BH_" + _loc2_], "active", true);
-                        if(this.parent?.findBuilding?.("BH_" + _loc2_, this.parent?.parent?.team)?.friend)
+                        if(this.parent?.findBuilding?.("BH_" + _loc2_, this.parent?.localPlayer))
                         {
                            __as.set(this.shortcuts?.["UK_" + _loc2_], "active", true);
                         }
                      }
                   }
                }
-               if(this.parent?.findBuilding?.("BC_" + _loc2_, this.parent?.parent?.team)?.friend)
+               if(this.parent?.findBuilding?.("BC_" + _loc2_, this.parent?.localPlayer))
                {
                   __as.set(this.shortcuts?.["UA_" + _loc2_], "active", true);
                   __as.set(this.shortcuts?.["UB_" + _loc2_], "active", true);
-                  if(this.parent?.findBuilding?.("BG_" + _loc2_, this.parent?.parent?.team)?.friend)
+                  if(this.parent?.findBuilding?.("BG_" + _loc2_, this.parent?.localPlayer))
                   {
                      __as.set(this.shortcuts?.["UC_" + _loc2_], "active", true);
                   }
                }
-               if(this.parent?.findBuilding?.("BE_" + _loc2_, this.parent?.parent?.team)?.friend)
+               if(this.parent?.findBuilding?.("BE_" + _loc2_, this.parent?.localPlayer))
                {
                   __as.set(this.shortcuts?.["UE_" + _loc2_], "active", true);
-                  if(this.parent?.findBuilding?.("BL_" + _loc2_, this.parent?.parent?.team)?.friend)
+                  if(this.parent?.findBuilding?.("BL_" + _loc2_, this.parent?.localPlayer))
                   {
                      __as.set(this.shortcuts?.["UR_" + _loc2_], "active", true);
                   }
                }
-               if(this.parent?.findBuilding?.("BF_" + _loc2_, this.parent?.parent?.team)?.friend)
+               if(this.parent?.findBuilding?.("BF_" + _loc2_, this.parent?.localPlayer))
                {
                   __as.set(this.shortcuts?.["UG_" + _loc2_], "active", true);
-                  if(this.parent?.findBuilding?.("BE_" + _loc2_, this.parent?.parent?.team)?.friend && this.parent?.findBuilding?.("BG_" + _loc2_, this.parent?.parent?.team)?.friend)
+                  if(this.parent?.findBuilding?.("BE_" + _loc2_, this.parent?.localPlayer) && this.parent?.findBuilding?.("BG_" + _loc2_, this.parent?.localPlayer))
                   {
                      __as.set(this.shortcuts?.["UH_" + _loc2_], "active", true);
                   }
@@ -2774,7 +2774,11 @@
                _loc3_ = _loc3_ + 1;
             }
             __as.set(this.shortcuts?.BL_evil, "active", false);
-            if(this.parent?.parent?.team == "good")
+            if(this.parent?.skirmish)
+            {
+               this.skirmishRules?.();
+            }
+            else if(this.parent?.parent?.team == "good")
             {
                if(this.parent?.level < 3)
                {
@@ -2833,7 +2837,7 @@
                   __as.set(this.shortcuts?.BB_good, "active", false);
                }
             }
-            if(this.parent?.parent?.team == "evil")
+            if(!this.parent?.skirmish && this.parent?.parent?.team == "evil")
             {
                if(this.parent?.level < 14)
                {
@@ -2869,6 +2873,16 @@
                this.buildingSite?.destroy?.();
             }
             this.buildMenus?.();
+         };
+         // Online: a skirmish's own limits.  The uplink's superweapon is there only when the
+         // settings allow it (the story allowed it only in its two Conflict levels).
+         this.skirmishRules = function ()
+         {
+            if(!this.parent?.skirmish?.superweapons)
+            {
+               __as.set(this.shortcuts?.UK_good, "active", false);
+               __as.set(this.shortcuts?.UK_evil, "active", false);
+            }
          };
          this.resetTotals = function ()
          {
@@ -2953,7 +2967,7 @@
                return undefined;
             }
             __as.upd(this.parent?.parent, "outcomeFutures", 1, false);
-            this.parent?.parent?.buildings?.push?.(new Building(this.parent?.parent, this.type, this.parent?.parent?.control?.tilePos?.x, this.parent?.parent?.control?.tilePos?.y, this.parent?.parent?.parent?.team));
+            this.parent?.parent?.buildings?.push?.(new Building(this.parent?.parent, this.type, this.parent?.parent?.control?.tilePos?.x, this.parent?.parent?.control?.tilePos?.y, this.parent?.parent?.localPlayer));
             this.destroy?.(true);
             this.parent?.parent?.parent?.sfx?.play?.("INT_breakground");
             return true;
@@ -2963,7 +2977,7 @@
             this.MC?.removeMovieClip?.();
             if(!success)
             {
-               __as.op(this.parent?.parent, "cash", "+", this.stats?.cost);
+               __as.op(this.parent?.parent?.localPlayer, "cash", "+", this.stats?.cost);
                this.parent?.parent?.parent?.sfx?.play?.("INT_invalid");
             }
          };
@@ -3222,15 +3236,16 @@
          this.type = type;
          this.tilePos = {x:x,y:y};
          this.active = true;
+         // Online: owner is the Player it belongs to -- the one named, or the one of the faction
+         // named as the story's scripts do it.  team stays a faction: the owner's, which is what
+         // the art shows (a captured building takes its captor's).
          if(!team)
          {
-            this.team = this.type?.substr?.(3);
+            team = this.type?.substr?.(3);
          }
-         else
-         {
-            this.team = team;
-         }
-         this.friend = this.team == this.parent?.parent?.team;
+         this.owner = this.parent?.playerFor?.(team);
+         this.team = !team?.isPlayer ? team : this.owner?.faction;
+         this.friend = this.owner == this.parent?.localPlayer;
          this.selected = false;
          this.pulse = false;
          this.hilite = false;
@@ -3312,22 +3327,15 @@
             {
                if(this.health < this.stats?.maxHealth)
                {
-                  if(this.repairing || !this.friend && (this.parent?.findBuilding?.("BA_" + this.parent?.parent?.oppo, this.parent?.parent?.oppo) || this.parent?.findBuilding?.("BK_" + this.parent?.parent?.oppo, this.parent?.parent?.oppo)))
+                  if(this.repairing || this.owner?.ai && (this.parent?.findBuilding?.("BA_" + this.owner?.faction, this.owner) || this.parent?.findBuilding?.("BK_" + this.owner?.faction, this.owner)))
                   {
                      this.repairing = true;
                      _loc2_ = 20 * Math.round(1 / this.stats?.maxHealth * this.stats?.cost * 0.5);
-                     if(this.friend && !(this.parent?.cash < _loc2_) || !this.friend && !(this.parent?.cashOppo < _loc2_))
+                     if(!(this.owner?.cash < _loc2_))
                      {
                         this.hilite = true;
                         this.health = min?.(this.stats?.maxHealth, this.health += 20);
-                        if(this.friend)
-                        {
-                           __as.op(this.parent, "cash", "-", _loc2_);
-                        }
-                        if(!this.friend)
-                        {
-                           __as.op(this.parent, "cashOppo", "-", _loc2_);
-                        }
+                        __as.op(this.owner, "cash", "-", _loc2_);
                         if(this.healthPerc > 25)
                         {
                            this.MCsprite?.building?.smoke?.removeMovieClip?.();
@@ -3358,7 +3366,7 @@
                _loc2_ = Math.round(this.angle * 16) + 1;
                this.MCsprite?.building?.gotoAndStop?.(_loc2_);
                this.MCsprite?.shadow?.gotoAndStop?.(_loc2_);
-               if(!(this.count % 4) && this.blink && (this.friend && !this.parent?.powerOff || !this.friend && !this.parent?.powerOffOppo))
+               if(!(this.count % 4) && this.blink && !this.owner?.powerOff)
                {
                   this.angle += sgn?.(Math.sin(this.count / 100)) * 0.0625;
                   if(!(this.angle < 1))
@@ -3453,14 +3461,7 @@
             this.freeBlock?.(!sold);
             if(sold)
             {
-               if(this.friend)
-               {
-                  __as.op(this.parent, "cash", "+", Math.round(this.stats?.cost * 0.5 * (this.healthPerc / 100)));
-               }
-               if(!this.friend)
-               {
-                  __as.op(this.parent, "cashOppo", "+", Math.round(this.stats?.cost * 0.5 * (this.healthPerc / 100)));
-               }
+               __as.op(this.owner, "cash", "+", Math.round(this.stats?.cost * 0.5 * (this.healthPerc / 100)));
             }
             var _loc2_;
             if((this.friend || this.team == this.type?.substr?.(3)) && this.parent?.active)
@@ -3468,17 +3469,19 @@
                for(var _loc3_ of __as.keys(this.stats?.children))
                {
                   _loc2_ = this.stats?.children?.[_loc3_];
-                  if(this.parent?.construction?.shortcuts?.[_loc2_]?.total < this.parent?.construction?.shortcuts?.[_loc2_]?.max)
+                  // (The story counts the player's units of that type whoever the building's owner;
+                  // a skirmish counts its owner's.)
+                  if((this.parent?.skirmish ? this.parent?.countOwned?.(_loc2_, this.owner) : this.parent?.construction?.shortcuts?.[_loc2_]?.total) < this.parent?.construction?.shortcuts?.[_loc2_]?.max)
                   {
-                     this.parent?.units?.push?.(new Unit(this.parent, _loc2_, this.stats?.dockPos?.x, this.stats?.dockPos?.y, 0.125 * random?.(8), this.team));
+                     this.parent?.units?.push?.(new Unit(this.parent, _loc2_, this.stats?.dockPos?.x, this.stats?.dockPos?.y, 0.125 * random?.(8), this.owner));
                   }
                }
             }
-            if(this.friend && this.stats?.isHQ)
+            if(!this.parent?.skirmish && this.friend && this.stats?.isHQ)
             {
                this.parent?.lose?.();
             }
-            if(!this.friend && this.stats?.isHQ)
+            if(!this.parent?.skirmish && !this.friend && this.stats?.isHQ)
             {
                this.parent?.win?.();
             }
@@ -3567,7 +3570,7 @@
                _loc3_ = _loc3_ + 1;
             }
          };
-         this.setBlock?.(this.friend);
+         this.setBlock?.(this.parent?.allied?.(this.owner));
          this.engageEnemy = this.parent?.engageEnemy;
          this.shoot = this.parent?.shoot;
          this.makeNoise = this.parent?.makeNoise;
@@ -3629,7 +3632,7 @@
                {
                   return undefined;
                }
-               __as.set(this.parent, "target", this.parent?.parent?.friendlyTarget);
+               __as.set(this.parent, "target", this.parent?.owner?.friendlyTarget);
                return undefined;
             }
             if(this.type == "still")
@@ -3664,7 +3667,7 @@
             {
                if(this.parent?.stats?.repair)
                {
-                  __as.set(this.parent, "target", this.parent?.parent?.friendlyTarget);
+                  __as.set(this.parent, "target", this.parent?.owner?.friendlyTarget);
                   return undefined;
                }
                do
@@ -3729,7 +3732,7 @@
          if(this.type == "UA_good" || this.type == "UA_evil")
          {
             this.max = 5;
-            this.home = this.parent?.parent?.findBuilding?.("BC_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BC_" + this.team, this.parent?.owner);
             this.threat = 3;
             this.spread = 3;
             this.maxHealth = 125;
@@ -3747,7 +3750,7 @@
          if(this.type == "UB_good" || this.type == "UB_evil")
          {
             this.max = 5;
-            this.home = this.parent?.parent?.findBuilding?.("BC_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BC_" + this.team, this.parent?.owner);
             this.threat = 5;
             this.spread = 1;
             this.maxHealth = 75;
@@ -3763,10 +3766,10 @@
          if(this.type == "UC_good" || this.type == "UC_evil")
          {
             this.max = 5;
-            this.home = this.parent?.parent?.findBuilding?.("BC_" + this.team, this.parent?.team);
-            if(this.type == "UC_evil" && this.parent?.parent?.findBuilding?.("BK_evil", "evil"))
+            this.home = this.parent?.parent?.findBuilding?.("BC_" + this.team, this.parent?.owner);
+            if(this.type == "UC_evil" && this.parent?.parent?.findBuilding?.("BK_evil", this.parent?.owner))
             {
-               this.home = this.parent?.parent?.findBuilding?.("BK_evil", "evil");
+               this.home = this.parent?.parent?.findBuilding?.("BK_evil", this.parent?.owner);
             }
             this.threat = 4;
             this.spread = 3;
@@ -3786,7 +3789,7 @@
          if(this.type == "UD_good" || this.type == "UD_evil")
          {
             this.max = 4;
-            this.home = this.parent?.parent?.findBuilding?.("BA_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BA_" + this.team, this.parent?.owner);
             this.threat = 2;
             this.spread = 3;
             this.maxHealth = 1500;
@@ -3801,7 +3804,7 @@
          if(this.type == "UE_good" || this.type == "UE_evil")
          {
             this.max = 5;
-            this.home = this.parent?.parent?.findBuilding?.("BE_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BE_" + this.team, this.parent?.owner);
             this.threat = 4;
             this.spread = 2;
             this.maxHealth = 200;
@@ -3816,7 +3819,7 @@
          if(this.type == "UF_good" || this.type == "UF_evil")
          {
             this.max = 5;
-            this.home = this.parent?.parent?.findBuilding?.("BE_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BE_" + this.team, this.parent?.owner);
             this.threat = 7;
             this.spread = 3;
             this.maxHealth = 800;
@@ -3831,7 +3834,7 @@
          if(this.type == "UG_good" || this.type == "UG_evil")
          {
             this.max = 4;
-            this.home = this.parent?.parent?.findBuilding?.("BF_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BF_" + this.team, this.parent?.owner);
             this.threat = 8;
             this.spread = 4;
             this.maxHealth = 150;
@@ -3852,7 +3855,7 @@
          if(this.type == "UH_good" || this.type == "UH_evil")
          {
             this.max = 2;
-            this.home = this.parent?.parent?.findBuilding?.("BE_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BE_" + this.team, this.parent?.owner);
             this.threat = 4;
             this.spread = 4;
             this.maxHealth = 300;
@@ -3930,7 +3933,7 @@
          if(this.type == "UM_evil")
          {
             this.max = 1;
-            this.home = this.parent?.parent?.findBuilding?.("BJ_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BJ_" + this.team, this.parent?.owner);
             this.threat = 10;
             this.spread = 3;
             this.maxHealth = 200;
@@ -3948,7 +3951,7 @@
          if(this.type == "UN_evil")
          {
             this.max = 8;
-            this.home = this.parent?.parent?.findBuilding?.("BJ_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BJ_" + this.team, this.parent?.owner);
             this.threat = 5;
             this.spread = 1;
             this.maxHealth = 75;
@@ -3963,7 +3966,7 @@
          if(this.type == "UP_good" || this.type == "UP_evil")
          {
             this.max = 2;
-            this.home = this.parent?.parent?.findBuilding?.("BK_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BK_" + this.team, this.parent?.owner);
             this.threat = 4;
             this.spread = 4;
             this.maxHealth = 400;
@@ -4001,7 +4004,7 @@
          if(this.type == "UR_good")
          {
             this.max = 2;
-            this.home = this.parent?.parent?.findBuilding?.("BE_" + this.team, this.parent?.team);
+            this.home = this.parent?.parent?.findBuilding?.("BE_" + this.team, this.parent?.owner);
             this.threat = 7;
             this.spread = 3;
             this.maxHealth = 500;
@@ -4128,7 +4131,7 @@
                {
                   _loc4_ = this.target?.tilePos?.x;
                   _loc3_ = this.target?.tilePos?.y;
-                  if(this.stats?.repair || this.target?.friend && this.target?.stats?.carrier)
+                  if(this.stats?.repair || this.target?.owner == this.parent?.owner && this.target?.stats?.carrier)
                   {
                      this.target?.freeBlock?.();
                   }
@@ -4186,7 +4189,7 @@
                   if(this.landerPerc == 100)
                   {
                      this.bank = "ground";
-                     if(this.parent?.friend)
+                     if(this.parent?.friend || this.parent?.parent?.skirmish)
                      {
                         this.checkCollect?.();
                      }
@@ -4225,7 +4228,7 @@
                {
                   this.returnHome?.();
                }
-               if(!this.parent?.friend && !this.parent?.stats?.miner)
+               if(this.parent?.owner?.ai && !this.parent?.stats?.miner)
                {
                   this.parent?.hal?.handle?.();
                }
@@ -4353,7 +4356,7 @@
             {
                return undefined;
             }
-            if(this.parent?.friend && !this.parent?.stats?.flying)
+            if((this.parent?.friend || this.parent?.parent?.skirmish) && !this.parent?.stats?.flying)
             {
                this.checkCollect?.();
             }
@@ -4377,7 +4380,7 @@
                   {
                      __as.set(this.parent?.MCsprite?.unit?.sparks, "_visible", false);
                      this.parent?.makeNoise?.(this.parent?.type + "_comply");
-                     if(!this.parent?.stats?.home?.active || this.parent?.stats?.home?.team != this.parent?.team)
+                     if(!this.parent?.stats?.home?.active || this.parent?.stats?.home?.owner != this.parent?.owner)
                      {
                         this.parent?.destroy?.();
                         return undefined;
@@ -4433,7 +4436,7 @@
             {
                if(this.stats?.repair)
                {
-                  if(this.target?.team != this.parent?.team)
+                  if(this.parent?.parent?.hostile?.(this.target, this.parent))
                   {
                      this.parent?.doInfiltrate?.();
                      return true;
@@ -4448,7 +4451,7 @@
                      __as.set(this.parent, "target", false);
                   }
                }
-               if(this.target?.stats?.carrier && this.target?.team == this.parent?.team && (!this.target?.stats?.flying || this.target?.nav?.landerPerc == 100))
+               if(this.target?.stats?.carrier && this.target?.owner == this.parent?.owner && (!this.target?.stats?.flying || this.target?.nav?.landerPerc == 100))
                {
                   this.parent?.doEmbark?.(false);
                   return true;
@@ -4557,17 +4560,16 @@
          this.hilite = false;
          this.pulse = false;
          this.arrayPos = this.parent?.units?.length - 1;
+         // Online: owner and team as for a Building.
          if(!team)
          {
-            this.team = this.type?.substr?.(3);
+            team = this.type?.substr?.(3);
          }
-         else
-         {
-            this.team = team;
-         }
-         this.friend = this.team == this.parent?.parent?.team;
+         this.owner = this.parent?.playerFor?.(team);
+         this.team = !team?.isPlayer ? team : this.owner?.faction;
+         this.friend = this.owner == this.parent?.localPlayer;
          this.stats = new UnitStats(this);
-         if(!this.friend)
+         if(this.owner?.ai)
          {
             if(!target)
             {
@@ -4586,6 +4588,7 @@
          if(this.stats?.home && !x && !y)
          {
             this.tilePos = this.parent?.arena?.closestAvailable?.(this.stats?.home?.stats?.dockPos);
+            this.owner = this.stats?.home?.owner;
             this.team = this.stats?.home?.team;
             this.friend = this.stats?.home?.friend;
          }
@@ -4621,7 +4624,7 @@
             if(this.target && !this.target?.active)
             {
                this.target = false;
-               if(!this.friend && !this.hal)
+               if(this.owner?.ai && !this.hal)
                {
                   this.hal = new UnitHAL(this, "seek");
                }
@@ -4771,7 +4774,7 @@
                __as.set(this.parent?.arena?.tiles?.[x], y, this);
             }
             this.tilePos = {x:x,y:y};
-            if(this.friend)
+            if(this.parent?.allied?.(this.owner))
             {
                this.parent?.arena?.shroud?.reveal?.(x, y, this.stats?.spread);
             }
@@ -4832,14 +4835,15 @@
          };
          this.doInfiltrate = function ()
          {
-            if(this.target?.friend && this.target?.type == "BA_" + this.parent?.parent?.team)
+            if(!this.parent?.skirmish && this.target?.friend && this.target?.type == "BA_" + this.parent?.parent?.team)
             {
                this.parent?.lose?.();
             }
             __as.set(this.target, "hilite", true);
+            __as.set(this.target, "owner", this.owner);
             __as.set(this.target, "team", this.team);
-            __as.set(this.target, "friend", this.target?.team == this.parent?.parent?.team);
-            this.target?.setBlock?.(true);
+            __as.set(this.target, "friend", this.friend);
+            this.target?.setBlock?.(this.parent?.skirmish ? this.parent?.allied?.(this.owner) : true);
             if(this.target?.stats?.width == 1)
             {
                this.target?.MCbaseplate?.gotoAndStop?.(this.target?.team + "_1");
@@ -4925,14 +4929,14 @@
                }
             }
             var _loc3_;
-            if(this.respawn && (this.stats?.home?.active && this.stats?.home?.team == this.team || this.stats?.pickup))
+            if(this.respawn && (this.stats?.home?.active && this.stats?.home?.owner == this.owner || this.stats?.pickup))
             {
                _loc3_ = true;
                if(!this.friend)
                {
-                  if(!(this.parent?.cashOppo < this.stats?.cost))
+                  if(!(this.owner?.cash < this.stats?.cost))
                   {
-                     __as.op(this.parent, "cashOppo", "-", this.stats?.cost);
+                     __as.op(this.owner, "cash", "-", this.stats?.cost);
                   }
                   else
                   {
@@ -4941,7 +4945,7 @@
                }
                if(_loc3_)
                {
-                  this.parent?.units?.push?.(new Unit(this.parent, this.type, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true));
+                  this.parent?.units?.push?.(new Unit(this.parent, this.type, undefined, undefined, undefined, this.owner, undefined, undefined, undefined, true));
                }
             }
          };
@@ -4986,14 +4990,14 @@
                {
                   _loc3_ = this.freeInside;
                }
-               __as.op(this.parent, "cash", "+", _loc3_);
+               __as.op(collectee?.owner || this.parent?.localPlayer, "cash", "+", _loc3_);
             }
             else
             {
                if(this.freeInside)
                {
                   _loc4_ = this.parent?.arena?.closestAvailable?.(this.tilePos);
-                  _loc5_ = this.parent?.parent?.team;
+                  _loc5_ = collectee?.owner || this.parent?.localPlayer;
                   if(this.freeInside?.substr?.(-5) == "_oppo")
                   {
                      this.freeInside = this.freeInside?.substr?.(0, -5);
@@ -5186,6 +5190,11 @@
             var _loc4_;
             var _loc5_;
             var _loc6_;
+            if(this.skirmish)
+            {
+               this.setupSkirmish?.();
+               return undefined;
+            }
             if(this.level == 1)
             {
                this.buildings?.push?.(new Building(this, "BA_good", 2, 7));
@@ -5197,7 +5206,7 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level1_ind5"), "message", 80));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level1_ind6"), "message", 120));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level1_ind7"), "message"));
-               this.cash = 0;
+               this.localPlayer.cash = 0;
                this.training = true;
                this.jukebox = 1;
             }
@@ -5218,7 +5227,7 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level2_ind3"), "message", 80));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level2_ind4"), "message", 80));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level2_ind5"), "message"));
-               this.cash = 2000;
+               this.localPlayer.cash = 2000;
                this.training = true;
                this.jukebox = 2;
             }
@@ -5243,7 +5252,7 @@
                this.indicators?.push?.(new Indicator(this, "find:UB_good", undefined, dialogue?.("int_level3_ind6"), "selected"));
                this.indicators?.push?.(new Indicator(this, "find:UB_good", _loc2_, dialogue?.("int_level3_ind7"), "voyage"));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level3_ind8"), "message"));
-               this.cash = 4000;
+               this.localPlayer.cash = 4000;
                this.training = true;
                this.jukebox = 3;
             }
@@ -5286,7 +5295,7 @@
                this.arena?.shroud?.reveal?.(25, 10, 3);
                this.arena?.shroud?.reveal?.(28, 14, 2);
                __as.set(this.camera, "focus", _loc2_);
-               this.cash = 2000;
+               this.localPlayer.cash = 2000;
                this.training = true;
                this.jukebox = 4;
             }
@@ -5306,7 +5315,7 @@
                this.units?.push?.(new Unit(this, "UF_evil", 19, 19, 0.75, undefined, undefined, "still"));
                this.arena?.shroud?.reveal?.(5, 10, 4);
                this.arena?.shroud?.reveal?.(19, 19, 4);
-               this.cash = 8000;
+               this.localPlayer.cash = 8000;
                this.jukebox = 1;
             }
             if(this.level == 6)
@@ -5332,8 +5341,8 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level6_ind2"), "message", 80));
                this.arena?.shroud?.reveal?.(16, 5, 4);
                __as.set(this.camera, "focus", _loc2_);
-               this.cash = 4000;
-               this.cashOppo = 20000;
+               this.localPlayer.cash = 4000;
+               this.players[1].cash = 20000;
                this.jukebox = 2;
             }
             if(this.level == 7)
@@ -5367,8 +5376,8 @@
                this.units?.push?.(new Unit(this, "UI_evil", 4, 7));
                this.units?.push?.(new Unit(this, "UI_evil", 11, 9));
                this.units?.push?.(new Unit(this, "UI_evil", 21, 17));
-               this.cash = 4000;
-               this.cashOppo = 20000;
+               this.localPlayer.cash = 4000;
+               this.players[1].cash = 20000;
                this.jukebox = 3;
             }
             if(this.level == 8)
@@ -5405,7 +5414,7 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level8_ind2"), "message", 80));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level8_ind3"), "message", 80));
                __as.set(this.camera, "focus", _loc2_);
-               this.cash = 0;
+               this.localPlayer.cash = 0;
                this.jukebox = 4;
             }
             if(this.level == 9)
@@ -5440,7 +5449,7 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level9_ind5"), "message"));
                this.arena?.shroud?.reveal?.(8, 6, 3);
                __as.set(this.camera, "focus", _loc2_);
-               this.cash = 0;
+               this.localPlayer.cash = 0;
                this.jukebox = 1;
             }
             if(this.level == 10)
@@ -5508,8 +5517,8 @@
                this.arena?.shroud?.reveal?.(2, 26, 4);
                this.arena?.shroud?.reveal?.(7, 26, 4);
                __as.set(this.camera, "focus", _loc5_);
-               this.cash = 10000;
-               this.cashOppo = 20000;
+               this.localPlayer.cash = 10000;
+               this.players[1].cash = 20000;
                this.jukebox = 4;
             }
             if(this.level == 11)
@@ -5533,8 +5542,8 @@
                this.arena?.shroud?.reveal?.(12, 2, 2);
                this.arena?.shroud?.reveal?.(9, 7, 2);
                __as.set(this.camera, "focus", _loc3_);
-               this.cash = 0;
-               this.cashOppo = 999999900;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 999999900;
                this.training = true;
                this.jukebox = 4;
             }
@@ -5561,8 +5570,8 @@
                this.arena?.shroud?.reveal?.(5, 2, 3);
                this.arena?.shroud?.reveal?.(5, 4, 3);
                __as.set(this.camera, "focus", _loc3_);
-               this.cash = 0;
-               this.cashOppo = 999999900;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 999999900;
                this.training = true;
                this.jukebox = 1;
             }
@@ -5584,7 +5593,7 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level13_ind7"), "message", 80));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level13_ind8"), "message", 80));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level13_ind9"), "message"));
-               this.cash = 800;
+               this.localPlayer.cash = 800;
                this.training = true;
                this.jukebox = 2;
             }
@@ -5622,8 +5631,8 @@
                this.arena?.shroud?.reveal?.(8, 12, 4);
                this.arena?.shroud?.reveal?.(7, 19, 3);
                __as.set(this.camera, "focus", _loc2_);
-               this.cash = 3000;
-               this.cashOppo = 5000;
+               this.localPlayer.cash = 3000;
+               this.players[1].cash = 5000;
                this.training = true;
                this.jukebox = 3;
             }
@@ -5662,8 +5671,8 @@
                this.arena?.shroud?.reveal?.(3, 6, 4);
                this.arena?.shroud?.reveal?.(4, 6, 4);
                __as.set(this.camera, "focus", _loc3_);
-               this.cash = 3100;
-               this.cashOppo = 0;
+               this.localPlayer.cash = 3100;
+               this.players[1].cash = 0;
                this.training = true;
                this.jukebox = 4;
             }
@@ -5694,8 +5703,8 @@
                this.units?.push?.(new Unit(this, "UF_good", 5, 19, undefined, undefined, undefined, "roam", 8));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level16_ind1"), "message", 120));
                __as.set(this.camera, "focus", this.arena?.tileHandles?._20_4);
-               this.cash = 4000;
-               this.cashOppo = 250000;
+               this.localPlayer.cash = 4000;
+               this.players[1].cash = 250000;
                this.jukebox = 2;
             }
             if(this.level == 17)
@@ -5730,8 +5739,8 @@
                this.units?.push?.(new Unit(this, "UB_good", undefined, undefined, undefined, undefined, undefined, "still", 300, true));
                this.units?.push?.(new Unit(this, "UB_good", undefined, undefined, undefined, undefined, undefined, "still", 350, true));
                this.units?.push?.(new Unit(this, "UB_good", undefined, undefined, undefined, undefined, undefined, "still", 350, true));
-               this.cash = 0;
-               this.cashOppo = 250000;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 250000;
                this.jukebox = 1;
             }
             if(this.level == 18)
@@ -5787,8 +5796,8 @@
                this.units?.push?.(new Unit(this, "UI_evil", 7, 29, 0.5, undefined, undefined, undefined, 10000));
                this.units?.push?.(new Unit(this, "UI_evil", 14, 29, 0.5, undefined, undefined, undefined, 10000));
                __as.set(this.camera, "focus", this.arena?.tileHandles?._12_4);
-               this.cash = 2000;
-               this.cashOppo = 250000;
+               this.localPlayer.cash = 2000;
+               this.players[1].cash = 250000;
                this.jukebox = 3;
             }
             if(this.level == 19)
@@ -5857,8 +5866,8 @@
                this.arena?.shroud?.reveal?.(9, 13, 3);
                this.arena?.shroud?.reveal?.(6, 28, 2);
                __as.set(this.camera, "focus", this.arena?.tileHandles?._6_4);
-               this.cash = 0;
-               this.cashOppo = 250000;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 250000;
                this.jukebox = 2;
             }
             if(this.level == 20)
@@ -5926,8 +5935,8 @@
                this.arena?.shroud?.reveal?.(29, 5, 4);
                this.arena?.shroud?.reveal?.(24, 5, 4);
                __as.set(this.camera, "focus", _loc5_);
-               this.cash = 10000;
-               this.cashOppo = 20000;
+               this.localPlayer.cash = 10000;
+               this.players[1].cash = 20000;
                this.jukebox = 4;
             }
             if(this.level == 21)
@@ -5946,8 +5955,8 @@
                this.units?.push?.(new Unit(this, "UA_evil", undefined, undefined, undefined, undefined, undefined, undefined, undefined, true));
                this.units?.push?.(new Unit(this, "UA_evil", undefined, undefined, undefined, undefined, undefined, undefined, undefined, true));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level21_ind1"), "message", 80));
-               this.cash = 2000;
-               this.cashOppo = 999999900;
+               this.localPlayer.cash = 2000;
+               this.players[1].cash = 999999900;
                this.jukebox = 2;
             }
             if(this.level == 22)
@@ -5983,8 +5992,8 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level22_ind2"), "message", 240));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level22_ind2"), "message", 1));
                this.arena?.shroud?.reveal?.(5, 6, 4);
-               this.cash = 2000;
-               this.cashOppo = 30000;
+               this.localPlayer.cash = 2000;
+               this.players[1].cash = 30000;
                this.jukebox = 1;
             }
             if(this.level == 23)
@@ -6003,8 +6012,8 @@
                this.units?.push?.(new Unit(this, "UI_evil", 8, 18, 5, undefined, undefined, undefined, 500, true));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level23_ind1"), "message"));
                __as.set(this.camera, "focus", _loc2_);
-               this.cash = 1000;
-               this.cashOppo = 999999900;
+               this.localPlayer.cash = 1000;
+               this.players[1].cash = 999999900;
                this.jukebox = 2;
             }
             if(this.level == 24)
@@ -6024,8 +6033,8 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level24_ind1"), "message"));
                this.arena?.shroud?.reveal?.(15, 30, 4);
                __as.set(this.camera, "focus", _loc2_);
-               this.cash = 0;
-               this.cashOppo = 0;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 0;
                this.jukebox = 2;
             }
             if(this.level == 26)
@@ -6056,8 +6065,8 @@
                this.units?.push?.(new Unit(this, "UF_good", 10, 5, 0.25, undefined, undefined, "still", 10000));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level26_ind1"), "message", 120));
                __as.set(this.camera, "focus", _loc2_);
-               this.cash = 0;
-               this.cashOppo = 50000;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 50000;
                this.jukebox = 3;
             }
             if(this.level == 27)
@@ -6140,8 +6149,8 @@
                this.rejig?.(_loc2_);
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level27_ind1"), "message", 120));
                __as.set(this.camera, "focus", _loc3_);
-               this.cash = 0;
-               this.cashOppo = 0;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 0;
                this.jukebox = 4;
             }
             if(this.level == 28)
@@ -6194,8 +6203,8 @@
                this.units?.push?.(new Unit(this, "UI_good", 3, 10, 0.5, undefined, undefined, undefined, 1500));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level28_ind1"), "message", 120));
                __as.set(this.camera, "focus", _loc3_);
-               this.cash = 0;
-               this.cashOppo = 999999900;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 999999900;
                this.jukebox = 2;
             }
             if(this.level == 29)
@@ -6258,8 +6267,8 @@
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level29_ind2"), "message", 120));
                this.indicators?.push?.(new Indicator(this, _loc3_, undefined, undefined, "focus"));
                __as.set(this.camera, "focus", _loc3_);
-               this.cash = 0;
-               this.cashOppo = 999999900;
+               this.localPlayer.cash = 0;
+               this.players[1].cash = 999999900;
                this.jukebox = 2;
                this.arena?.doSnow?.();
             }
@@ -6317,7 +6326,7 @@
                this.arena?.shroud?.reveal?.(8, 7, 3);
                this.arena?.shroud?.reveal?.(8, 18, 4);
                __as.set(this.camera, "focus", _loc3_);
-               this.cash = 0;
+               this.localPlayer.cash = 0;
                this.jukebox = 1;
             }
             if(this.level == 32)
@@ -6370,8 +6379,8 @@
                this.arena?.shroud?.reveal?.(22, 22, 4);
                this.arena?.shroud?.reveal?.(23, 13, 3);
                __as.set(this.camera, "focus", _loc5_);
-               this.cash = 2000;
-               this.cashOppo = 999999900;
+               this.localPlayer.cash = 2000;
+               this.players[1].cash = 999999900;
                this.jukebox = 4;
             }
             if(this.level == 33)
@@ -6443,7 +6452,7 @@
                this.buildings?.push?.(new Building(this, "BD_evil", 12, 12));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level33_ind1"), "message", 80));
                this.indicators?.push?.(new Indicator(this, undefined, undefined, dialogue?.("int_level33_ind2"), "message", 80));
-               this.cash = 6000;
+               this.localPlayer.cash = 6000;
                this.jukebox = 3;
             }
          };
@@ -6453,9 +6462,14 @@
             {
                return undefined;
             }
+            if(this.skirmish)
+            {
+               this.skirmishOutcome?.();
+               return undefined;
+            }
             if(this.level == 1 || this.level == 11 || this.level == 26)
             {
-               if(!(this.cash < 1))
+               if(!(this.localPlayer?.cash < 1))
                {
                   this.win?.();
                }
@@ -6670,11 +6684,11 @@
                {
                   _loc3_ += this.construction?.buildingSite?.stats?.cost;
                }
-               if(this.findBuilding?.("BA_" + this.parent?.team)?.friend && !this.findUnit?.("UD_" + this.parent?.team)?.friend && this.cash + _loc3_ < this.construction?.shortcuts?.["UD_" + this.parent?.team]?.cost)
+               if(this.findBuilding?.("BA_" + this.parent?.team)?.friend && !this.findUnit?.("UD_" + this.parent?.team)?.friend && this.localPlayer?.cash + _loc3_ < this.construction?.shortcuts?.["UD_" + this.parent?.team]?.cost)
                {
                   this.outcomeFutures--;
                }
-               if(this.findBuilding?.("BK_" + this.parent?.team)?.friend && this.cash + _loc3_ < this.construction?.shortcuts?.["UP_" + this.parent?.team]?.cost)
+               if(this.findBuilding?.("BK_" + this.parent?.team)?.friend && this.localPlayer?.cash + _loc3_ < this.construction?.shortcuts?.["UP_" + this.parent?.team]?.cost)
                {
                   this.outcomeFutures--;
                }
@@ -6693,10 +6707,46 @@
    {
       with (__scope)
       {
+      // Online: a player owns units and buildings, and has its own money and power.  Players
+      // on the same team are allies.  control is "local" (this browser's player), "bot", or
+      // "script" (a story level's opponent, the only kind the original game had).
+      Player = function Player(level, index, options)
+      {
+         this.isPlayer = true;
+         this.level = level;
+         this.index = index;
+         this.name = options?.name;
+         this.faction = options?.faction;
+         this.colour = options?.colour;
+         this.team = options?.team || options?.colour || this.faction;
+         this.control = options?.control;
+         this.human = this.control == "local" || this.control == "remote";
+         this.ai = this.control == "bot" || this.control == "script";
+         this.base = options?.base;
+         this.cash = 0;
+         this.powerCharge = this.powerDrain = 0;
+         this.powerLow = this.powerOff = false;
+         this.defeated = false;
+         this.friendlyTarget = false;
+      };
+      // Online: the maps a skirmish can be played on -- the story's, by level number -- and
+      // where on each the players' bases go.  A map without markers gets them in its corners.
+      SKIRMISH_MAPS = {10:{name:"Eclipse",bases:[{x:5,y:20},{x:25,y:12}]}};
+      // The match the Conflict button starts: this browser's player against the computer on
+      // Eclipse, playing the faction chosen.
+      skirmishDefaults = function (faction)
+      {
+         var other = faction == "good" ? "evil" : "good";
+         return {map:10,mode:"all",cash:10000,prebuilt:false,units:3,shroud:true,superweapons:true,palette:"mars",players:[{name:"Player",faction:faction,colour:faction == "good" ? "orange" : "green",control:"local"},{name:"Computer",faction:other,colour:other == "good" ? "orange" : "green",control:"bot"}]};
+      };
       Level = function Level(parent, level)
       {
          this.parent = parent;
          this.level = level;
+         // Online: a skirmish's settings, or undefined for the story's levels.  A skirmish
+         // plays one of the story's maps (mapLevel) under a level number of its own.
+         this.skirmish = this.parent?.parent?.skirmish;
+         this.mapLevel = this.skirmish ? this.skirmish.map : this.level;
          this.stats = new LevelStats(this);
          this.setup = this.stats?.setup;
          this.outcome = this.stats?.outcome;
@@ -6731,8 +6781,7 @@
             this.count = 0;
             this.levelUpCounter = 0;
             this.levelUpCounterMax = 80;
-            this.cash = 0;
-            this.cashOppo = 0;
+            this.makePlayers?.();
             __as.set(this.parent?.hud, "displayCash", 0);
             this.indicator = false;
             this.camera = new Camera(this);
@@ -6749,12 +6798,12 @@
             var _loc3_;
             if(!this.camera?.focus)
             {
-               _loc3_ = this.findBuilding?.("BA_" + this.parent?.team);
+               _loc3_ = this.findBuilding?.("BA_" + this.parent?.team, this.localPlayer);
                __as.set(this.camera, "focus", _loc3_);
             }
             if(this.parent?.parent?.cheatCashup)
             {
-               this.cash = 50000;
+               this.localPlayer.cash = 50000;
             }
             if(this.parent?.parent?.cheatShroud)
             {
@@ -6813,6 +6862,12 @@
             var _loc4_;
             var _loc3_;
             var _loc2_;
+            if(this.levelUpCounter == this.levelUpCounterMax && this.skirmish)
+            {
+               Mouse.show();
+               this.parent?.parent?.gameOver?.(!!this.victory);
+               return undefined;
+            }
             if(this.levelUpCounter == this.levelUpCounterMax)
             {
                Mouse.show();
@@ -6871,7 +6926,7 @@
             for(var _loc3_ of __as.keys(this.units))
             {
                _loc2_ = this.units?.[_loc3_];
-               if(_loc2_?.active && !_loc2_?.friend)
+               if(_loc2_?.active && !this.allied?.(_loc2_?.owner))
                {
                   _loc2_?.destroy?.();
                }
@@ -6879,7 +6934,7 @@
             for(_loc3_ of __as.keys(this.buildings))
             {
                _loc2_ = this.buildings?.[_loc3_];
-               if(_loc2_?.active && !_loc2_?.friend)
+               if(_loc2_?.active && !this.allied?.(_loc2_?.owner))
                {
                   _loc2_?.destroy?.();
                }
@@ -6933,10 +6988,15 @@
          this.cleanup = function ()
          {
             this.construction?.resetTotals?.();
-            this.powerCharge = 50;
-            this.powerDrain = 0;
-            this.powerChargeOppo = 0;
-            this.powerDrainOppo = 0;
+            // Online: every player's power.  The fifty to start from is the player's alone in
+            // the story, and everyone's in a skirmish.
+            var index = 0;
+            while(index < this.players?.length)
+            {
+               this.players[index].powerCharge = this.skirmish || this.players[index] == this.localPlayer ? 50 : 0;
+               this.players[index].powerDrain = 0;
+               index++;
+            }
             this.friends = 0;
             this.enemies = 0;
             this.outcomeFutures = 0;
@@ -7022,25 +7082,14 @@
                   {
                      _loc8_ = _loc8_ || _loc2_?.stats?.isRadar;
                      _loc7_ = _loc7_ || _loc2_?.stats?.isSatellite;
-                     if(_loc2_?.stats?.power > 0)
-                     {
-                        this.powerCharge += _loc2_?.stats?.power * (_loc2_?.healthPerc / 100);
-                     }
-                     if(_loc2_?.stats?.power < 0)
-                     {
-                        this.powerDrain += -_loc2_?.stats?.power;
-                     }
                   }
-                  else
+                  if(_loc2_?.owner && _loc2_?.stats?.power > 0)
                   {
-                     if(_loc2_?.stats?.power > 0)
-                     {
-                        this.powerChargeOppo += _loc2_?.stats?.power * (_loc2_?.healthPerc / 100);
-                     }
-                     if(_loc2_?.stats?.power < 0)
-                     {
-                        this.powerDrainOppo += -_loc2_?.stats?.power;
-                     }
+                     _loc2_.owner.powerCharge += _loc2_?.stats?.power * (_loc2_?.healthPerc / 100);
+                  }
+                  if(_loc2_?.owner && _loc2_?.stats?.power < 0)
+                  {
+                     _loc2_.owner.powerDrain += -_loc2_?.stats?.power;
                   }
                   _loc4_ = _loc2_?.stats?.topLeftX;
                   while(_loc4_ < _loc2_?.stats?.topLeftX + _loc2_?.stats?.width)
@@ -7071,12 +7120,23 @@
             this.buildings = _loc10_;
             var _loc12_ = this.powerLow;
             var _loc13_ = this.powerOff;
-            var _loc11_ = this.powerCharge - this.powerDrain;
-            this.powerLow = _loc11_ < 50;
-            this.powerOff = _loc11_ < 0;
-            _loc11_ = this.powerChargeOppo - this.powerDrainOppo;
-            this.powerLowOppo = _loc11_ < 50;
-            this.powerOffOppo = _loc11_ < 0;
+            var _loc11_;
+            index = 0;
+            while(index < this.players?.length)
+            {
+               _loc11_ = this.players[index].powerCharge - this.players[index].powerDrain;
+               this.players[index].powerLow = _loc11_ < 50;
+               this.players[index].powerOff = _loc11_ < 0;
+               index++;
+            }
+            // What the HUD and the sidebar show, and the story's scripts read: this browser's
+            // player's power, and the opponent's.
+            this.powerCharge = this.localPlayer?.powerCharge;
+            this.powerDrain = this.localPlayer?.powerDrain;
+            this.powerLow = this.localPlayer?.powerLow;
+            this.powerOff = this.localPlayer?.powerOff;
+            this.powerLowOppo = this.players?.[1]?.powerLow;
+            this.powerOffOppo = this.players?.[1]?.powerOff;
             __as.set(this.arena?.shroud, "active", !(_loc7_ && !this.powerLow));
             __as.set(this.arena?.radar, "active", (_loc8_ || _loc7_) && !this.powerLow);
             if(!this.active)
@@ -7104,18 +7164,31 @@
             var _loc6_;
             if(!(this.count % 320))
             {
-               this.friendlyTarget = false;
-               _loc9_ = 0;
-               do
+               // Online: every computer player picks a building of its enemies' for its raiders
+               // (in the story, only the opponent, picking one of the player's).
+               index = 0;
+               while(index < this.players?.length)
                {
-                  _loc6_ = this.buildings?.[random?.(this.buildings?.length)];
-                  _loc9_ = _loc9_ + 1;
+                  var raider = this.players?.[index];
+                  index++;
+                  if(!raider?.ai)
+                  {
+                     continue;
+                  }
+                  raider.friendlyTarget = false;
+                  _loc9_ = 0;
+                  do
+                  {
+                     _loc6_ = this.buildings?.[random?.(this.buildings?.length)];
+                     _loc9_ = _loc9_ + 1;
+                  }
+                  while(_loc9_ < this.buildings?.length * 2 && (!this.hostile?.(_loc6_, raider) || !_loc6_?.stats?.threat));
+                  if(this.hostile?.(_loc6_, raider) && _loc6_?.stats?.threat)
+                  {
+                     raider.friendlyTarget = _loc6_;
+                  }
                }
-               while(_loc9_ < this.buildings?.length * 2 && (!_loc6_?.friend || !_loc6_?.stats?.threat));
-               if(_loc6_?.friend && _loc6_?.stats?.threat)
-               {
-                  this.friendlyTarget = _loc6_;
-               }
+               this.friendlyTarget = this.players?.[1]?.friendlyTarget;
             }
          };
          this.explode = function (x, y, pulse)
@@ -7139,16 +7212,9 @@
             {
                return undefined;
             }
-            if(this.isBuilding)
+            if(this.isBuilding && this.owner?.powerOff)
             {
-               if(this.friend && this.parent?.powerOff)
-               {
-                  return undefined;
-               }
-               if(!this.friend && this.parent?.powerOffOppo)
-               {
-                  return undefined;
-               }
+               return undefined;
             }
             if(this.weaponCharge)
             {
@@ -7164,7 +7230,7 @@
             {
                return undefined;
             }
-            if(this.target?.stats?.carrier && this.target?.team == this.team)
+            if(this.target?.stats?.carrier && !this.parent?.hostile?.(this.target, this))
             {
                return undefined;
             }
@@ -7187,11 +7253,11 @@
                for(var _loc6_ of __as.keys(this.parent?.buildings))
                {
                   _loc3_ = this.parent?.buildings?.[_loc6_];
-                  if(_loc3_?.friend != this.friend)
+                  if(this.parent?.hostile?.(_loc3_, this))
                   {
                      if(!(_loc3_?.stats?.threat < _loc4_))
                      {
-                        if(!(this.friend && !_loc3_?.stats?.weapon))
+                        if(!(this.owner?.human && !_loc3_?.stats?.weapon))
                         {
                            _loc5_ = distance?.(this.posX, this.posY, _loc3_?.posX, _loc3_?.posY);
                            if(_loc5_ < this.stats?.weaponRange)
@@ -7206,7 +7272,7 @@
                for(_loc6_ of __as.keys(this.parent?.units))
                {
                   _loc2_ = this.parent?.units?.[_loc6_];
-                  if(_loc2_?.friend != this.friend)
+                  if(this.parent?.hostile?.(_loc2_, this))
                   {
                      if(!_loc2_?.stats?.pickup)
                      {
@@ -7300,15 +7366,12 @@
          };
          this.cashUp = function (cash, unit)
          {
-            if(unit?.friend)
+            if(unit?.owner)
             {
-               this.cash += cash * 5;
-            }
-            if(!unit?.friend)
-            {
-               this.cashOppo += cash * 5;
+               unit.owner.cash += cash * 5;
             }
          };
+         // team is a faction ("good" or "evil"), as the original has it, or (online) a Player.
          this.findBuilding = function (type, team)
          {
             var _loc3_ = this.buildings?.length - 1;
@@ -7316,7 +7379,7 @@
             while(!(_loc3_ < 0))
             {
                _loc2_ = this.buildings?.[_loc3_];
-               if(_loc2_?.active && _loc2_?.type == type && (!team || _loc2_?.team == team))
+               if(_loc2_?.active && _loc2_?.type == type && (!team || (team?.isPlayer ? _loc2_?.owner == team : _loc2_?.team == team)))
                {
                   return _loc2_;
                }
@@ -7331,13 +7394,280 @@
             while(_loc3_ < this.units?.length)
             {
                _loc2_ = this.units?.[_loc3_];
-               if(_loc2_?.active && _loc2_?.type == type && (!team || _loc2_?.team == team))
+               if(_loc2_?.active && _loc2_?.type == type && (!team || (team?.isPlayer ? _loc2_?.owner == team : _loc2_?.team == team)))
                {
                   return _loc2_;
                }
                _loc3_ = _loc3_ + 1;
             }
             return false;
+         };
+         // Online: a skirmish's start.  Each player's base is an HQ on a base marker (the map's,
+         // in the order the players are listed), and with prebuilt bases a power plant and a
+         // training camp beside it.  Everyone gets a Crystal Miner, and the starting units.
+         this.setupSkirmish = function ()
+         {
+            var settings = this.skirmish;
+            var bases = SKIRMISH_MAPS?.[settings?.map]?.bases || this.cornerBases?.(this.players?.length);
+            var startingUnits = new Array("UA", "UA", "UE", "UB", "UA", "UE");
+            var index = 0;
+            var player;
+            var base;
+            var hq;
+            var spot;
+            var count;
+            while(index < this.players?.length)
+            {
+               player = this.players?.[index];
+               base = player?.base || bases?.[index];
+               player.cash = settings?.cash;
+               hq = this.placeNear?.("BA_" + player?.faction, player, base);
+               if(settings?.prebuilt)
+               {
+                  this.placeNear?.("BB_" + player?.faction, player, base);
+                  this.placeNear?.("BC_" + player?.faction, player, base);
+               }
+               if(hq)
+               {
+                  this.units?.push?.(new Unit(this, "UD_" + player?.faction, undefined, undefined, 0.5, player));
+               }
+               else
+               {
+                  spot = this.arena?.closestAvailable?.(base);
+                  this.units?.push?.(new Unit(this, "UD_" + player?.faction, spot?.x, spot?.y, 0.5, player));
+               }
+               count = 0;
+               while(hq && count < settings?.units && count < startingUnits?.length)
+               {
+                  spot = this.arena?.closestAvailable?.({x:hq?.stats?.dockPos?.x + (count % 3) - 1,y:hq?.stats?.dockPos?.y + 1});
+                  this.units?.push?.(new Unit(this, startingUnits?.[count] + "_" + player?.faction, spot?.x, spot?.y, 0.5, player));
+                  count++;
+               }
+               index++;
+            }
+            if(settings?.palette == "snowy")
+            {
+               this.arena?.doSnow?.();
+            }
+            if(!settings?.shroud)
+            {
+               this.arena?.shroud?.clear?.();
+            }
+            this.jukebox = random?.(4) + 1;
+         };
+         // Base markers for a map that has none: its corners, then the middles of its long
+         // sides, a few tiles in.
+         this.cornerBases = function (count)
+         {
+            var cols = this.arena?.cols;
+            var rows = this.arena?.rows;
+            var all = new Array({x:4,y:rows - 3}, {x:cols - 3,y:4}, {x:4,y:4}, {x:cols - 3,y:rows - 3}, {x:Math.round(cols / 2),y:4}, {x:Math.round(cols / 2),y:rows - 3});
+            return all?.slice?.(0, count);
+         };
+         // Can a building of this type go at (x, y) -- its footprint, and margin tiles around it,
+         // clear of rock, crystal and anything already there?
+         this.canPlace = function (type, x, y, margin)
+         {
+            var probe = new BuildingStats({type:type,tilePos:{x:x,y:y},parent:this});
+            var cx = probe?.topLeftX - margin;
+            var cy;
+            while(cx < probe?.topLeftX + probe?.width + margin)
+            {
+               cy = probe?.topLeftY - margin;
+               while(cy < probe?.topLeftY + probe?.height + margin)
+               {
+                  if(cx < 1 || cy < 1 || cx > this.arena?.cols || cy > this.arena?.rows || this.arena?.tiles?.[cx]?.[cy] || this.arena?.baits?.[cx]?.[cy])
+                  {
+                     return false;
+                  }
+                  cy++;
+               }
+               cx++;
+            }
+            return true;
+         };
+         // Put a building on the nearest ground to a point where it can go, searching outwards
+         // ring by ring: with a tile of room around it if there is anywhere like that close by,
+         // or else with none.
+         this.placeNear = function (type, player, point)
+         {
+            var margin = 1;
+            var radius;
+            var dx;
+            var dy;
+            var building;
+            while(!(margin < 0))
+            {
+               radius = 0;
+               while(radius < 12)
+               {
+                  dy = -radius;
+                  while(!(dy > radius))
+                  {
+                     dx = -radius;
+                     while(!(dx > radius))
+                     {
+                        if(Math.max(Math.abs(dx), Math.abs(dy)) == radius && this.canPlace?.(type, point?.x + dx, point?.y + dy, margin))
+                        {
+                           building = new Building(this, type, point?.x + dx, point?.y + dy, player);
+                           this.buildings?.push?.(building);
+                           return building;
+                        }
+                        dx++;
+                     }
+                     dy++;
+                  }
+                  radius++;
+               }
+               margin--;
+            }
+            return undefined;
+         };
+         // A skirmish is over when one team is left.  A player is out when nothing of theirs is
+         // left (in "structures" mode, when no building is, and their units go with it).
+         this.skirmishOutcome = function ()
+         {
+            if(!this.active || this.count % 23)
+            {
+               return undefined;
+            }
+            var standing = {};
+            var teams = 0;
+            var index = 0;
+            var player;
+            while(index < this.players?.length)
+            {
+               player = this.players?.[index];
+               index++;
+               if(player?.defeated)
+               {
+                  continue;
+               }
+               if(!this.holdsOn?.(player))
+               {
+                  this.defeat?.(player);
+                  if(player == this.localPlayer)
+                  {
+                     this.lose?.();
+                     return undefined;
+                  }
+                  continue;
+               }
+               if(!standing[player?.team])
+               {
+                  standing[player?.team] = true;
+                  teams++;
+               }
+            }
+            if(teams < 2 && standing[this.localPlayer?.team])
+            {
+               this.win?.();
+            }
+         };
+         this.holdsOn = function (player)
+         {
+            for(var index of __as.keys(this.buildings))
+            {
+               if(this.buildings?.[index]?.active && this.buildings?.[index]?.owner == player)
+               {
+                  return true;
+               }
+            }
+            if(this.skirmish?.mode == "structures")
+            {
+               return false;
+            }
+            for(index of __as.keys(this.units))
+            {
+               if(this.units?.[index]?.active && this.units?.[index]?.owner == player && !this.units?.[index]?.stats?.pickup)
+               {
+                  return true;
+               }
+            }
+            return false;
+         };
+         this.defeat = function (player)
+         {
+            player.defeated = true;
+            for(var index of __as.keys(this.units))
+            {
+               if(this.units?.[index]?.active && this.units?.[index]?.owner == player)
+               {
+                  this.units?.[index]?.destroy?.();
+               }
+            }
+         };
+         // Online: the players.  A story level has two -- this browser's, playing the side the
+         // player chose, and the opponent -- and a skirmish those its settings list.
+         this.makePlayers = function ()
+         {
+            this.players = new Array();
+            var options = this.skirmish?.players;
+            if(!options)
+            {
+               options = new Array({faction:this.parent?.team,control:"local"}, {faction:this.parent?.oppo,control:"script"});
+            }
+            var index = 0;
+            while(index < options?.length)
+            {
+               this.players?.push?.(new Player(this, index, options?.[index]));
+               if(options?.[index]?.control == "local")
+               {
+                  this.localPlayer = this.players?.[index];
+               }
+               index++;
+            }
+         };
+         // The player a unit or building belongs to: named, or (as the story's scripts do it)
+         // the player of the faction named.
+         this.playerFor = function (team)
+         {
+            if(team?.isPlayer)
+            {
+               return team;
+            }
+            var index = 0;
+            while(index < this.players?.length)
+            {
+               if(this.players?.[index]?.faction == team)
+               {
+                  return this.players?.[index];
+               }
+               index++;
+            }
+            return undefined;
+         };
+         // Are two things (units, buildings or players) on opposing teams?  Neither side of a
+         // crate, say, which belongs to nobody.
+         this.hostile = function (a, b)
+         {
+            var one = a?.isPlayer ? a : a?.owner;
+            var other = b?.isPlayer ? b : b?.owner;
+            return !!(one && other && one.team != other.team);
+         };
+         // Is a player on this browser's player's team?  Allies share what they see.
+         this.allied = function (player)
+         {
+            return !!(player && this.localPlayer && player.team == this.localPlayer.team);
+         };
+         this.countOwned = function (type, owner)
+         {
+            var count = 0;
+            for(var index of __as.keys(this.units))
+            {
+               if(this.units?.[index]?.active && this.units?.[index]?.type == type && this.units?.[index]?.owner == owner)
+               {
+                  count++;
+               }
+            }
+            for(index of __as.keys(this.buildings))
+            {
+               if(this.buildings?.[index]?.active && this.buildings?.[index]?.type == type && this.buildings?.[index]?.owner == owner)
+               {
+                  count++;
+               }
+            }
+            return count;
          };
          this.handleIndicators = function ()
          {
@@ -7416,7 +7746,7 @@
             }
          };
          var _loc26_;
-         if(!BUILDMODE)
+         if(!BUILDMODE && !this.skirmish)
          {
             _loc26_ = this.parent?.parent;
             __as.set(_loc26_, "state", "movie");
@@ -7497,7 +7827,7 @@
             this.FIRE = Key.isDown(this.keyFIRE);
             if(Key.isDown(72))
             {
-               __as.set(this.parent?.camera, "focus", this.parent?.findBuilding?.("BA_" + this.parent?.parent?.team, this.parent?.parent?.team) || this.parent?.findBuilding?.("BK_" + this.parent?.parent?.team, this.parent?.parent?.team));
+               __as.set(this.parent?.camera, "focus", this.parent?.findBuilding?.("BA_" + this.parent?.parent?.team, this.parent?.localPlayer) || this.parent?.findBuilding?.("BK_" + this.parent?.parent?.team, this.parent?.localPlayer));
             }
             this.posX = Math.round((limit?.(_xmouse, 151, SCREENX) - 150) / this.parent?.arena?.zoom - this.parent?.arena?.posX);
             this.posY = Math.round(limit?.(_ymouse, 1, this.parent?.arena?.viewHeightPx) / this.parent?.arena?.zoom - this.parent?.arena?.posY) * 2;
@@ -7698,6 +8028,11 @@
                      break;
                   }
                }
+            }
+            // Online: an ally's unit or building is neither ours to command nor a target.
+            if(this.activeTarget && !this.activeTarget?.friend && !this.parent?.hostile?.(this.activeTarget, this.parent?.localPlayer) && this.activeTarget?.owner)
+            {
+               this.activeTarget = false;
             }
             if(this.advancedCursorState)
             {
@@ -8032,7 +8367,7 @@
             var _loc2_ = false;
             for(var _loc7_ of __as.keys(this.parent?.units))
             {
-               if(this.parent?.units?.[_loc7_]?.checkForHit?.(_loc6_, _loc5_, _loc4_, _loc3_) && !this.parent?.units?.[_loc7_]?.selected && this.parent?.units?.[_loc7_]?.team == this.parent?.parent?.team)
+               if(this.parent?.units?.[_loc7_]?.checkForHit?.(_loc6_, _loc5_, _loc4_, _loc3_) && !this.parent?.units?.[_loc7_]?.selected && this.parent?.units?.[_loc7_]?.friend)
                {
                   __as.set(this.parent?.units?.[_loc7_], "selected", true);
                   _loc2_ = true;
@@ -8063,7 +8398,7 @@
             this.advancedCursorState = false;
             if(this.cursorState == "superweapon")
             {
-               __as.op(this.parent, "cash", "+", this.parent?.construction?.shortcuts?.["UK_" + this.parent?.parent?.team]?.cost);
+               __as.op(this.parent?.localPlayer, "cash", "+", this.parent?.construction?.shortcuts?.["UK_" + this.parent?.parent?.team]?.cost);
             }
             this.cursorState = "standard";
             for(var _loc2_ of __as.keys(this.selected))
@@ -8249,7 +8584,7 @@
          };
          this.doCash = function ()
          {
-            var _loc2_ = this.parent?.level?.cash;
+            var _loc2_ = this.parent?.level?.localPlayer?.cash;
             if(_loc2_ == this.displayCash)
             {
                return undefined;
@@ -8500,7 +8835,7 @@
                   {
                      this.sfx?.play?.("cheater");
                      __as.set(this.level?.construction, "speed", 300);
-                     __as.op(this.level, "cash", "+", 10000);
+                     __as.op(this.level?.localPlayer, "cash", "+", 10000);
                      this.crackcount = 5;
                   }
                   if(Key.isDown(8) || Key.isDown(34))
@@ -8704,10 +9039,7 @@
                   {
                      this.MC?.splash?.side_good?.special_button?.gotoAndStop?.("active");
                   }
-                  if(SO?.data?.conflictGoodUnlocked)
-                  {
-                     this.MC?.splash?.side_good?.conflict_button?.gotoAndStop?.("active");
-                  }
+                  this.MC?.splash?.side_good?.conflict_button?.gotoAndStop?.("active");
                   this.MC?.splash?.side_evil?.start_button?.gotoAndStop?.("active");
                   if(SO?.data?.evilUnlocked)
                   {
@@ -8717,10 +9049,7 @@
                   {
                      this.MC?.splash?.side_evil?.special_button?.gotoAndStop?.("active");
                   }
-                  if(SO?.data?.conflictEvilUnlocked)
-                  {
-                     this.MC?.splash?.side_evil?.conflict_button?.gotoAndStop?.("active");
-                  }
+                  this.MC?.splash?.side_evil?.conflict_button?.gotoAndStop?.("active");
                   if(dialogue?.("int_disableEvil") == "TRUE")
                   {
                      this.MC?.splash?.side_evil?.start_button?.gotoAndStop?.("inactive");
@@ -8757,11 +9086,31 @@
                }
             }
          };
-         this.startGame = function (team)
+         this.startGame = function (team, skirmish)
          {
             this.state = "startgame";
             this.team = team;
+            this.skirmish = skirmish;
             this.count = 0;
+         };
+         // Online: start a skirmish.  settings: {map, mode ("all" or "structures"), cash,
+         // prebuilt, units, shroud, superweapons, palette, players: [{name, faction, colour,
+         // team, control, base}]}, of which the player whose control is "local" is this
+         // browser's.  See skirmishDefaults.
+         this.startSkirmish = function (settings)
+         {
+            var index = 0;
+            var faction = "good";
+            while(index < settings?.players?.length)
+            {
+               if(settings?.players?.[index]?.control == "local")
+               {
+                  faction = settings?.players?.[index]?.faction;
+               }
+               index++;
+            }
+            this.level = 99;
+            this.startGame?.(faction, settings);
          };
          this.realStartGame = function ()
          {
@@ -8789,10 +9138,6 @@
                option = "start";
             }
             this.MC?.splash?.glow?.gotoAndStop?.(option);
-            if(option == "conflict" && !SO?.data?.["conflict" + ucfirst?.(team) + "Unlocked"])
-            {
-               _loc2_ = dialogue?.("int_" + team + "_locked_conflict");
-            }
             if(option == "special" && !SO?.data?.["special" + ucfirst?.(team) + "Unlocked"])
             {
                _loc2_ = dialogue?.("int_" + team + "_locked_special");
@@ -8872,17 +9217,11 @@
             }
             this.startGame?.(team);
          };
+         // Online: Conflict mode is a skirmish against the computer.  (The story's two Conflict
+         // levels are still there, by their codes.)
          this.pressConflict = function (team)
          {
-            if(team == "good")
-            {
-               this.level = 9;
-            }
-            if(team == "evil")
-            {
-               this.level = 19;
-            }
-            this.startGame?.(team);
+            this.startSkirmish?.(skirmishDefaults?.(team));
          };
          this.pressAgain = function ()
          {
@@ -8931,6 +9270,11 @@
                {
                   this.state = "gameLose";
                   __as.set(this.MC, "title", dialogue?.("int_gameLose")?.toUpperCase?.());
+                  if(this.skirmish)
+                  {
+                     // Online: no cheat code to suggest after a skirmish.
+                     __as.set(this.MC, "title", dialogue?.("int_levelLose")?.toUpperCase?.());
+                  }
                }
                this.sfx?.play?.("INT_collect");
             }

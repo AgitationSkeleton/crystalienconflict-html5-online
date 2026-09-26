@@ -2,7 +2,7 @@
 Regression check: play a set of scenarios in test mode (stopped clock, seeded random
 numbers) and fail if any script raises an error.
 
-    python tools/verify/smoke.py [OUTDIR] [--browser=firefox|webkit]
+    python tools/verify/smoke.py [OUTDIR] [--browser=firefox|webkit] [--only=NAME,NAME]
 
 Each scenario is a list of drive.py actions; screenshots land in OUTDIR/<scenario>/.
 """
@@ -30,6 +30,12 @@ STORY_DONE = '''eval (() => { const p = player.levels[1].panel, so = player.leve
   return p.state === 'movie' && so.goodUnlocked === 1 ? [] : ['mission 1 did not end: ' + p.state + ' ' + JSON.stringify(so)]; })()'''
 
 
+# Four players in two teams on the story's seventeenth map, with prebuilt bases.
+FOUR = ("{map:17,mode:'all',cash:10000,prebuilt:true,units:3,shroud:true,superweapons:true,palette:'mars',"
+        "players:[{name:'Me',faction:'evil',colour:'green',control:'local'},{name:'Pal',faction:'good',colour:'green',control:'bot'},"
+        "{name:'Foe1',faction:'good',colour:'orange',control:'bot'},{name:'Foe2',faction:'evil',colour:'red',control:'bot'}]}")
+
+
 def code(level):
     # From the main menu: type a level code, skip its movie.
     return ['step 70', 'type ' + level, 'key Enter', 'step 35', 'click 300 373', 'step 200']
@@ -48,15 +54,21 @@ SCENARIOS = {
     'soak-santa': code('santa') + [SOAK, 'shot end'],
     'soak-drill': code('drill') + [SOAK, 'shot end'],
     'soak-temple': code('temple') + [SOAK, 'shot end'],
+    # Online: skirmishes -- Conflict mode's, and four players in two teams.
+    'skirmish': ['step 70', "eval player.levels[1].panel.pressConflict('good')", 'step 30', SOAK, 'shot end'],
+    'skirmish-4': ['step 70', 'eval player.levels[1].panel.startSkirmish(' + FOUR + ')', 'step 30', SOAK, 'shot end'],
 }
 
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    extra = [a for a in sys.argv[1:] if a.startswith('--')]        # e.g. --browser=firefox
+    only = [a[7:].split(',') for a in sys.argv[1:] if a.startswith('--only=')]
+    extra = [a for a in sys.argv[1:] if a.startswith('--') and not a.startswith('--only=')]   # e.g. --browser=firefox
     out = args[0] if args else os.path.join(HERE, '..', '..', 'work', 'smoke')
     failed = 0
     for name, actions in SCENARIOS.items():
+        if only and name not in only[0]:
+            continue
         cmd = [sys.executable, os.path.join(HERE, 'drive.py'), os.path.join(out, name), '--test'] + extra + ['boot'] + actions
         r = subprocess.run(cmd, capture_output=True, text=True)
         lines = r.stdout.splitlines()

@@ -10,6 +10,8 @@ Work in progress. See [ROADMAP.md](ROADMAP.md) for what is planned, in what orde
 ## Playing
 
 The game fills the window: a wider window shows more of the map instead of enlarging it.
+**Conflict mode** on the main menu starts a skirmish against the computer on Eclipse; the
+story's two Conflict levels are still there, by their access codes.
 
 | Control | Action |
 | --- | --- |

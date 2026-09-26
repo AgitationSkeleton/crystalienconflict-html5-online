@@ -72,6 +72,15 @@ As listed, plus later additions:
     fills the window, showing more of the map rather than enlarging it, with the HUD and
     menus repositioned and stretched to suit.
 
+## Status
+
+- **1. Screen and controls: done.** The game fills the window, the wheel zooms, WASD
+  scrolls, right-click deselects.
+- **2. Skirmish core: under way.** Units and buildings belong to players (up to six, in
+  teams) with their own money and power; the story's levels play as two players, unchanged.
+  Conflict mode starts a skirmish against the computer on Eclipse. Still to come in this
+  step: the match's random seed and the determinism the online game needs.
+
 ## Order
 
 Rearranged so that each step builds on the ones before it.
