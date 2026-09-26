@@ -165,7 +165,28 @@ export class Renderer {
       const shape = this.singleShape(obj);
       if (shape) return this.drawShape(ctx, shape, shape === obj ? m : mul(m, shape.$m), cx, fl[0].matrix);
     }
+    // Online (speed): an outer glow or a drop shadow is the canvas's own shadow, cast as the
+    // object draws -- no image to make offscreen and nothing to read back from the GPU, which
+    // is what made a volley of laser fire (each shot glows) stall the whole frame.
+    if (fl.length === 1 && (fl[0].type === 'glow' || fl[0].type === 'dropShadow') && !fl[0].inner && !fl[0].knockout) {
+      return this.drawShadowed(ctx, obj, m, cx, fl[0]);
+    }
     this.drawFiltered(ctx, obj, m, cx, fl);
+  }
+
+  drawShadowed(ctx, obj, m, cx, f) {
+    const [r, g, b, a] = f.color;
+    const alpha = Math.min(1, (a / 255) * Math.min(2, Math.max(0.5, f.strength || 1)) * 0.75);
+    if (alpha <= 0) return this.drawContent(ctx, obj, m, cx);
+    ctx.save();
+    ctx.shadowColor = `rgba(${r},${g},${b},${alpha})`;
+    ctx.shadowBlur = Math.max(1, ((f.blurX + f.blurY) / 2) * this.scale * 0.6);
+    if (f.type === 'dropShadow') {
+      ctx.shadowOffsetX = Math.cos(f.angle) * f.distance * this.scale;
+      ctx.shadowOffsetY = Math.sin(f.angle) * f.distance * this.scale;
+    }
+    this.drawContent(ctx, obj, m, cx);
+    ctx.restore();
   }
 
   singleShape(obj) {

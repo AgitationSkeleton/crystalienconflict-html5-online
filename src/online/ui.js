@@ -16,6 +16,7 @@ const MATCH = [
   { key: 'units', label: 'Starting units', ready: true, choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']] },
   { key: 'prebuilt', label: 'Base', ready: true, choices: [[false, 'HQ only'], [true, 'HQ, power, barracks']] },
   { key: 'specops', label: 'Special Ops', ready: true, choices: [['on', 'On'], ['tech', 'Need the tech centre'], ['off', 'Off']] },
+  { key: 'opsHQ', label: 'Ops Ship and Hive', ready: true, when: (m) => m.specops !== 'off', choices: [[true, 'Headquarters too'], [false, 'As in the story']] },
   { key: 'crates', label: 'Crates', ready: false, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'christmas', label: 'Christmas crate', ready: false, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'crateRate', label: 'Crates appear', ready: false, choices: [['rare', 'Rarely'], ['normal', 'Normally'], ['often', 'Often']] },
@@ -30,10 +31,48 @@ const MATCH = [
 ];
 
 const MATCH_DEFAULTS = {
-  map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', crates: true,
+  map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true,
   christmas: false, crateRate: 'normal', income: 0, pizzaCost: 50000, speed: 1, shroud: true,
   superweapons: true, factions: 'all', regrowth: 1, palette: 'mars',
 };
+
+// Which base marker each player starts on (players given by colour, their team): the
+// assignment that keeps the nearest two enemies furthest apart, then enemies apart overall,
+// then allies together.  Undefined if there are fewer markers than players.
+function spreadBases(bases, teams) {
+  const n = teams.length;
+  if (!bases || bases.length < n) return undefined;
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  let best = null, bestScore = null;
+  const pick = [], used = new Array(bases.length).fill(false);
+  const score = () => {
+    let near = Infinity, apart = 0, together = 0;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const d = dist(bases[pick[i]], bases[pick[j]]);
+        if (teams[i] === teams[j]) together += d;
+        else { near = Math.min(near, d); apart += d; }
+      }
+    }
+    return [near, apart, -together];
+  };
+  const better = (a, b) => { for (let k = 0; k < a.length; k++) { if (Math.abs(a[k] - b[k]) > 1e-9) return a[k] > b[k]; } return false; };
+  const walk = (i) => {
+    if (i === n) {
+      const s = score();
+      if (!bestScore || better(s, bestScore)) { bestScore = s; best = pick.slice(); }
+      return;
+    }
+    for (let b = 0; b < bases.length; b++) {
+      if (used[b]) continue;
+      used[b] = true; pick[i] = b;
+      walk(i + 1);
+      used[b] = false;
+    }
+  };
+  walk(0);
+  return best && best.map((b) => bases[b]);
+}
 
 function el(tag, attrs, ...kids) {
   const e = document.createElement(tag);
@@ -63,6 +102,7 @@ export class OnlineUI {
     this.buildLobby();
     this.buildSettings();
     this.applyVolumes();
+    this.applyPrefs();
     // The game calls Online.menu() when a match or a story game is over.
     player.online.menu = (screen) => this.open(screen);
     this.watch();
@@ -363,15 +403,17 @@ export class OnlineUI {
     const palette = this.settings.palette === 'all' ? m.palette : this.settings.palette;
     const settings = {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
-      superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops,
+      superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       players,
     };
     // Watching: a grey sidebar, with nothing on it to build.
     if (this.slots[0].faction === 'spectate') settings.spectator = { name: this.settings.name, faction: 'good' };
-    // A player's base is the marker their slot is on.
+    // Bases: of the map's markers, those that keep enemies furthest apart (allies near each
+    // other, all else equal).
     const bases = (this.mapInfo().info && this.mapInfo().info.bases) || [];
-    players.forEach((pl) => { pl.base = bases[pl.slot]; });
+    const chosen = spreadBases(bases, players.map((pl) => pl.colour));
+    players.forEach((pl, i) => { pl.base = chosen ? chosen[i] : bases[pl.slot]; });
     this.settings.lobby = { match: m, slots: this.slots.map(({ kind, faction, colour, difficulty }) => ({ kind, faction, colour, difficulty })) };
     saveSettings(this.settings);
     if (this.hooks.setSpeed) this.hooks.setSpeed(m.speed);
@@ -393,7 +435,7 @@ export class OnlineUI {
 
   renderSettings() {
     const st = this.settings;
-    const save = () => { saveSettings(st); this.applyVolumes(); };
+    const save = () => { saveSettings(st); this.applyVolumes(); this.applyPrefs(); };
     const name = el('input', { type: 'text', maxlength: 16, value: st.name, 'aria-label': 'Name', oninput: (e) => { st.name = e.target.value.trim() || 'Player'; save(); } });
     const faction = el('select', { 'aria-label': 'Faction', onchange: (e) => { st.faction = e.target.value; this.slots[0].faction = st.faction; save(); } },
       el('option', { value: 'good', text: 'Astro', selected: st.faction === 'good' }),
@@ -412,6 +454,9 @@ export class OnlineUI {
       el('option', { value: 'medium', text: 'Medium', selected: st.size === 'medium' }),
       el('option', { value: 'large', text: 'Large', selected: st.size === 'large' }),
       el('option', { value: 'fill', text: 'Fill the window', selected: st.size === 'fill' }));
+    const onOff = (key, label) => el('select', { 'aria-label': label, onchange: (e) => { st[key] = e.target.value === 'on'; save(); } },
+      el('option', { value: 'on', text: 'On', selected: st[key] }),
+      el('option', { value: 'off', text: 'Off', selected: !st[key] }));
     const slider = (key) => el('input', { type: 'range', min: 0, max: 100, value: Math.round(st[key] * 100), 'aria-label': key,
       oninput: (e) => { st[key] = Number(e.target.value) / 100; save(); },
       onchange: () => { if (key !== 'music') this.sound(key === 'ui' ? 'INT_cursor_select' : 'INT_collect'); } });
@@ -421,10 +466,17 @@ export class OnlineUI {
       el('label', { text: 'Colour' }), colours,
       el('label', { text: 'Map palette' }), palette,
       el('label', { text: 'Interface size' }), size,
+      el('label', { text: 'Scroll at the edges' }), onOff('edgeScroll', 'Scroll at the edges'),
+      el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface' }), slider('ui'),
       el('label', { class: 'wide', text: 'An offline client, for Windows, Mac and Linux, is coming.' }));
+  }
+
+  // What the game reads of the settings while it plays.
+  applyPrefs() {
+    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false };
   }
 
   applyVolumes() {

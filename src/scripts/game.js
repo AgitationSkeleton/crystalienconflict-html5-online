@@ -1429,51 +1429,92 @@
          // open list is a binary heap rather than an array sorted after every step, and a node
          // since reached more cheaply is skipped.  The heuristic, the costs and the fallback to
          // the nearest point reached are the original's.
+         // Online: a skirmish's search -- A* over the whole map, cheapest first, as findPath's,
+         // but on typed arrays kept from one search to the next: a cell's best cost and where it
+         // was reached from, and a binary heap of cells (a cell may sit in it more than once;
+         // all but its best are passed over).  Same moves, costs and heuristic as PathNode's,
+         // the same stop when the end is a neighbour, and the same fallback, the reached cell
+         // nearest the end.
          this.searchLarge = function ()
          {
-            var heap = new Array(this.startNode);
-            var budget = this.safety;
-            var node;
-            var reached = new Array();
-            var adjacent;
-            var index;
-            var less = (a, b) => a.f < b.f || a.f == b.f && a.h < b.h;
-            var push = (n) =>
+            var W = this.map?.length;
+            var H = this.map?.[0]?.length;
+            var N = W * H;
+            if(!this.fast || this.fast.n != N)
             {
-               heap.push(n);
-               var i = heap.length - 1;
-               var up;
+               this.fast = {n:N,g:new Int32Array(N),from:new Int32Array(N),seen:new Int32Array(N),done:new Int32Array(N),stamp:0,
+                  heapCell:new Int32Array(N * 8 + 16),heapF:new Int32Array(N * 8 + 16),heapH:new Int32Array(N * 8 + 16),heapG:new Int32Array(N * 8 + 16)};
+            }
+            var fs = this.fast;
+            var stamp = ++fs.stamp;
+            var g = fs.g;
+            var from = fs.from;
+            var seen = fs.seen;
+            var done = fs.done;
+            var hc = fs.heapCell;
+            var hf = fs.heapF;
+            var hh = fs.heapH;
+            var hg = fs.heapG;
+            var size = 0;
+            var map = this.map;
+            var ignore = this.ignoreObstructions;
+            var ex = this.endNode?.x;
+            var ey = this.endNode?.y;
+            var sx = this.startNode?.x;
+            var sy = this.startNode?.y;
+            var startCell = sx * H + sy;
+            var endCell = ex * H + ey;
+            if(!(sx >= 0 && sy >= 0 && sx < W && sy < H))
+            {
+               return this.allowApproximation ? this.cacheRet = new Array() : false;
+            }
+            var less = function (i, j)
+            {
+               return hf[i] < hf[j] || hf[i] == hf[j] && hh[i] < hh[j];
+            };
+            var swap = function (i, j)
+            {
+               var t = hc[i]; hc[i] = hc[j]; hc[j] = t;
+               t = hf[i]; hf[i] = hf[j]; hf[j] = t;
+               t = hh[i]; hh[i] = hh[j]; hh[j] = t;
+               t = hg[i]; hg[i] = hg[j]; hg[j] = t;
+            };
+            var push = function (cell, gg, h)
+            {
+               if(size >= hc.length)
+               {
+                  return;
+               }
+               var i = size++;
+               hc[i] = cell; hg[i] = gg; hh[i] = h; hf[i] = gg + h;
                while(i > 0)
                {
-                  up = (i - 1) >> 1;
-                  if(!less(heap[i], heap[up]))
+                  var up = (i - 1) >> 1;
+                  if(!less(i, up))
                   {
                      break;
                   }
-                  var t = heap[i];
-                  heap[i] = heap[up];
-                  heap[up] = t;
+                  swap(i, up);
                   i = up;
                }
             };
-            var pop = () =>
+            var popInto = function ()
             {
-               var top = heap[0];
-               var last = heap.pop();
-               if(heap.length)
+               size--;
+               if(size > 0)
                {
-                  heap[0] = last;
+                  swap(0, size);
                   var i = 0;
                   while(true)
                   {
                      var l = i * 2 + 1;
                      var r = l + 1;
                      var m = i;
-                     if(l < heap.length && less(heap[l], heap[m]))
+                     if(l < size && less(l, m))
                      {
                         m = l;
                      }
-                     if(r < heap.length && less(heap[r], heap[m]))
+                     if(r < size && less(r, m))
                      {
                         m = r;
                      }
@@ -1481,18 +1522,39 @@
                      {
                         break;
                      }
-                     var t = heap[i];
-                     heap[i] = heap[m];
-                     heap[m] = t;
+                     swap(i, m);
                      i = m;
                   }
                }
-               return top;
+               return size;
             };
-            while(heap.length)
+            var dxs = [0, 1, 1, 1, 0, -1, -1, -1];
+            var dys = [-1, -1, 0, 1, 1, 1, 0, -1];
+            var incs = [10, 14, 10, 14, 10, 14, 10, 14];
+            seen[startCell] = stamp;
+            g[startCell] = 0;
+            from[startCell] = -1;
+            push(startCell, 0, (Math.abs(sx - ex) + Math.abs(sy - ey)) * 10);
+            var budget = this.safety;
+            var found = sx == ex && sy == ey;
+            var best = -1;
+            var bestH = Infinity;
+            var cell;
+            var cg;
+            var x;
+            var y;
+            var k;
+            var nx;
+            var ny;
+            var nc;
+            var ng;
+            while(size > 0 && !found)
             {
-               node = pop();
-               if(this.trail["P_" + node.x + "_" + node.y] != node && node != this.startNode)
+               cell = hc[0];
+               cg = hg[0];
+               var ch = hh[0];
+               popInto();
+               if(cg > g[cell] || done[cell] == stamp && cell != startCell)
                {
                   continue;
                }
@@ -1500,38 +1562,65 @@
                {
                   break;
                }
-               reached.push(node);
-               adjacent = this.getAdjacent(node);
-               index = 0;
-               while(index < adjacent.length)
+               done[cell] = stamp;
+               if(ch < bestH)
                {
-                  push(adjacent[index]);
-                  index++;
+                  bestH = ch;
+                  best = cell;
                }
-               if(this.endFound)
+               x = (cell / H) | 0;
+               y = cell - x * H;
+               if(x < 1 || x > W - 1 || y < 1 || y > H - 1)
                {
-                  break;
+                  continue;
+               }
+               k = 0;
+               while(k < 8)
+               {
+                  nx = x + dxs[k];
+                  ny = y + dys[k];
+                  if(ignore || !map[nx]?.[ny])
+                  {
+                     nc = nx * H + ny;
+                     ng = cg + incs[k];
+                     if(seen[nc] != stamp || ng < g[nc])
+                     {
+                        seen[nc] = stamp;
+                        g[nc] = ng;
+                        from[nc] = cell;
+                        push(nc, ng, (Math.abs(nx - ex) + Math.abs(ny - ey)) * 10);
+                     }
+                     if(nc == endCell)
+                     {
+                        found = true;
+                     }
+                  }
+                  k++;
                }
             }
-            if(this.endFound)
-            {
-               return this.cacheRet = this.footsteps?.(this.endNode);
-            }
-            if(!this.allowApproximation)
+            this.endFound = found;
+            var target = found ? endCell : this.allowApproximation ? best : -1;
+            if(target < 0)
             {
                return false;
             }
-            var best = reached[0];
-            index = 1;
-            while(index < reached.length)
+            // The steps from the start to the target, the start first (as footsteps gives them).
+            var steps = new Array();
+            if(target == startCell)
             {
-               if(reached[index].h < best.h)
-               {
-                  best = reached[index];
-               }
-               index++;
+               return this.cacheRet = steps;
             }
-            return this.cacheRet = this.footsteps?.(best);
+            cell = target;
+            while(cell >= 0 && steps.length < this.safety)
+            {
+               steps.push({x:(cell / H) | 0,y:cell % H});
+               if(cell == startCell)
+               {
+                  break;
+               }
+               cell = from[cell];
+            }
+            return this.cacheRet = steps.reverse();
          };
          this.getAdjacent = function (node)
          {
@@ -2159,7 +2248,7 @@
          {
             this.viewWidthPx = SCREENX - 150;
             this.viewHeightPx = SCREENY;
-            this.zoomMin = 0.35;
+            this.zoomMin = 0.18;
             if(this.width)
             {
                this.zoomMin = Math.max(this.zoomMin, this.viewWidthPx / this.width, this.viewHeightPx / this.height);
@@ -2636,7 +2725,9 @@
             }
             this.overOption = false;
             var _loc9_ = false;
-            var _loc10_ = this.MC?.hitTest?.(_xmouse, _ymouse, true);
+            // (Fixed: only where the list shows -- not what has scrolled out of sight under the
+            // arrows and the headings above it.)
+            var _loc10_ = this.MC?.hitTest?.(_xmouse, _ymouse, true) && this.mask?.hitTest?.(_xmouse, _ymouse, true);
             var _loc2_;
             var _loc6_;
             var _loc3_;
@@ -2700,6 +2791,30 @@
                }
             }
             __as.set(this.parent?.arena?.radar?.stats, "_visible", _loc9_);
+         };
+         // Online: the wheel over one of the lists scrolls it, as its arrows do.
+         this.wheel = function (x, y, steps)
+         {
+            if(!steps || !this.mask?.hitTest?.(x, y, true))
+            {
+               return false;
+            }
+            var dir = steps > 0 ? 1 : -1;
+            var local = x - this.MC?._x - this.MC?._parent?._x;
+            if(local < this.mugshotWidth + this.gap / 2)
+            {
+               if(!this.scrollBuildingsDir && (dir > 0 ? this.scrollBuildings < 0 : this.scrollBuildings > this.maxOnScreen - this.buildings))
+               {
+                  this.scrollBuildingsDir = dir;
+                  this.parent?.parent?.sfx?.play?.("INT_scrollv");
+               }
+            }
+            else if(!this.scrollUnitsDir && (dir > 0 ? this.scrollUnits < 0 : this.scrollUnits > this.maxOnScreen - this.units))
+            {
+               this.scrollUnitsDir = dir;
+               this.parent?.parent?.sfx?.play?.("INT_scrollv");
+            }
+            return true;
          };
          this.scroll = function ()
          {
@@ -2846,7 +2961,18 @@
                   return true;
                }
             }
-            if(!this.MC?.hitTest?.(x, y, true))
+            // (Fixed: a click on an arrow while its list is still scrolling is the arrow's too.)
+            var arrows = new Array("buildings_up", "buildings_down", "units_up", "units_down");
+            var arrow = 0;
+            while(arrow < arrows.length)
+            {
+               if(this.MC?._parent?.[arrows[arrow]]?._visible && this.MC?._parent?.[arrows[arrow]]?.hitTest?.(x, y, true))
+               {
+                  return true;
+               }
+               arrow++;
+            }
+            if(!this.MC?.hitTest?.(x, y, true) || !this.mask?.hitTest?.(x, y, true))
             {
                return false;
             }
@@ -3269,7 +3395,7 @@
                _loc2_ = _loc4_?.y + this.stats?.topLeftY - this.stats?.powerMargin;
                while(_loc2_ < _loc4_?.y + this.stats?.topLeftY + this.stats?.height + this.stats?.powerMargin)
                {
-                  if(this.arena?.useds?.[_loc3_]?.[_loc2_]?.isBuilding && this.arena?.useds?.[_loc3_]?.[_loc2_]?.friend && this.arena?.useds?.[_loc3_]?.[_loc2_]?.stats?.power)
+                  if(this.arena?.useds?.[_loc3_]?.[_loc2_]?.isBuilding && (this.arena?.useds?.[_loc3_]?.[_loc2_]?.friend || this.parent?.parent?.skirmish && this.parent?.parent?.allied?.(this.arena?.useds?.[_loc3_]?.[_loc2_]?.owner)) && this.arena?.useds?.[_loc3_]?.[_loc2_]?.stats?.power)
                   {
                      tooFarAway = false;
                      break;
@@ -4044,7 +4170,7 @@
                _loc3_ = limit?.(random?.(this.roamSize) + this.topLeftX, 1, this.arena?.cols);
                _loc2_ = limit?.(random?.(this.roamSize) + this.topLeftY, 1, this.arena?.rows);
             }
-            this.parent?.nav?.voyage?.(_loc3_, _loc2_, false);
+            this.parent?.nav?.voyage?.(_loc3_, _loc2_, false, undefined, true);
          };
       };
       }
@@ -4152,6 +4278,12 @@
          {
             this.max = 4;
             this.home = this.parent?.parent?.findBuilding?.("BA_" + this.team, this.parent?.owner);
+            // Online: with the Ops Ship and the Hive as headquarters (a skirmish setting, on as in
+            // the C&C mod), a miner comes from one of them when there is no headquarters.
+            if(!this.home && SKIRMISH && SKIRMISH.opsHQ !== false)
+            {
+               this.home = this.parent?.parent?.findBuilding?.("BK_" + this.team, this.parent?.owner);
+            }
             this.threat = 2;
             this.spread = 3;
             this.maxHealth = 1500;
@@ -4364,6 +4496,13 @@
             this.maxWeaponCharge = 3;
             this.weaponRange = 350;
             this.cost = 2000;
+            // Online: in a skirmish the Commander comes from the Alien Hive, one to a player
+            // (the C&C mod's rules; the story's are placed by its levels).
+            if(SKIRMISH)
+            {
+               this.max = 1;
+               this.home = this.parent?.parent?.findBuilding?.("BK_" + this.team, this.parent?.owner);
+            }
          }
          if(this.type == "UR_good")
          {
@@ -4521,7 +4660,7 @@
                      this.target?.freeBlock?.();
                   }
                }
-               this.voyage?.(_loc4_, _loc3_, false);
+               this.voyage?.(_loc4_, _loc3_, false, undefined, !!this.target?.isUnit);
                if(this.stats?.repair)
                {
                   if(this.target?.isUnit)
@@ -4589,7 +4728,7 @@
                   {
                      this.parent?.parent?.cashUp?.(this.parent?.cargo, this.parent);
                      __as.set(this.parent, "cargo", 0);
-                     this.voyage?.(this.lastFed?.x, this.lastFed?.y, false, false);
+                     this.voyage?.(this.lastFed?.x, this.lastFed?.y, false, false, true);
                      this.feeding = true;
                      __as.set(this.parent, "hilite", true);
                   }
@@ -4634,7 +4773,7 @@
                }
                if(this.stats?.miner && this.stuck > 2)
                {
-                  this.voyage?.(this.path?.[this.path?.length - 1]?.x, this.path?.[this.path?.length - 1]?.y, false, this.feeding);
+                  this.voyage?.(this.path?.[this.path?.length - 1]?.x, this.path?.[this.path?.length - 1]?.y, false, this.feeding, true);
                }
                return false;
             }
@@ -4849,11 +4988,24 @@
          };
          this.returnHome = function ()
          {
+            // Online: a miner unloads at whichever of its owner's headquarters -- or, if the
+            // settings say so, Ops Ships and Hives -- is nearest.
+            if(this.stats?.miner && this.parent?.parent?.skirmish)
+            {
+               var nearest = this.parent?.parent?.nearestDepot?.(this.parent);
+               if(nearest)
+               {
+                  __as.set(this.stats, "home", nearest);
+               }
+            }
             __as.set(this.parent?.MCsprite?.unit?.sparks, "_visible", false);
             this.voyage?.(this.stats?.home?.stats?.dockX, this.stats?.home?.stats?.dockY, false, false);
             this.headingHome = true;
          };
-         this.voyage = function (x, y, manual, bait)
+         // (Online: tiles says x and y are a tile's, not a point's.  The original told them apart
+         // by size -- a tile's are small numbers -- which the story's maps allow, but not a
+         // bigger map's; a skirmish goes by what the caller says.)
+         this.voyage = function (x, y, manual, bait, tiles)
          {
             bait = bait && this.stats?.bait;
             this.headingHome = false;
@@ -4865,7 +5017,7 @@
             var _loc6_;
             var _loc2_;
             var _loc8_;
-            if(!manual && x < this.arena?.tileSize && y < this.arena?.tileSize2)
+            if(tiles || !manual && x < this.arena?.tileSize && y < this.arena?.tileSize2 && !this.parent?.parent?.skirmish)
             {
                _loc6_ = x;
                _loc2_ = y;
@@ -4904,7 +5056,9 @@
                }
             }
          };
-         if(this.parent?.stats?.miner)
+         // (Online: in a skirmish, this browser's player's miners wait for orders, or are sent
+         // by Level.sendMiner.)
+         if(this.parent?.stats?.miner && !(this.parent?.parent?.skirmish && this.parent?.owner == this.parent?.parent?.localPlayer))
          {
             this.voyage?.(undefined, undefined, false, this.parent?.stats?.bait);
          }
@@ -4988,6 +5142,12 @@
          }
          this.healthPerc = Math.ceil(this.health / this.stats?.maxHealth * 100);
          this.id = this.parent?.uniqid;
+         // Online: this browser's player's new miner goes to the nearest crystals, if they like
+         // (the settings), as an order of theirs.
+         if(this.stats?.miner && this.parent?.skirmish && this.owner && this.owner == this.parent?.localPlayer && Online?.prefs?.autoMine !== false)
+         {
+            this.parent?.sendMiner?.(this);
+         }
          this.MC = this.parent?.arena?.MC?.createEmptyMovieClip?.("unit_" + __as.upd(this.parent, "uniqid", 1, false), this.parent?.arena?.MC?.getNextHighestDepth?.());
          __as.set(this.MC, "teamColour", this.owner?.colour);
          this.MCsprite = this.MC?.attachMovie?.("unit", "unit", 1);
@@ -5027,7 +5187,11 @@
             }
             if(this.ordered)
             {
-               this.parent?.parent?.sfx?.play?.(this.type + "_comply");
+               // (Online: only this browser's player's units answer out loud.)
+               if(this.friend || !this.parent?.skirmish)
+               {
+                  this.parent?.parent?.sfx?.play?.(this.type + "_comply");
+               }
                this.ordered = false;
             }
             this.draw?.();
@@ -5264,7 +5428,7 @@
                __as.set(this.nav, "currentY", __as.set(this.nav, "nextY", carrier?.tilePos?.y));
                this.posX = (this.nav?.currentX + this.nav?.offsetX - 1) * this.parent?.arena?.tileSize;
                this.posY = (this.nav?.currentY + this.nav?.offsetY - 1) * this.parent?.arena?.tileSize;
-               this.nav?.voyage?.(this.nav?.currentX, this.nav?.currentY - 1);
+               this.nav?.voyage?.(this.nav?.currentX, this.nav?.currentY - 1, false, undefined, true);
                this.hilite = true;
                this.ordered = true;
             }
@@ -5283,7 +5447,7 @@
             {
                this.stats?.contents?.shift?.()?.doEmbark?.(this);
             }
-            this.nav?.voyage?.(this.nav?.currentX, this.nav?.currentY + 1);
+            this.nav?.voyage?.(this.nav?.currentX, this.nav?.currentY + 1, false, undefined, true);
             this.hilite = true;
             this.deploy = false;
             __as.set(this.nav, "landerPerc", 75);
@@ -7167,6 +7331,20 @@
          this.unit = false;
          this.handle = function ()
          {
+            // What can no longer be made -- its factory or its prerequisites gone -- is given up,
+            // the money back (the mod's Cancel_Unbuildable), once a second.
+            if(!(this.level?.count % 23) && (this.building || this.unit))
+            {
+               var tech = this.level?.techFor?.(this.owner);
+               if(this.building && !tech?.[this.building.type] && this.building.progress < this.building.constructionTime)
+               {
+                  this.cancel?.(true);
+               }
+               if(this.unit && !tech?.[this.unit.type])
+               {
+                  this.cancel?.(false);
+               }
+            }
             this.advance?.(this.building);
             this.advance?.(this.unit);
          };
@@ -8125,6 +8303,7 @@
                return undefined;
             }
             this.passiveIncome?.();
+            this.orphanMiners?.();
             var standing = {};
             var teams = 0;
             var index = 0;
@@ -8179,6 +8358,74 @@
          };
          // A skirmish's passive income: so much a minute to every player still in, paid by the
          // second.
+         // A miner to the crystals nearest its home, as its owner would click it there.
+         this.sendMiner = function (unit)
+         {
+            var from = unit.stats?.home?.stats?.dockPos || unit.tilePos;
+            var best;
+            var bestD = Infinity;
+            var x = 1;
+            var y;
+            var d;
+            while(!(x > this.arena?.cols))
+            {
+               y = 1;
+               while(!(y > this.arena?.rows))
+               {
+                  if(this.arena?.baits?.[x]?.[y] > 25 && !this.arena?.tiles?.[x]?.[y])
+                  {
+                     d = (x - from?.x) * (x - from?.x) + (y - from?.y) * (y - from?.y);
+                     if(d < bestD)
+                     {
+                        bestD = d;
+                        best = {x:x,y:y};
+                     }
+                  }
+                  y++;
+               }
+               x++;
+            }
+            if(best)
+            {
+               this.issue?.({t:"move",u:[unit.id],x:(best.x - 0.5) * this.arena?.tileSize,y:(best.y - 0.5) * this.arena?.tileSize});
+            }
+         };
+         this.nearestDepot = function (unit)
+         {
+            var best;
+            var bestD = Infinity;
+            var d;
+            var code;
+            for(var index of __as.keys(this.buildings))
+            {
+               code = this.buildings[index]?.type?.substr?.(0, 2);
+               if(this.buildings[index]?.active && this.buildings[index]?.owner == unit?.owner && (code == "BA" || code == "BK" && this.skirmish?.opsHQ !== false))
+               {
+                  d = Math.abs(this.buildings[index].posX - unit.posX) + Math.abs(this.buildings[index].posY - unit.posY);
+                  if(d < bestD)
+                  {
+                     bestD = d;
+                     best = this.buildings[index];
+                  }
+               }
+            }
+            return best;
+         };
+         this.orphanMiners = function ()
+         {
+            var index;
+            var unit;
+            for(index of __as.keys(this.units))
+            {
+               unit = this.units[index];
+               if(unit?.active && unit.stats?.miner && unit.owner && !unit.owner.spectator
+                  && !this.findBuilding?.("BA_good", unit.owner) && !this.findBuilding?.("BA_evil", unit.owner)
+                  && !this.findBuilding?.("BK_good", unit.owner) && !this.findBuilding?.("BK_evil", unit.owner))
+               {
+                  unit.destroy?.();
+               }
+            }
+         };
          this.passiveIncome = function ()
          {
             var perSecond = (this.skirmish?.income || 0) / 60;
@@ -8917,7 +9164,7 @@
                index++;
                if(has("BA_" + f) || has("BK_" + f))
                {
-                  if(has("BA_" + f))
+                  if(has("BA_" + f) || this.skirmish?.opsHQ !== false && this.skirmish && has("BK_" + f))
                   {
                      tech["UD_" + f] = true;
                   }
@@ -9025,7 +9272,7 @@
                while(cy < y + stats?.topLeftY + stats?.height + stats?.powerMargin)
                {
                   used = this.arena?.useds?.[cx]?.[cy];
-                  if(used?.isBuilding && used?.owner == owner && used?.stats?.power)
+                  if(used?.isBuilding && !this.hostile?.(used, owner) && used?.owner && used?.stats?.power)
                   {
                      near = true;
                      break;
@@ -9371,7 +9618,7 @@
             this.prevMouseX = _xmouse;
             this.prevMouseY = _ymouse;
             this.tilePos = this.parent?.arena?.translatePos?.(this.posX, this.posY);
-            if(this.still > 1)
+            if(this.still > 1 && Online?.prefs?.edgeScroll !== false)
             {
                if(_xmouse > SCREENX - this.scrollMargin && _xmouse < SCREENX)
                {
@@ -9406,7 +9653,7 @@
                {
                   this.parent?.arena?.zoomBy?.(Math.pow(1.12, WHEELSTEPS), _xmouse, _ymouse);
                }
-               else
+               else if(!this.parent?.construction?.wheel?.(_xmouse, _ymouse, WHEELSTEPS))
                {
                   this.parent?.arena?.zoomBy?.(Math.pow(1.12, WHEELSTEPS), 150 + this.parent?.arena?.viewWidthPx / 2, this.parent?.arena?.viewHeightPx / 2);
                }

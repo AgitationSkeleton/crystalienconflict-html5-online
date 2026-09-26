@@ -99,6 +99,8 @@ export function installBuiltins(player) {
   AS2Math.atan2 = detMath.atan2;
   Object.assign(B, {
     Math: AS2Math, Array, Object, Boolean, Date, Function, Error, parseInt, NaN, Infinity,
+    // (Online: typed arrays, which the game's own additions use for speed.)
+    Int32Array, Uint8Array, Float64Array,
   });
   // String(): ActionScript prints numbers with 15 significant digits, not JavaScript's 17.
   function AS2String(v) {
@@ -717,6 +719,21 @@ function makeFlashPackage(player) {
     argb = (+argb) >>> 0;
     let a = this.transparent ? (argb >>> 24) : 255;
     const ctx = this.$ctx;
+    // Fully transparent or fully opaque, the rectangle's pixels simply become the colour: no
+    // need to clip a 'copy' (games fill thousands of small rectangles a frame).
+    if (a === 0 || a === 255) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (a === 0) {
+        ctx.clearRect(+r.x, +r.y, +r.width, +r.height);
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = `rgb(${(argb >> 16) & 255},${(argb >> 8) & 255},${argb & 255})`;
+        ctx.fillRect(+r.x, +r.y, +r.width, +r.height);
+      }
+      this.$version++;
+      return;
+    }
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'copy';

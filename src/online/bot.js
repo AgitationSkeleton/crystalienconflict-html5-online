@@ -60,7 +60,8 @@ export class Bot {
     this.expertTimer = 75;
     this.scouted = null;                     // §4.6
     this.placeWait = 0;
-    this.speed = { easy: 6, medium: 8, hard: 10 }[this.difficulty] || 8;
+    // Building speed: a player's is 8; the computer never waits to click, so it builds slower.
+    this.speed = { easy: 4, medium: 6, hard: 8 }[this.difficulty] || 6;
     this.production = null;                  // set by the level (Production)
   }
 
@@ -770,7 +771,6 @@ export class Bot {
   repair() {
     const hq = this.hasHQ();
     for (const b of this.ownBuildings()) {
-      if (b.health < b.stats.maxHealth) b.repairing = hq;
       if (b.healthPerc <= 25 && b.stats.repairable && b.hitByEnemy && this.player.cash < 1000) {
         const code = this.code(b);
         if (code !== 'BA' && code !== 'BK' && this.random(51) === 0) b.destroy(true);

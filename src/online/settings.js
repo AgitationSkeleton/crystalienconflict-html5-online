@@ -27,6 +27,8 @@ export const DEFAULTS = {
   sound: 0.9,
   ui: 0.9,
   size: 'medium',           // the interface size: a key of UI_SCALES
+  edgeScroll: true,         // the view scrolls when the pointer is at its edge
+  autoMine: true,           // a new miner of yours goes to the nearest crystals
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -44,6 +46,7 @@ export function loadSettings() {
   if (!COLOURS.includes(s.colour)) s.colour = DEFAULTS.colour;
   if (!['all', 'mars', 'snowy'].includes(s.palette)) s.palette = DEFAULTS.palette;
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
+  for (const k of ['edgeScroll', 'autoMine']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);
     s[k] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULTS[k];
