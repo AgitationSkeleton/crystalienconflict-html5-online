@@ -9424,6 +9424,11 @@
          {
             this.sfx?.play?.("music_intro_start");
             this.state = "splash";
+            // Online: the page's main menu, where there is one, is the way back in.
+            if(Online?.menu)
+            {
+               Online.menu("main");
+            }
          };
          this.splashOptionOver = function (option, team)
          {
@@ -9526,6 +9531,11 @@
          {
             this.sfx?.play?.("music_intro_start");
             this.state = "splash";
+            // Online: after a skirmish, its lobby again; after the story, the main menu.
+            if(Online?.menu)
+            {
+               Online.menu(this.skirmish ? "lobby" : "main");
+            }
          };
          this.gameOver = function (win)
          {

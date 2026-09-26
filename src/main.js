@@ -5,6 +5,7 @@
 
 import { Player } from './flash/player.js';
 import { Library } from './flash/library.js';
+import { OnlineUI } from './online/ui.js';
 
 const FLASHVARS = { xmlurl: 'data/dialogue.xml', asseturl: '', serviceurl: '', gamename: 'CrystAlienConflict' };
 const MOVIES = { 'game.swf': 'game' };     // loadMovieNum's file names -> converted movies
@@ -130,16 +131,23 @@ canvas.addEventListener('wheel', (ev) => {
   ev.preventDefault();
 }, { passive: false });
 
-// The game traps every key (fscommand trapallkeys); browser shortcuts still work.
+// The game traps every key (fscommand trapallkeys); browser shortcuts still work, and so
+// does typing into the menus.
 function trapped(ev) {
   return !(ev.ctrlKey || ev.metaKey || ev.altKey || /^F\d+$/.test(ev.key));
 }
+function inMenus(ev) {
+  const t = ev.target;
+  return t && t !== canvas && t !== document.body && t.closest && t.closest('.ui, .ui-back');
+}
 addEventListener('keydown', (ev) => {
+  if (inMenus(ev)) return;
   if (!trapped(ev)) return;
   player.keyDown(ev);
   ev.preventDefault();
 });
 addEventListener('keyup', (ev) => {
+  if (inMenus(ev)) return;
   player.keyUp(ev);
   if (trapped(ev)) ev.preventDefault();
 });
@@ -149,9 +157,9 @@ addEventListener('blur', () => {
 });
 
 // ---- the frame loop ----------------------------------------------------------------------
-// Fixed 23fps steps.  Flash never skipped a frame's logic; after a long stall (a hidden
-// tab) this resumes rather than racing to catch up.
-const STEP = 1000 / FPS;
+// Fixed 23fps steps (times the game speed a skirmish chose).  Flash never skipped a frame's
+// logic; after a long stall (a hidden tab) this resumes rather than racing to catch up.
+let STEP = 1000 / FPS;
 let last = 0;
 let acc = 0;
 function loop(now) {
@@ -177,6 +185,18 @@ async function start() {
   centreLoader();
   player.draw();
   if (!TEST) requestAnimationFrame(loop);
+  // Online: the menus, over the game once it has loaded (?test keeps the game's own, for the
+  // regression scenarios, unless ?menus asks for them).
+  const ui = new OnlineUI(player, { setSpeed: (f) => { STEP = 1000 / (FPS * (f || 1)); } });
+  globalThis.onlineUI = ui;
+  if (!TEST || params.has('menus')) {
+    const waitForGame = () => {
+      const g = player.levels[1];
+      if (g && g.panel) ui.attach();
+      else setTimeout(waitForGame, 100);
+    };
+    waitForGame();
+  }
 }
 
 start().catch((e) => {

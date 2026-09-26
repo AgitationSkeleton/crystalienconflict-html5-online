@@ -84,6 +84,13 @@ As listed, plus later additions:
   the faction's (the C&C mod's method: the faction's accent hue is repainted, keeping the
   art's shading; `tools/team_accents.py`), baseplates are coloured all over, the radar shows
   each player in their colour, and the sidebar takes the player's.
+- **7. Menus and settings: under way.** A new main menu (Skirmish, Online, Story, Settings)
+  in the game's fonts and the Astro sidebar's orange and metal; a skirmish lobby with the
+  slots and every match setting (those the game does not use yet are marked as coming); and
+  settings kept in the browser (name, faction, colour, palette, and music, sound and
+  interface volumes). The story is reached through the original menus.
+- **4. Bots: under way.** The computer can build by the player's rules (tech tree,
+  production queue, building sites); its decision-making, ported from the C&C mod, is next.
 
 ## Order
 

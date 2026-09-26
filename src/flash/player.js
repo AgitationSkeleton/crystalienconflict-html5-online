@@ -43,6 +43,7 @@ export class Player {
     this.sound = new SoundSystem(this);
     this.global = {};                  // _global
     this.builtins = {};
+    this.online = {};                 // online: what the game can call of the page (Online.*)
     this.queue = [];
     this.scopes = new WeakMap();
     this.mouse = [0, 0];

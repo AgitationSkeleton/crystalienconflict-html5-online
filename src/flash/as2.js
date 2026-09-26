@@ -188,6 +188,9 @@ export function installBuiltins(player) {
     },
   };
 
+  // ---- Online: the page's menus, which the game calls when a match is over (see ui.js) ----
+  B.Online = player.online;
+
   // ---- Stage / System / Selection ----------------------------------------------------------
   const stage = { scaleMode: 'showAll', align: '', showMenu: true, listeners: [] };
   Object.defineProperties(stage, {

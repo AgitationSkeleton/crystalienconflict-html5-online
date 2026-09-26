@@ -74,11 +74,34 @@ export class Library {
       this.sounds.set(+id, { data: soundPack.buffer.slice(soundPack.byteOffset + at, soundPack.byteOffset + at + len), buffer: null });
     }
 
+    this.soundKinds = this.kindsOfSound();
+
     this.bytesLoaded = this.bytesTotal;
     this.complete = true;
     if (onProgress) onProgress(this);
   }
 }
+
+// Online: what each of the game's sounds is, for the settings' volumes.  Every effect plays
+// through the soundFX clip, one labelled frame each: music_* are music, INT_* the interface's,
+// the rest the game's sounds.  (A movie without that clip has none.)
+Library.prototype.kindsOfSound = function () {
+  const kinds = new Map();
+  const id = this.exports && this.exports.soundFX;
+  const clip = id !== undefined && this.chars[id];
+  if (!clip || !clip.frames) return kinds;
+  const labels = Object.entries(clip.labels || {}).sort((a, b) => a[1] - b[1]);
+  let at = 0;
+  clip.frames.forEach((frame, i) => {
+    while (at + 1 < labels.length && labels[at + 1][1] <= i + 1) at++;
+    const label = labels[at] && labels[at][1] <= i + 1 ? labels[at][0] : '';
+    for (const op of frame) {
+      if (op.o !== 'S') continue;
+      kinds.set(op.id, label.startsWith('music_') ? 'music' : label.startsWith('INT_') ? 'ui' : 'sound');
+    }
+  });
+  return kinds;
+};
 
 async function fetchBytes(url, onBytes) {
   const r = await fetch(url);

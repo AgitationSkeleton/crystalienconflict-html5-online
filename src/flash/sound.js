@@ -15,6 +15,14 @@ export class SoundSystem {
     this.ctx = null;
     this.master = null;
     this.playing = new Set();       // {id, lib, owner, src, gain}
+    this.kinds = null;              // online: a gain for each kind of sound (music, sound, ui)
+    this.volumes = { music: 1, sound: 1, ui: 1 };
+  }
+
+  // Online: the settings' volumes, 0..1 for each kind of sound.
+  setVolumes(v) {
+    Object.assign(this.volumes, v);
+    if (this.kinds) for (const k of Object.keys(this.kinds)) this.kinds[k].gain.value = this.volumes[k];
   }
 
   unlock() {
@@ -24,6 +32,12 @@ export class SoundSystem {
       this.ctx = new AC();
       this.master = this.ctx.createGain();
       this.master.connect(this.ctx.destination);
+      this.kinds = {};
+      for (const k of ['music', 'sound', 'ui']) {
+        this.kinds[k] = this.ctx.createGain();
+        this.kinds[k].gain.value = this.volumes[k];
+        this.kinds[k].connect(this.master);
+      }
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
   }
@@ -96,7 +110,8 @@ export class SoundSystem {
       gain.gain.value = this.volumeOf(owner);
       src.connect(env);
       env.connect(gain);
-      gain.connect(this.master);
+      const kind = (lib.soundKinds && lib.soundKinds.get(id)) || 'sound';
+      gain.connect(this.kinds ? this.kinds[kind] : this.master);
       entry.src = src;
       entry.gain = gain;
       const loops = Math.max(1, info.loops || 1);

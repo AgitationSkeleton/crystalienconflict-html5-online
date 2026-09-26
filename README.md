@@ -10,8 +10,11 @@ Work in progress. See [ROADMAP.md](ROADMAP.md) for what is planned, in what orde
 ## Playing
 
 The game fills the window: a wider window shows more of the map instead of enlarging it.
-**Conflict mode** on the main menu starts a skirmish against the computer on Eclipse; the
-story's two Conflict levels are still there, by their access codes.
+The main menu leads to a **skirmish** against the computer (set up in the lobby: map,
+players, teams by colour, and the match's settings), to the original **story**, and to the
+**settings** (your name, faction, colour, preferred map palette and volumes, kept in the
+browser). In the story's menus, Conflict mode starts a skirmish on Eclipse; the story's two
+Conflict levels are still there, by their access codes.
 
 | Control | Action |
 | --- | --- |
