@@ -176,8 +176,25 @@ function loop(now) {
 }
 
 // ---- start ---------------------------------------------------------------------------------
+// Online: the skirmish maps made from other games' (tools/convert_maps.py), for the game to
+// play and the menus to list.  None is fine: Eclipse is the game's own.
+async function loadMaps() {
+  const maps = {};
+  try {
+    const index = await fetch('data/maps/index.json').then((r) => (r.ok ? r.json() : []));
+    await Promise.all(index.map(async (m) => {
+      const r = await fetch(`data/maps/${m.id}.json`);
+      if (r.ok) maps[m.id] = await r.json();
+    }));
+  } catch (e) {
+    console.warn('no skirmish maps', e);
+  }
+  player.online.maps = maps;
+}
+
 async function start() {
   sizes = await fetch('data/sizes.json').then((r) => r.json());
+  await loadMaps();
   const loader = openMovie('loader');
   await loader.ready;
   resize();

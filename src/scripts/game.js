@@ -2236,6 +2236,33 @@
             var _loc3_ = -this.MC?._y / this.zoom;
             return x > _loc4_ && x < _loc4_ + this.viewWidth && y > _loc3_ && y < _loc3_ + this.viewHeight;
          };
+         // Online: the terrain is one piece of ground 2880 pixels square -- thirty tiles by sixty,
+         // enough for any of the story's maps.  A bigger map gets more of it, side by side.
+         this.extendTerrain = function ()
+         {
+            var across = Math.ceil(this.cols * this.tileSize / 2880);
+            var down = Math.ceil(this.rows * this.tileSize2 / 2880);
+            var tx = 0;
+            var ty;
+            var piece;
+            this.terrainMCs = new Array(this.terrainMC);
+            while(tx < across)
+            {
+               ty = 0;
+               while(ty < down)
+               {
+                  if(tx || ty)
+                  {
+                     piece = this.MC?.attachMovie?.("terrain", "terrain_" + tx + "_" + ty, -20 - tx * 16 - ty);
+                     __as.set(piece, "_x", tx * 2880);
+                     __as.set(piece, "_y", ty * 2880);
+                     this.terrainMCs?.push?.(piece);
+                  }
+                  ty++;
+               }
+               tx++;
+            }
+         };
          this.doSnow = function ()
          {
             var _loc6_ = new Array();
@@ -2245,6 +2272,10 @@
             _loc6_ = _loc6_?.concat?.([0, 0, 0, 1, 0]);
             var _loc5_ = new flash.filters.ColorMatrixFilter(_loc6_);
             __as.set(this.terrainMC, "filters", new Array(_loc5_));
+            for(var piece of __as.keys(this.terrainMCs))
+            {
+               __as.set(this.terrainMCs[piece], "filters", new Array(_loc5_));
+            }
             this.windBitmap = flash.display.BitmapData?.loadBitmap?.("snow");
             var _loc4_ = 0;
             var _loc2_;
@@ -2265,6 +2296,7 @@
             }
          };
          this.layoutTiles?.();
+         this.extendTerrain?.();
       };
       }
    };
@@ -6744,6 +6776,21 @@
       SKIRMISH_MAPS = {10:{name:"Eclipse",bases:[{x:5,y:20},{x:25,y:12}]}};
       // The match the Conflict button starts: this browser's player against the computer on
       // Eclipse, playing the faction chosen.
+      // Every map a skirmish can be played on: the story's above, and those made from other
+      // games' (Online.maps, loaded by the page from data/maps).
+      skirmishMaps = function ()
+      {
+         var all = {};
+         for(var level of __as.keys(SKIRMISH_MAPS))
+         {
+            all[level] = SKIRMISH_MAPS[level];
+         }
+         for(var id of __as.keys(Online?.maps))
+         {
+            all[id] = {name:Online.maps[id]?.name,bases:Online.maps[id]?.bases,source:Online.maps[id]?.source};
+         }
+         return all;
+      };
       skirmishDefaults = function (faction)
       {
          var other = faction == "good" ? "evil" : "good";
@@ -7723,7 +7770,7 @@
          this.setupSkirmish = function ()
          {
             var settings = this.skirmish;
-            var bases = SKIRMISH_MAPS?.[settings?.map]?.bases || this.cornerBases?.(this.players?.length);
+            var bases = skirmishMaps?.()?.[settings?.map]?.bases || this.cornerBases?.(this.players?.length);
             var startingUnits = new Array("UA", "UA", "UE", "UB", "UA", "UE");
             var index = 0;
             var player;
@@ -9291,6 +9338,11 @@
          this.sfx = this.parent?.sfx;
          this.currentLevel = level;
          this.data = mapData?.();
+         // Online: and the maps made from other games', encoded as the story's are.
+         for(var id of __as.keys(Online?.maps))
+         {
+            this.data["map" + id] = Online.maps[id]?.map?.split?.("", 100000);
+         }
          __as.set(this.data, "tileDatumA", new Array());
          __as.set(this.data, "tileDatumB", new Array());
          var _loc6_;

@@ -151,13 +151,18 @@ export class OnlineUI {
   }
 
   // ---- the lobby ------------------------------------------------------------------------------
+  // The skirmish maps: the game's own (Eclipse), then those made from Command & Conquer's
+  // and LEGO Battles' maps.  A map's id is its level number for the game's own.
   maps() {
-    const all = (this.game && this.game.SKIRMISH_MAPS) || { 10: { name: 'Eclipse', bases: [{}, {}] } };
-    return Object.entries(all).map(([level, m]) => ({ level: Number(level), name: m.name, bases: (m.bases || []).length || 2 }));
+    const all = (this.game && this.game.skirmishMaps && this.game.skirmishMaps()) || { 10: { name: 'Eclipse', bases: [{}, {}] } };
+    const order = { undefined: 0, cnc: 1, lego: 2 };
+    return Object.entries(all)
+      .map(([id, m]) => ({ id: String(id), name: m.name, source: m.source, bases: (m.bases || []).length || 2, info: m }))
+      .sort((a, b) => (order[a.source] || 0) - (order[b.source] || 0) || a.name.localeCompare(b.name));
   }
 
   mapInfo() {
-    return this.maps().find((m) => m.level === this.match.map) || this.maps()[0];
+    return this.maps().find((m) => m.id === String(this.match.map)) || this.maps()[0];
   }
 
   defaultSlots(saved) {
@@ -183,7 +188,7 @@ export class OnlineUI {
   }
 
   buildLobby() {
-    this.mapSelect = el('select', { onchange: (e) => { this.match.map = Number(e.target.value); this.renderLobby(); } });
+    this.mapSelect = el('select', { onchange: (e) => { this.match.map = e.target.value; this.renderLobby(); } });
     this.slotCount = el('select', { onchange: (e) => { this.match.slots = Number(e.target.value); this.renderLobby(); } });
     for (let n = 2; n <= 6; n++) this.slotCount.append(el('option', { value: n, text: n + ' players' }));
     this.mapPreview = el('canvas', { width: 64, height: 64 });
@@ -216,9 +221,13 @@ export class OnlineUI {
 
   renderLobby() {
     const maps = this.maps();
-    this.mapSelect.replaceChildren(...maps.map((m) => el('option', { value: m.level, text: m.name, selected: m.level === this.match.map })));
+    const groups = { undefined: 'CrystAlien Conflict', cnc: 'Command & Conquer', lego: 'LEGO Battles' };
+    const byGroup = {};
+    for (const m of maps) (byGroup[m.source] = byGroup[m.source] || []).push(m);
+    this.mapSelect.replaceChildren(...Object.entries(byGroup).map(([g, list]) => el('optgroup', { label: groups[g] || g },
+      ...list.map((m) => el('option', { value: m.id, text: m.name + ' (' + m.bases + ')', selected: m.id === String(this.match.map) })))));
     const map = this.mapInfo();
-    this.match.map = map.level;
+    this.match.map = map.id;
     this.slotCount.value = String(this.match.slots);
     this.mapName.textContent = map.name;
     this.mapPlayers.textContent = map.bases + ' players';
@@ -283,7 +292,8 @@ export class OnlineUI {
     const c = this.mapPreview;
     const game = this.game;
     const data = game && game.mapData && game.mapData();
-    const cells = data && data['map' + map.level];
+    const online = this.player.online.maps && this.player.online.maps[map.id];
+    const cells = online ? online.map.split('') : data && data['map' + map.id];
     const num = (ch) => (game && game.ascii2num ? game.ascii2num(ch) : 0);
     const cols = cells ? num(cells[0]) : 30;
     const rows = cells ? num(cells[1]) : 30;
@@ -303,8 +313,7 @@ export class OnlineUI {
         }
       }
     }
-    const info = game && game.SKIRMISH_MAPS && game.SKIRMISH_MAPS[map.level];
-    const bases = (info && info.bases) || [];
+    const bases = (map.info && map.info.bases) || [];
     bases.forEach((b, i) => {
       const slot = this.slots[i];
       g.fillStyle = slot && i < this.match.slots && slot.kind !== 'closed' ? COLOUR_CSS[slot.colour] : '#999';
@@ -344,13 +353,13 @@ export class OnlineUI {
     // The palette is the host's choice, unless this player prefers one.
     const palette = this.settings.palette === 'all' ? m.palette : this.settings.palette;
     const settings = {
-      map: m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
+      map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops,
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       players,
     };
     // A player's base is the marker their slot is on.
-    const bases = (this.game.SKIRMISH_MAPS && this.game.SKIRMISH_MAPS[m.map] && this.game.SKIRMISH_MAPS[m.map].bases) || [];
+    const bases = (this.mapInfo().info && this.mapInfo().info.bases) || [];
     players.forEach((pl) => { pl.base = bases[pl.slot]; });
     this.settings.lobby = { match: m, slots: this.slots.map(({ kind, faction, colour, difficulty }) => ({ kind, faction, colour, difficulty })) };
     saveSettings(this.settings);
