@@ -1273,8 +1273,11 @@
             __as.set(camera, "focus", false);
             __as.set(camera, "dx", 0);
             __as.set(camera, "dy", 0);
-            __as.set(camera, "posX", limit?.((at.x - this.grab.x - this.marginX) / this.scaler, 0, this.parent?.width));
-            __as.set(camera, "posY", limit?.((at.y - this.grab.y - this.marginY) / this.scaler, 0, this.parent?.height * 2));
+            // (inside the world, as the camera keeps itself: the view's middle half a view from
+            // each edge -- the camera has had its turn this frame, so the drag keeps to it too)
+            var arena = this.parent;
+            __as.set(camera, "posX", limit?.((at.x - this.grab.x - this.marginX) / this.scaler, arena?.viewWidth2, arena?.width - arena?.viewWidth2));
+            __as.set(camera, "posY", limit?.((at.y - this.grab.y - this.marginY) / this.scaler, arena?.viewHeight, arena?.height * 2 - arena?.viewHeight));
          };
          this.showStats = function (title, cost)
          {
