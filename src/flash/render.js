@@ -717,10 +717,15 @@ export class Renderer {
   // baseplate (accent -1) is coloured all over, and a white cloth (-2, the flag's) where it
   // is pale.  Art already in that colour, and art with no
   // accent, is left alone, as are the pixels an accent keeps (rows of [y, first x, last x]: the
-  // pizza in the pizza box, the backdrops of the sidebar's pictures).  Returns [image, cache key], in the tints cache.
+  // pizza in the pizza box).  An accent may say more (its fifth part, for the sidebar's
+  // pictures, tools/make_mugshots.py): shade, how much of each pixel's own difference from the
+  // accent's hue it keeps (the accent is a gradient, not one hue); minSat, how pale a pixel may
+  // be and still be coloured; colours, a player's colour of its own for this art (a black that
+  // is not so dark).  Returns [image, cache key], in the tints cache.
   teamed(key, img, id, lib, team) {
-    const colour = TEAM_COLOURS[team];
     const accent = lib.accents && lib.accents[id];
+    const opts = (accent && accent[4]) || {};
+    const colour = (opts.colours && opts.colours[team]) || TEAM_COLOURS[team];
     if (!colour || !accent || accent[1] === team) return [img, key];
     const k = this.joinKey(key, '|team:' + team);
     let c = this.tints.get(k);
@@ -747,6 +752,8 @@ export class Renderer {
         else keep.set(ky, [x0, x1]);
       }
       const band = accent[3] || TEAM_BAND;     // (wider for a few: tools/team_accents.py)
+      const shade = opts.shade || 0;
+      const minSat = opts.minSat === undefined ? TEAM_MIN_SAT : opts.minSat;
       for (let i = 0; i < p.length; i += 4) {
         if (!p[i + 3]) continue;
         if (keep.size) {
@@ -758,7 +765,7 @@ export class Renderer {
         }
         const r = p[i] / 255, gr = p[i + 1] / 255, b = p[i + 2] / 255;
         const max = Math.max(r, gr, b), min = Math.min(r, gr, b), delta = max - min;
-        let hue, sat;
+        let hue, sat, pale = false;
         const val = max;
         if (plate) {
           sat = colour.plate;
@@ -768,21 +775,23 @@ export class Renderer {
           hue = colour.h;
         } else {
           sat = max ? delta / max : 0;
-          if (sat < TEAM_MIN_SAT || val < TEAM_MIN_VAL || !delta) continue;
+          if (sat < minSat || val < TEAM_MIN_VAL || !delta) continue;
+          pale = sat < TEAM_MIN_SAT;
           if (max === r) hue = 60 * (((gr - b) / delta) % 6);
           else if (max === gr) hue = 60 * ((b - r) / delta + 2);
           else hue = 60 * ((r - gr) / delta + 4);
           if (hue < 0) hue += 360;
-          const off = Math.abs(hue - centre) % 360;
+          const off = ((hue - centre + 540) % 360) - 180;     // (-180..180)
           let turn = hue - TEAM_KEY;
           if (turn > 180) turn -= 360;
-          if (Math.min(off, 360 - off) <= band) turn = 0;
+          if (Math.abs(off) <= band) turn = off * shade;
           else if (Math.abs(turn) > TEAM_BAND) continue;
           hue = (colour.h + turn + 360) % 360;
           sat *= colour.s;
         }
         if (plate) hue = colour.h;
-        const v = Math.min(1, val * colour.v);
+        // (a pale pixel, coloured only for an accent's minSat, keeps its brightness: a highlight)
+        const v = pale ? val : Math.min(1, val * colour.v);
         const s = Math.min(1, sat);
         // HSV back to RGB, at the new hue.
         const hh = hue / 60, f = hh - Math.floor(hh);

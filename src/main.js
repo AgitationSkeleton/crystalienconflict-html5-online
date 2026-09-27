@@ -34,16 +34,33 @@ function loadScript(src) {
   });
 }
 
-// Online: sidebar pictures the game never had (tools/make_icons.py: the C&C mod's), as library
-// bitmaps under ids of their own -- the Alien Hive, and Santa's Sleigh, Santa and the Reindeer.
+// Online: sidebar pictures the game never had, as library bitmaps under ids of their own -- the
+// Alien Hive, and Santa's Sleigh, Santa and the Reindeer (tools/make_mugshots.py, from the
+// pictures' sources).  And, for team-coloured icons (a player's setting), every picture drawn
+// again from its sources' layers, its backdrop and the thing apart, each with the accent it is
+// coloured by (data/mugshots.json): the game has them as Online.mugshots, by type.
 const ICONS = { BK_evil: 990001, BJ_evil: 990002, UM_evil: 990003, UN_evil: 990004 };
 async function loadIcons(lib) {
   // (and the buildings' repair sign, clip 1015 -- not exported -- for units mending in Hunt the Hero)
   if (lib.exports.onlineRepairing === undefined) lib.exports.onlineRepairing = 1015;
-  await Promise.all(Object.entries(ICONS).map(async ([type, id]) => {
-    const r = await fetch(`assets/online/icons/${type}.png`);
+  const bitmap = async (id, path) => {
+    const r = await fetch(path);
     if (r.ok) lib.bitmaps.set(id, await createImageBitmap(await r.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'default' }));
-  }));
+  };
+  const table = await fetch('data/mugshots.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const jobs = Object.entries(ICONS).map(([type, id]) => bitmap(id, `assets/online/icons/${type}.png`));
+  if (table) {
+    const accents = {};
+    for (const art of [...Object.values(table.backdrops), ...Object.values(table.pictures)]) {
+      jobs.push(bitmap(art.id, `assets/online/mugshots/${art.file}`));
+      if (art.accent) accents[art.id] = art.accent;
+    }
+    lib.mugshotAccents = accents;
+    const types = {};
+    for (const [type, t] of Object.entries(table.types)) types[type] = { picture: table.pictures[t.picture].id, backdrop: table.backdrops[t.backdrop].id };
+    player.online.mugshots = types;
+  }
+  await Promise.all(jobs);
 }
 
 // A movie is its library (data + media) and its translated ActionScript.  The game's comes with
@@ -54,7 +71,10 @@ function openMovie(name) {
     lib.load(`data/${name}.json`, sizes).then(() => (name === 'game' ? loadIcons(lib) : null)),
     globalThis.__scripts && globalThis.__scripts[name] ? null : loadScript(`src/scripts/${name}.js`),
     name === 'game' ? fetch('data/accents.json').then((r) => r.json()).then((a) => { lib.accents = a; }) : null,
-  ]);
+  ]).then(() => {
+    // (the sidebar pictures' accents with the rest: tools/make_mugshots.py)
+    if (lib.mugshotAccents) lib.accents = Object.assign(lib.accents || {}, lib.mugshotAccents);
+  });
   return { lib, ready };
 }
 

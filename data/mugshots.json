@@ -1,0 +1,1123 @@
+{
+ "backdrops": {
+  "evil": {
+   "accent": [
+    45.0,
+    "green",
+    [],
+    46,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.72
+      }
+     },
+     "shade": 0.3
+    }
+   ],
+   "file": "back_evil.png",
+   "id": 991002
+  },
+  "good": {
+   "accent": [
+    15.0,
+    "orange",
+    [],
+    30,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.72
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "back_good.png",
+   "id": 991001
+  }
+ },
+ "pictures": {
+  "BA_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "BA_evil.png",
+   "id": 991100
+  },
+  "BA_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BA_good.png",
+   "id": 991101
+  },
+  "BB_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "BB_evil.png",
+   "id": 991102
+  },
+  "BB_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BB_good.png",
+   "id": 991103
+  },
+  "BC_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "BC_evil.png",
+   "id": 991104
+  },
+  "BC_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BC_good.png",
+   "id": 991105
+  },
+  "BD_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "BD_evil.png",
+   "id": 991106
+  },
+  "BD_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BD_good.png",
+   "id": 991107
+  },
+  "BE_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "BE_evil.png",
+   "id": 991108
+  },
+  "BE_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BE_good.png",
+   "id": 991109
+  },
+  "BF_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "BF_evil.png",
+   "id": 991110
+  },
+  "BF_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BF_good.png",
+   "id": 991111
+  },
+  "BG_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "BG_evil.png",
+   "id": 991112
+  },
+  "BG_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BG_good.png",
+   "id": 991113
+  },
+  "BH_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "BH_evil.png",
+   "id": 991114
+  },
+  "BH_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BH_good.png",
+   "id": 991115
+  },
+  "BI_good": {
+   "accent": null,
+   "file": "BI_good.png",
+   "id": 991116
+  },
+  "BK_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BK_good.png",
+   "id": 991117
+  },
+  "BL_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "BL_good.png",
+   "id": 991118
+  },
+  "UA_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UA_evil.png",
+   "id": 991119
+  },
+  "UA_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UA_good.png",
+   "id": 991120
+  },
+  "UB_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UB_evil.png",
+   "id": 991121
+  },
+  "UB_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UB_good.png",
+   "id": 991122
+  },
+  "UC_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UC_evil.png",
+   "id": 991123
+  },
+  "UC_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UC_good.png",
+   "id": 991124
+  },
+  "UD_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UD_evil.png",
+   "id": 991125
+  },
+  "UD_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UD_good.png",
+   "id": 991126
+  },
+  "UE_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UE_evil.png",
+   "id": 991127
+  },
+  "UE_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UE_good.png",
+   "id": 991128
+  },
+  "UF_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UF_evil.png",
+   "id": 991129
+  },
+  "UF_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UF_good.png",
+   "id": 991130
+  },
+  "UG_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UG_evil.png",
+   "id": 991131
+  },
+  "UG_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UG_good.png",
+   "id": 991132
+  },
+  "UH_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UH_evil.png",
+   "id": 991133
+  },
+  "UH_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UH_good.png",
+   "id": 991134
+  },
+  "UJ_good": {
+   "accent": null,
+   "file": "UJ_good.png",
+   "id": 991135
+  },
+  "UK": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UK.png",
+   "id": 991136
+  },
+  "UP_evil": {
+   "accent": [
+    106.0,
+    "green",
+    [],
+    58,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "minSat": 0.12,
+     "shade": 0.5
+    }
+   ],
+   "file": "UP_evil.png",
+   "id": 991137
+  },
+  "UP_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UP_good.png",
+   "id": 991138
+  },
+  "UQ_evil": {
+   "accent": [
+    135.0,
+    "green",
+    [],
+    25,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UQ_evil.png",
+   "id": 991139
+  },
+  "UR_good": {
+   "accent": [
+    30.0,
+    "orange",
+    [],
+    17,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "UR_good.png",
+   "id": 991140
+  },
+  "hive": {
+   "accent": [
+    65.0,
+    "green",
+    [],
+    22,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "hive.png",
+   "id": 991141
+  },
+  "reindeer": {
+   "accent": [
+    0.0,
+    "none",
+    [],
+    12,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "reindeer.png",
+   "id": 991142
+  },
+  "santa": {
+   "accent": [
+    21.0,
+    "none",
+    [],
+    22,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "santa.png",
+   "id": 991143
+  },
+  "sleigh": {
+   "accent": [
+    22.0,
+    "none",
+    [],
+    22,
+    {
+     "colours": {
+      "black": {
+       "h": 215,
+       "s": 0.12,
+       "v": 0.5
+      }
+     },
+     "shade": 0.5
+    }
+   ],
+   "file": "sleigh.png",
+   "id": 991144
+  }
+ },
+ "types": {
+  "BA_evil": {
+   "backdrop": "evil",
+   "picture": "BA_evil"
+  },
+  "BA_good": {
+   "backdrop": "good",
+   "picture": "BA_good"
+  },
+  "BB_evil": {
+   "backdrop": "evil",
+   "picture": "BB_evil"
+  },
+  "BB_good": {
+   "backdrop": "good",
+   "picture": "BB_good"
+  },
+  "BC_evil": {
+   "backdrop": "evil",
+   "picture": "BC_evil"
+  },
+  "BC_good": {
+   "backdrop": "good",
+   "picture": "BC_good"
+  },
+  "BD_evil": {
+   "backdrop": "evil",
+   "picture": "BD_evil"
+  },
+  "BD_good": {
+   "backdrop": "good",
+   "picture": "BD_good"
+  },
+  "BE_evil": {
+   "backdrop": "evil",
+   "picture": "BE_evil"
+  },
+  "BE_good": {
+   "backdrop": "good",
+   "picture": "BE_good"
+  },
+  "BF_evil": {
+   "backdrop": "evil",
+   "picture": "BF_evil"
+  },
+  "BF_good": {
+   "backdrop": "good",
+   "picture": "BF_good"
+  },
+  "BG_evil": {
+   "backdrop": "evil",
+   "picture": "BG_evil"
+  },
+  "BG_good": {
+   "backdrop": "good",
+   "picture": "BG_good"
+  },
+  "BH_evil": {
+   "backdrop": "evil",
+   "picture": "BH_evil"
+  },
+  "BH_good": {
+   "backdrop": "good",
+   "picture": "BH_good"
+  },
+  "BI_good": {
+   "backdrop": "good",
+   "picture": "BI_good"
+  },
+  "BJ_evil": {
+   "backdrop": "evil",
+   "picture": "sleigh"
+  },
+  "BK_evil": {
+   "backdrop": "evil",
+   "picture": "hive"
+  },
+  "BK_good": {
+   "backdrop": "good",
+   "picture": "BK_good"
+  },
+  "BL_good": {
+   "backdrop": "good",
+   "picture": "BL_good"
+  },
+  "UA_evil": {
+   "backdrop": "evil",
+   "picture": "UA_evil"
+  },
+  "UA_good": {
+   "backdrop": "good",
+   "picture": "UA_good"
+  },
+  "UB_evil": {
+   "backdrop": "evil",
+   "picture": "UB_evil"
+  },
+  "UB_good": {
+   "backdrop": "good",
+   "picture": "UB_good"
+  },
+  "UC_evil": {
+   "backdrop": "evil",
+   "picture": "UC_evil"
+  },
+  "UC_good": {
+   "backdrop": "good",
+   "picture": "UC_good"
+  },
+  "UD_evil": {
+   "backdrop": "evil",
+   "picture": "UD_evil"
+  },
+  "UD_good": {
+   "backdrop": "good",
+   "picture": "UD_good"
+  },
+  "UE_evil": {
+   "backdrop": "evil",
+   "picture": "UE_evil"
+  },
+  "UE_good": {
+   "backdrop": "good",
+   "picture": "UE_good"
+  },
+  "UF_evil": {
+   "backdrop": "evil",
+   "picture": "UF_evil"
+  },
+  "UF_good": {
+   "backdrop": "good",
+   "picture": "UF_good"
+  },
+  "UG_evil": {
+   "backdrop": "evil",
+   "picture": "UG_evil"
+  },
+  "UG_good": {
+   "backdrop": "good",
+   "picture": "UG_good"
+  },
+  "UH_evil": {
+   "backdrop": "evil",
+   "picture": "UH_evil"
+  },
+  "UH_good": {
+   "backdrop": "good",
+   "picture": "UH_good"
+  },
+  "UJ_evil": {
+   "backdrop": "evil",
+   "picture": "UJ_good"
+  },
+  "UJ_good": {
+   "backdrop": "good",
+   "picture": "UJ_good"
+  },
+  "UK_evil": {
+   "backdrop": "evil",
+   "picture": "UK"
+  },
+  "UK_good": {
+   "backdrop": "good",
+   "picture": "UK"
+  },
+  "UM_evil": {
+   "backdrop": "evil",
+   "picture": "santa"
+  },
+  "UN_evil": {
+   "backdrop": "evil",
+   "picture": "reindeer"
+  },
+  "UP_evil": {
+   "backdrop": "evil",
+   "picture": "UP_evil"
+  },
+  "UP_good": {
+   "backdrop": "good",
+   "picture": "UP_good"
+  },
+  "UQ_evil": {
+   "backdrop": "evil",
+   "picture": "UQ_evil"
+  },
+  "UR_good": {
+   "backdrop": "good",
+   "picture": "UR_good"
+  }
+ }
+}

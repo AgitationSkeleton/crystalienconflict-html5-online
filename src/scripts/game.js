@@ -2938,11 +2938,13 @@
          // Online: numbers in the bottom corners of the options' pictures: on the right, how many
          // of a unit are being made and wait their turn (the host's Unit queue); on the left, how
          // many of a thing this player has (a setting of theirs, "Show Unit/Building Count").
-         // And the pictures in this player's colour, or as the game drew them (another setting,
-         // "Team-Coloured Sidebar Icons"; the story's sidebar is the original's either way).
+         // And the pictures in this player's colour -- drawn again from their sources' layers
+         // (buildMenus) -- or as the game drew them (another setting, "Team-Coloured Sidebar
+         // Icons"; the story's sidebar is the original's either way).
          this.showCounts = function ()
          {
-            var tint = Online?.prefs?.teamIcons === false ? "none" : this.parent?.parent?.localColour;
+            var teamIcons = Online?.prefs?.teamIcons !== false && !!this.parent?.parent?.localColour;
+            var tint = teamIcons ? this.parent?.parent?.localColour : "none";
             var production = this.production?.();
             var queuing = !!production?.queuing;
             var owned = !!Online?.prefs?.ownedCounts && !this.parent?.spectating;
@@ -2979,6 +2981,10 @@
                if(option.MC.teamColour !== tint)
                {
                   __as.set(option.MC, "teamColour", tint);
+               }
+               if(option.MC.option?.teamPicture && option.MC.option.teamPicture._visible != teamIcons)
+               {
+                  __as.set(option.MC.option.teamPicture, "_visible", teamIcons);
                }
                this.badge?.(option, "making", 1001, queuing && option.isUnit ? production.making?.(option.type) : 0, true);
                this.badge?.(option, "having", 1002, owned ? have[option.type] || 0 : 0, false);
@@ -3141,6 +3147,18 @@
                   if(Online?.icons?.[_loc3_?.type])
                   {
                      MC?.option?.createEmptyMovieClip?.("picture", 1000)?.attachBitmap?.(flash.display.BitmapData?.loadBitmap?.("#" + Online.icons[_loc3_.type]), 1);
+                  }
+                  // (Online: and the picture drawn again from its sources' layers, its backdrop and
+                  // the thing apart, each coloured in the player's colour -- over the game's own,
+                  // while the player's settings ask for team-coloured icons: showCounts)
+                  var art = Online?.mugshots?.[_loc3_?.type];
+                  var ownColour = this.parent?.parent?.localColour;
+                  if(art && ownColour)
+                  {
+                     var teamPicture = MC?.option?.createEmptyMovieClip?.("teamPicture", 1001);
+                     teamPicture?.attachBitmap?.(flash.display.BitmapData?.loadBitmap?.("#" + art.backdrop, ownColour), 1);
+                     teamPicture?.attachBitmap?.(flash.display.BitmapData?.loadBitmap?.("#" + art.picture, ownColour), 2);
+                     __as.set(teamPicture, "_visible", false);
                   }
                   __as.set(MC?.progress, "_visible", false);
                   __as.set(this.options?.[_loc2_], "MC", MC);
