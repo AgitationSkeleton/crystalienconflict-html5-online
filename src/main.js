@@ -38,6 +38,8 @@ function loadScript(src) {
 // bitmaps under ids of their own -- the Alien Hive, and Santa's Sleigh, Santa and the Reindeer.
 const ICONS = { BK_evil: 990001, BJ_evil: 990002, UM_evil: 990003, UN_evil: 990004 };
 async function loadIcons(lib) {
+  // (and the buildings' repair sign, clip 1015 -- not exported -- for units mending in Hunt the Hero)
+  if (lib.exports.onlineRepairing === undefined) lib.exports.onlineRepairing = 1015;
   await Promise.all(Object.entries(ICONS).map(async ([type, id]) => {
     const r = await fetch(`assets/online/icons/${type}.png`);
     if (r.ok) lib.bitmaps.set(id, await createImageBitmap(await r.blob(), { colorSpaceConversion: 'none', premultiplyAlpha: 'default' }));

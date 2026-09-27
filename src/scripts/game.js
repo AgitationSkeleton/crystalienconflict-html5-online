@@ -5592,6 +5592,17 @@
             this.MCsprite?.health?.gotoAndStop?.(this.healthPerc);
             __as.set(this.MCsprite?.pulse, "_visible", this.pulse);
             this.pulse = false;
+            // (Online: mending in Hunt the Hero, the building's repair sign over it, flashing as
+            // it does there: Level.heroTick)
+            if(this.healing && !this.MCsprite?.repairing)
+            {
+               this.MCsprite?.attachMovie?.("onlineRepairing", "repairing", 100);
+            }
+            if(this.MCsprite?.repairing)
+            {
+               __as.set(this.MCsprite.repairing, "_visible", !!this.healing);
+               __as.set(this.MCsprite.repairing, "_y", -Math.round(this.stats?.altitude + this.stats?.size2 + 42));
+            }
             if(this.hilite)
             {
                this.color?.setTransform?.(hiliteColorTransform);
@@ -7975,7 +7986,14 @@
             {
                this.arena?.shroud?.clear?.();
             }
-            this.parent?.hud?.showMessage?.(dialogue?.("int_level" + this.level + "_start"));
+            // (Online: a skirmish's names its game mode -- int_level100_start_pizza and so on --
+            // where the dialogue has a line for it)
+            var startLine = "int_level" + this.level + "_start";
+            if(this.skirmish?.mode && dialogue?.(startLine + "_" + this.skirmish.mode))
+            {
+               startLine += "_" + this.skirmish.mode;
+            }
+            this.parent?.hud?.showMessage?.(dialogue?.(startLine));
             this.parent?.flash?.();
             this.parent?.sfx?.play?.("INT_windscape_start");
             this.parent?.sfx?.play?.("music_ingame_" + this.jukebox + "_start");
@@ -8672,6 +8690,17 @@
                   this.units?.push?.(new Unit(this, startingUnits?.[count] + "_" + player?.faction, spot?.x, spot?.y, 0.5, player));
                   count++;
                }
+               // Online: Hunt the Hero: every player's hero by their headquarters -- the Astros'
+               // Santa, the Aliens' Commander (heroTick).
+               if(settings?.mode == "hero")
+               {
+                  var heroDock = hq?.stats?.dockPos || base;
+                  spot = this.arena?.closestAvailable?.({x:heroDock?.x + 1,y:heroDock?.y + 2});
+                  var heroUnit = new Unit(this, player?.faction == "good" ? "UM_evil" : "UQ_evil", spot?.x, spot?.y, 0.5, player);
+                  heroUnit.hero = true;
+                  player.hero = heroUnit;
+                  this.units?.push?.(heroUnit);
+               }
                index++;
             }
             // Online: allies who share their money, by the host's settings, have one purse between
@@ -8808,6 +8837,7 @@
             this.pizzaStipend?.();
             this.handleFlags?.();
             this.crateTick?.();
+            this.heroTick?.();
             if(!this.active || this.count % 23)
             {
                return undefined;
@@ -8830,6 +8860,13 @@
                if(this.skirmish?.mode == "hq" && !this.teamHasHQ?.(player))
                {
                   this.knockOut?.(player);
+                  continue;
+               }
+               // Online: Hunt the Hero: a team whose hero (any of its players') is lost is out at
+               // once, all of it.
+               if(this.skirmish?.mode == "hero" && this.heroLost?.(player))
+               {
+                  this.knockOut?.(player, player.hero && !player.hero.active ? "int_heroFallen" : undefined);
                   continue;
                }
                if(!this.holdsOn?.(player))
@@ -8977,6 +9014,107 @@
          // Online: whether a player's team (the players of its colour still in) has a
          // headquarters: its own or one it has taken, and (if the settings say so) an Ops Ship
          // or Hive.
+         // ---- Hunt the Hero ------------------------------------------------------------------
+         // Every player has a hero (placed with their headquarters): the Astros' Santa, the Aliens'
+         // Commander.  A hero by its own headquarters of its side, or by an ally's (the Ops Ship
+         // and the Hive too, if they count as headquarters), mends; so does any unit of its team
+         // beside a hero, wherever it is (not a building).  Mending is as a building's repair,
+         // with its sign over the unit.  A hero lost puts its whole team out (skirmishOutcome).
+         this.heroTick = function ()
+         {
+            if(this.skirmish?.mode != "hero" || this.count % 10)
+            {
+               return undefined;
+            }
+            var heroes = new Array();
+            var unit;
+            for(var index of __as.keys(this.units))
+            {
+               unit = this.units[index];
+               if(unit?.active)
+               {
+                  unit.healing = false;
+                  if(unit.hero && unit.owner && !unit.owner.defeated && unit.posX >= 0)
+                  {
+                     heroes.push(unit);
+                  }
+               }
+            }
+            for(var hero of heroes)
+            {
+               if(this.byHeroHQ?.(hero))
+               {
+                  this.mendUnit?.(hero);
+               }
+               for(index of __as.keys(this.units))
+               {
+                  unit = this.units[index];
+                  if(unit?.active && unit != hero && unit.owner && unit.owner.team == hero.owner.team && !unit.stats?.pickup && unit.posX >= 0
+                     && distance?.(unit.posX, unit.posY, hero.posX, hero.posY) <= 150)
+                  {
+                     this.mendUnit?.(unit);
+                  }
+               }
+            }
+         };
+         // Whether a hero is by a headquarters that mends it: its owner's own of its side, or an
+         // ally's (the Ops Ship and the Hive as the settings count them).
+         this.byHeroHQ = function (hero)
+         {
+            var owner = hero.owner;
+            var building;
+            var code;
+            for(var index of __as.keys(this.buildings))
+            {
+               building = this.buildings[index];
+               if(!building?.active || !building.owner || building.owner.team != owner.team)
+               {
+                  continue;
+               }
+               code = building.type.substr(0, 2);
+               if(code != "BA" && !(code == "BK" && this.skirmish?.opsHQ !== false))
+               {
+                  continue;
+               }
+               if(building.owner == owner && building.type.substr(3) != owner.faction)
+               {
+                  continue;
+               }
+               if(distance?.(building.posX, building.posY, hero.posX, hero.posY) <= 480)
+               {
+                  return true;
+               }
+            }
+            return false;
+         };
+         // A unit mended a step (a hundredth of its health, and a little: about three hundredths
+         // a second), marked as mending for the repair sign (Unit.draw).
+         this.mendUnit = function (unit)
+         {
+            if(unit.healing || !(unit.health < unit.stats?.maxHealth))
+            {
+               return undefined;
+            }
+            unit.healing = true;
+            unit.health = Math.min(unit.stats.maxHealth, unit.health + Math.max(1, Math.round(unit.stats.maxHealth * 0.012)));
+            unit.healthPerc = Math.ceil(unit.health / unit.stats.maxHealth * 100);
+            if(unit.healthPerc > 25)
+            {
+               unit.MCsprite?.unit?.smoke?.removeMovieClip?.();
+            }
+         };
+         // Whether a player's team has lost a hero.
+         this.heroLost = function (player)
+         {
+            for(var other of this.players)
+            {
+               if(other && !other.spectator && other.team == player?.team && other.hero && !other.hero.active)
+               {
+                  return true;
+               }
+            }
+            return false;
+         };
          this.teamHasHQ = function (player)
          {
             var building;
@@ -9295,7 +9433,7 @@
             this.knockOut?.(victim);
          };
          // A player out of the game at once: everything of theirs goes.
-         this.knockOut = function (player)
+         this.knockOut = function (player, line)
          {
             if(!player || player.defeated)
             {
@@ -9308,7 +9446,7 @@
                   this.buildings?.[at]?.destroy?.();
                }
             }
-            this.defeat?.(player);
+            this.defeat?.(player, line);
          };
          this.removeFlag = function (player)
          {
@@ -9930,6 +10068,12 @@
                // from it Santa and his Reindeer.
                tech.BJ_evil = !!owner?.sleigh;
                tech.UM_evil = tech.UN_evil = has("BJ_evil");
+               // (Hunt the Hero: the heroes are the ones there are -- the Sleigh offers only its
+               // Reindeer, the Hive no Commander.)
+               if(this.skirmish?.mode == "hero")
+               {
+                  tech.UM_evil = tech.UQ_evil = false;
+               }
                // Pizza Mode's pizza, from a headquarters.
                tech.UJ_good = this.skirmish?.mode == "pizza" && has("BA_good");
                tech.UJ_evil = this.skirmish?.mode == "pizza" && has("BA_evil");

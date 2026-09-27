@@ -13,7 +13,7 @@ const SHARE = [['off', 'Off'], ['humans', 'Human control only'], ['all', 'All']]
 // anything with a setting yet; the rest are shown, and marked as coming.  `when` says which
 // other settings a setting depends on (the pizza's cost is only for Pizza Mode).
 const MATCH = [
-  { key: 'mode', label: 'Game mode', ready: true, choices: [['all', 'Destroy all'], ['structures', 'Destroy structures'], ['hq', 'Destroy HQs'], ['pizza', 'Pizza mode'], ['ctf', 'Capture the flag']] },
+  { key: 'mode', label: 'Game mode', ready: true, choices: [['all', 'Destroy all'], ['structures', 'Destroy structures'], ['hq', 'Destroy HQs'], ['pizza', 'Pizza mode'], ['ctf', 'Capture the flag'], ['hero', 'Hunt the Hero']] },
   { key: 'cash', label: 'Starting money', ready: true, choices: [[2500, '$2,500'], [5000, '$5,000'], [7500, '$7,500'], [10000, '$10,000'], [15000, '$15,000'], [20000, '$20,000'], [30000, '$30,000'], [50000, '$50,000']] },
   { key: 'units', label: 'Starting units', ready: true, choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']] },
   { key: 'prebuilt', label: 'Base', ready: true, choices: [[false, 'HQ only'], [true, 'HQ, power, barracks']] },
@@ -41,7 +41,7 @@ const MATCH = [
   { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy'], ['hive', 'Hive'], ['random', 'Random']] },
 ];
 
-const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', hq: 'Destroy HQs', pizza: 'Pizza mode', ctf: 'Capture the flag' };
+const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', hq: 'Destroy HQs', pizza: 'Pizza mode', ctf: 'Capture the flag', hero: 'Hunt the Hero' };
 
 const MATCH_DEFAULTS = {
   map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true,

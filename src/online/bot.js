@@ -44,6 +44,7 @@ const PROFILES = {
   hard: { react: 15, speed: 8, miners: 4, army: 10, guns: 40, quiet: 900, attackEvery: 1, share: 3, raidEvery: 450, raidThreatened: 180, raidSize: 7, aggression: 30, hunters: 100, patrol: 300, superweapon: true, buildGap: 0, buildings: Infinity, outposts: 4, reach: 3, sortieGap: 0 },
 };
 const CELL = 96;                              // a tile, in world pixels
+const HERO_LEASH = 6;                         // cells a hero may be sent from its post (Hunt the Hero)
 
 const NONE = 0, LOW = 1, MEDIUM = 2, HIGH = 3, CRITICAL = 4;
 
@@ -156,6 +157,7 @@ export class Bot {
     if (this.every(15, 11 * this.id)) this.airlift();
     if (this.every(15, 7 * this.id)) this.infiltrate();
     if (this.every(15, 3 * this.id)) this.missions();
+    if (this.settings.mode === 'hero' && this.every(15, 9 * this.id)) this.heroes();
     this.idleWatch();
     if (this.settings.mode === 'pizza' && this.every(15, 13 * this.id)) this.pizza();
     if (--this.expertTimer <= 0) {
@@ -562,6 +564,13 @@ export class Bot {
   }
 
   order(u, kind, extra) {
+    // (Hunt the Hero: this player's hero goes nowhere far from its post: see heroes)
+    if (u.hero && this.settings.mode === 'hero') {
+      const post = this.heroPost();
+      const at = extra && (extra.anchor || extra.dest || extra.target);
+      const x = at && (at.posX !== undefined ? at.posX : at.x), y = at && (at.posY !== undefined ? at.posY : at.y);
+      if (post && (kind === 'enter' || kind === 'capture' || !at || cells(post.x, post.y, x, y) > HERO_LEASH)) return;
+    }
     u.mission = Object.assign({ kind, since: this.tick }, extra || {});
     u.botHeld = 0;
     if (kind === 'hunt' || kind === 'attack' || kind === 'rescue') {
@@ -632,7 +641,8 @@ export class Bot {
   }
 
   // §6.2: threat first, nearest second.
-  value(u, t) { return (t.stats.threat || 0) * 4096 + Math.max(0, 4095 - cells(u.posX, u.posY, t.posX, t.posY)); }
+  // (Hunt the Hero: an enemy's hero before anything)
+  value(u, t) { return ((t.stats.threat || 0) + (t.hero && this.settings.mode === 'hero' ? 64 : 0)) * 4096 + Math.max(0, 4095 - cells(u.posX, u.posY, t.posX, t.posY)); }
 
   huntPick(u) {
     let best = null, bestV = -1, ties = [];
@@ -783,6 +793,41 @@ export class Bot {
     return true;
   }
 
+  // ---- Hunt the Hero -----------------------------------------------------------------------------
+  // This player's hero keeps to its headquarters, where it mends (Level.heroTick), guarding it;
+  // the others' heroes are what raids and hunts go for (value, raid).
+  heroPost() {
+    const own = this.ownBuildings((b) => this.code(b) === 'BA' && this.side(b) === this.player.faction)[0];
+    const hq = own || this.level.buildings.find((b) => b.active && b.owner && b.owner.team === this.player.team && b.owner !== this.player
+      && (this.code(b) === 'BA' || (this.code(b) === 'BK' && this.settings.opsHQ !== false)));
+    return hq ? { x: hq.stats.dockX, y: hq.stats.dockY } : null;
+  }
+
+  heroes() {
+    const post = this.heroPost();
+    if (!post) return;
+    for (const u of this.own((x) => x.hero)) {
+      if (u.posX < 0) continue;
+      const m = this.missionOf(u);
+      const a = m.anchor;
+      if (m.kind === 'guard_area' && a && cells(a.x, a.y, post.x, post.y) <= 2) continue;
+      u.mission = { kind: 'guard_area', anchor: { x: post.x, y: post.y }, since: this.tick };
+      u.target = false;
+      u.nav.voyage(post.x, post.y, true);
+    }
+  }
+
+  // The nearest enemy hero this player has seen where it is.
+  enemyHero(c) {
+    let best = null, bestD = Infinity;
+    for (const u of this.level.units) {
+      if (!u.active || !u.hero || !u.owner || !this.hostile(u) || u.posX < 0 || !this.hasScouted(u.tilePos)) continue;
+      const d = cells(c.x * CELL, c.y * CELL, u.posX, u.posY);
+      if (d < bestD) { bestD = d; best = u; }
+    }
+    return best;
+  }
+
   // ---- §4.3 raid ---------------------------------------------------------------------------------
   raid() {
     const threatened = this.underAttack();
@@ -800,6 +845,7 @@ export class Bot {
         if (d < bestD) { bestD = d; aim = t; }
       }
     }
+    if (!aim && this.settings.mode === 'hero') aim = this.enemyHero(c);
     if (!aim && (this.player.faction === 'evil' || this.settings.mode === 'pizza')) aim = this.revenueTarget(c);
     if (!aim) aim = this.bestAssault(c);
     if (!aim) return;
