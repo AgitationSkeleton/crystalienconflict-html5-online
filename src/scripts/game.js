@@ -786,7 +786,8 @@
          var _loc2_ = Online?.touch && this.dialogueStore?.[id + "_touch"]?.length ? this.dialogueStore[id + "_touch"] : this.dialogueStore?.[id];
          if(_loc2_?.length)
          {
-            return _loc2_;
+            // (Online: in the player's English: Defense Station, Technology Center)
+            return Online?.spell ? Online.spell(_loc2_) : _loc2_;
          }
          return "";
       };

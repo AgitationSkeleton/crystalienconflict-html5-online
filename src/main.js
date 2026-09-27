@@ -12,6 +12,7 @@ import { ErrorReporter } from './online/errors.js';
 import { Net, serverRoot } from './online/net.js';
 import { installTouch } from './online/touch.js';
 import { scoreServer, askScoreName } from './hiscore.js';
+import { american } from './online/spelling.js';
 
 // serviceurl: the high-score server (src/hiscore.js), shared with the 1:1 port.  username: the
 // game sends a finished Conflict run's score only for someone logged in to LEGO's site; here
@@ -94,6 +95,8 @@ const errors = new ErrorReporter(player);  // (a notice, and a report to copy, w
 player.online.Bot = Bot;                   // the computer players (the game makes them)
 player.online.icons = ICONS;
 player.online.colourCss = COLOUR_CSS;       // the players' colours, for names in messages
+// The game's text in the player's English (a setting: the game's dialogue asks, src/online/spelling.js).
+player.online.spell = (text) => (player.online.prefs && player.online.prefs.english === 'american' ? american(text) : text);
 
 // ?test stops the clock: frames advance only when __step() is called, so a test decides
 // exactly when each click lands.  ?seed=N makes the random numbers repeatable.

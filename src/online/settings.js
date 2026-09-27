@@ -37,6 +37,7 @@ export const DEFAULTS = {
   ignoreEngineersDrag: false, // ... and engineers and saboteurs
   multiMinerReturn: false,  // several miners selected go home at a click on a headquarters
   multiFighterReturn: false, // ... and several fighters (Boomerangs), each to its own home
+  english: 'european',      // the game's and the menus' spelling: 'european' (as the game's) or 'american'
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -55,6 +56,7 @@ export function loadSettings() {
   if (!['all', 'mars', 'snowy', 'hive', 'random'].includes(s.palette)) s.palette = DEFAULTS.palette;
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
   if (!['off', 'units', 'buildings', 'all'].includes(s.healthBars)) s.healthBars = DEFAULTS.healthBars;
+  if (!['european', 'american'].includes(s.english)) s.english = DEFAULTS.english;
   for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'teamIcons', 'storySpecOps', 'ignoreMinersDrag', 'ignoreEngineersDrag', 'multiMinerReturn', 'multiFighterReturn']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);

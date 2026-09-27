@@ -3,6 +3,7 @@
 // comes back here when a match or a story game ends (Online.menu, called from game.js).
 
 import { COLOURS, COLOUR_CSS, UI_SCALES, loadSettings, saveSettings } from './settings.js';
+import { american } from './spelling.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
@@ -133,6 +134,7 @@ export class OnlineUI {
     this.buildSettings();
     this.applyVolumes();
     this.applyPrefs();
+    this.watchSpelling();
     this.wireNet();
     // The app: an update fetched is installed on quitting.
     if (window.crystalienApp) window.crystalienApp.onUpdateReady((v) => this.toast('Version ' + v + ' of the app is ready: it installs when you close the app.'));
@@ -637,7 +639,7 @@ export class OnlineUI {
       const label = (r.host || 'Someone') + ' - ' + (MODE_NAMES[r.mode] || r.mode) + ' - ' + (maps[String(r.map)] || 'Eclipse');
       const row = el('div', { class: 'roomrow' + (r.phase === 'playing' ? ' playing' : '') },
         el('span', { class: 'lock', title: r.access === 'password' ? 'Needs a password' : '', text: r.access === 'password' ? '\u{1F512}' : '' }),
-        el('span', { class: 'label', text: label }),
+        el('span', { class: 'label nospell', text: label }),
         el('span', { class: 'count', text: r.players + '/' + r.slots }),
         ping,
         el('span', { class: 'phase', text: r.phase === 'playing' ? 'Playing' : 'In lobby' }),
@@ -722,7 +724,7 @@ export class OnlineUI {
 
   // ---- online: a room --------------------------------------------------------------------------
   buildRoom() {
-    this.roomTitle = el('h1', { text: 'Game' });
+    this.roomTitle = el('h1', { class: 'nospell', text: 'Game' });
     this.roomMapSelect = el('select', { 'aria-label': 'Map', onchange: (e) => this.setRoomMatch({ map: e.target.value }) });
     this.roomSlotCount = el('select', { 'aria-label': 'Slots', onchange: (e) => this.net.setCount(Number(e.target.value)) });
     for (let n = 2; n <= 6; n++) this.roomSlotCount.append(el('option', { value: n, text: n + ' slots' }));
@@ -898,7 +900,7 @@ export class OnlineUI {
     const seated = new Set(r.slots.slice(0, r.count).filter((x) => x.kind === 'member').map((x) => x.member));
     const watchers = r.members.filter((x) => !seated.has(x.id));
     this.roomWatchers.replaceChildren(
-      el('span', { text: watchers.length ? 'Watching: ' + watchers.map((x) => x.name).join(', ') : '' }),
+      el('span', { class: 'nospell', text: watchers.length ? 'Watching: ' + watchers.map((x) => x.name).join(', ') : '' }),
       mySlot >= 0 ? el('button', { class: 'btn small', onclick: () => net.spectate() }, 'Watch instead') : null);
     // the match: the host changes it; everyone sees it
     this.roomMatchForm.replaceChildren(...MATCH.flatMap((x) => {
@@ -1072,26 +1074,68 @@ export class OnlineUI {
     const slider = (key) => el('input', { type: 'range', min: 0, max: 100, value: Math.round(st[key] * 100), 'aria-label': key,
       oninput: (e) => { st[key] = Number(e.target.value) / 100; save(); },
       onchange: () => { if (key !== 'music') this.sound(key === 'ui' ? 'INT_cursor_select' : 'INT_collect'); } });
+    // (its own words as they are, in either spelling: .nospell)
+    const english = el('select', { class: 'nospell', 'aria-label': 'English Spelling', onchange: (e) => { st.english = e.target.value; save(); this.respell(); } },
+      el('option', { value: 'european', text: 'European (Colour, Centre, Defence)', selected: st.english !== 'american' }),
+      el('option', { value: 'american', text: 'American (Color, Center, Defense)', selected: st.english === 'american' }));
+    const section = (title) => el('div', { class: 'wide section', text: title });
     this.settingsBody.replaceChildren(
       el('label', { text: 'Name' }), name,
       el('label', { text: 'Faction' }), faction,
       el('label', { text: 'Colour' }), colours,
+      section('Display'),
       el('label', { text: 'Map palette' }), palette,
       el('label', { text: 'In-Game Interface Size' }), size, sizeNote,
-      el('label', { text: 'Scroll at the edges' }), onOff('edgeScroll', 'Scroll at the edges'),
-      el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
-      el('label', { text: 'Show Unit/Building Count' }), onOff('ownedCounts', 'Show Unit/Building Count'),
+      el('label', { text: 'English Spelling' }), english,
       el('label', { text: 'Team-Coloured Sidebar Icons' }), onOff('teamIcons', 'Team-Coloured Sidebar Icons'),
-      el('label', { text: 'Special Ops in the Story' }), onOff('storySpecOps', 'Special Ops in the Story'),
+      el('label', { text: 'Show Unit/Building Count' }), onOff('ownedCounts', 'Show Unit/Building Count'),
       el('label', { text: 'Always Show Health Bars' }), healthBars,
+      section('Controls'),
+      el('label', { text: 'Scroll at the edges' }), onOff('edgeScroll', 'Scroll at the edges'),
       el('label', { text: 'Ignore Miners When Dragging' }), onOff('ignoreMinersDrag', 'Ignore Miners When Dragging'),
       el('label', { text: 'Ignore Engineers When Dragging' }), onOff('ignoreEngineersDrag', 'Ignore Engineers When Dragging'),
       el('label', { text: 'Allow Multiple Miners to Return On Click' }), onOff('multiMinerReturn', 'Allow Multiple Miners to Return On Click'),
       el('label', { text: 'Allow Multiple Fighters to Return On Click' }), onOff('multiFighterReturn', 'Allow Multiple Fighters to Return On Click'),
+      section('Gameplay'),
+      el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
+      el('label', { text: 'Special Ops in the Story' }), onOff('storySpecOps', 'Special Ops in the Story'),
+      section('Sound'),
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface sounds' }), slider('ui'),
       this.appNote());
+  }
+
+  // The menus' own text in the player's English (spelling.js; the game's goes by the same setting,
+  // through its dialogue): every piece of text they show, as it is made or changed, and all of it
+  // when the setting changes -- kept as it was written, to go back to.  Not the chat, nor names
+  // and what players typed (.nospell, and inputs, which hold no text of this kind).
+  watchSpelling() {
+    this.spelledFrom = new WeakMap();
+    const fix = (node) => {
+      if (!node.parentElement || node.parentElement.closest('.chatlog, .nospell, .name')) return;
+      const now = node.data;
+      let written = this.spelledFrom.get(node);
+      if (written === undefined || (now !== written && now !== american(written))) {
+        written = now;
+        this.spelledFrom.set(node, written);
+      }
+      const want = this.settings.english === 'american' ? american(written) : written;
+      if (now !== want) node.data = want;
+    };
+    const walk = (root) => {
+      if (root.nodeType === 3) return fix(root);
+      const it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let n = it.nextNode(); n; n = it.nextNode()) fix(n);
+    };
+    this.respell = () => walk(this.root);
+    new MutationObserver((changes) => {
+      for (const c of changes) {
+        if (c.type === 'characterData') fix(c.target);
+        else for (const n of c.addedNodes) walk(n);
+      }
+    }).observe(this.root, { childList: true, subtree: true, characterData: true });
+    this.respell();
   }
 
   // The app (client/): its version, or, in a browser, where to get it.
@@ -1107,7 +1151,8 @@ export class OnlineUI {
   applyPrefs() {
     this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons !== false, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off',
       ignoreMinersDrag: !!this.settings.ignoreMinersDrag, ignoreEngineersDrag: !!this.settings.ignoreEngineersDrag,
-      multiMinerReturn: !!this.settings.multiMinerReturn, multiFighterReturn: !!this.settings.multiFighterReturn };
+      multiMinerReturn: !!this.settings.multiMinerReturn, multiFighterReturn: !!this.settings.multiFighterReturn,
+      english: this.settings.english === 'american' ? 'american' : 'european' };
   }
 
   applyVolumes() {
