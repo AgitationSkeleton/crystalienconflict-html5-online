@@ -332,7 +332,8 @@ export class OnlineUI {
               el('label', { text: 'Password' }), this.lobbyPassword),
             el('div', { class: 'actions' }, this.lobbyHostButton),
             this.lobbyHostNote)),
-        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.matchForm))));
+        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.matchForm,
+          el('div', { class: 'actions' }, el('button', { class: 'btn small', onclick: () => this.resetMatch() }, 'Reset all to default'))))));
     this.screens.lobby = s;
     this.root.append(s);
   }
@@ -435,6 +436,13 @@ export class OnlineUI {
     const problem = this.problem();
     this.lobbyNotice.textContent = problem || '';
     this.startButton.disabled = !!problem;
+  }
+
+  // The Match panel's settings as they are at first (the map and the players' slots stay).
+  resetMatch() {
+    for (const m of MATCH) this.match[m.key] = MATCH_DEFAULTS[m.key];
+    this.sound('INT_cursor_select');
+    this.renderLobby();
   }
 
   // Why the match cannot start, if it cannot.
@@ -694,6 +702,7 @@ export class OnlineUI {
     this.roomWatchers = el('div', { class: 'watchers' });
     this.roomNotice = el('div', { class: 'notice' });
     this.roomMatchForm = el('div', { class: 'form two' });
+    this.roomMatchReset = el('button', { class: 'btn small', onclick: () => this.resetRoomMatch() }, 'Reset all to default');
     this.roomStart = el('button', { class: 'btn small primary', onclick: () => this.startOnline() }, 'Start');
     this.roomCode = el('span', { class: 'code', text: '' });
     this.roomCodeShown = false;
@@ -739,7 +748,8 @@ export class OnlineUI {
               el('button', { class: 'btn small', onclick: () => this.copyInvite() }, 'Copy link')),
             this.roomAccessRow)),
         el('div', { class: 'panel chatpanel' }, el('h2', { text: 'Chat' }), el('div', { class: 'body chat' }, this.chatLog, this.chatInput)),
-        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.roomMatchForm))));
+        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.roomMatchForm,
+          el('div', { class: 'actions' }, this.roomMatchReset)))));
     this.screens.room = s;
     this.root.append(s);
   }
@@ -771,6 +781,14 @@ export class OnlineUI {
   setRoomMatch(change) {
     if (!this.net.isHost) return;
     this.net.setMatch(Object.assign(this.roomMatch(), change));
+  }
+
+  // (the host's: as the lobby's resetMatch)
+  resetRoomMatch() {
+    const change = {};
+    for (const m of MATCH) change[m.key] = MATCH_DEFAULTS[m.key];
+    this.sound('INT_cursor_select');
+    this.setRoomMatch(change);
   }
 
   renderRoom() {
@@ -863,6 +881,8 @@ export class OnlineUI {
     this.roomNotice.textContent = problem || (host ? '' : 'The host starts the match.');
     this.roomStart.style.display = host ? '' : 'none';
     this.roomStart.disabled = !!problem;
+    this.roomMatchReset.style.display = host ? '' : 'none';
+    this.roomMatchReset.disabled = r.phase === 'playing';
     this.renderChat();
   }
 
