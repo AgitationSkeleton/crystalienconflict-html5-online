@@ -45,11 +45,12 @@ const MATCH = [
 ];
 
 // The Match panel's parts, in this order, each under a thin line; within one, its settings in
-// alphabetical order.  (Both panels, the skirmish's and a room's.)
+// alphabetical order.  (Both panels, the skirmish's and a room's.)  The parts stand side by side,
+// as many across as the window has room for (.match-groups), so a wider window shows them all.
 const MATCH_GROUPS = ['Game', 'Combat', 'Start', 'Economy', 'Production and speed', 'Special Ops', 'Crates', 'Allies', 'Map'];
-function matchRows(row) {
-  return MATCH_GROUPS.flatMap((group) => [el('div', { class: 'wide section', text: group }),
-    ...MATCH.filter((m) => m.group === group).sort((a, b) => a.label.localeCompare(b.label)).flatMap(row)]);
+function matchGroups(row) {
+  return MATCH_GROUPS.map((group) => el('div', { class: 'group' }, el('div', { class: 'section', text: group }),
+    el('div', { class: 'form' }, ...MATCH.filter((m) => m.group === group).sort((a, b) => a.label.localeCompare(b.label)).flatMap(row))));
 }
 
 // The games list, refreshed by itself this often (seconds) while it is shown and the page seen.
@@ -306,7 +307,7 @@ export class OnlineUI {
     this.mapPlayers = el('div', { class: 'players' });
     this.slotList = el('div', { class: 'slots' });
     this.lobbyNotice = el('div', { class: 'notice' });
-    this.matchForm = el('div', { class: 'form two' });
+    this.matchForm = el('div', { class: 'match-groups' });
     this.startButton = el('button', { class: 'btn small primary', onclick: () => this.start() }, 'Start');
     // Open to others: this lobby, its settings and computer players, becomes a room on the
     // server (as Online's Host does), for people to join by the list, a password, or the link.
@@ -434,7 +435,7 @@ export class OnlineUI {
     }
     this.slotList.replaceChildren(...rows);
 
-    this.matchForm.replaceChildren(...matchRows((m) => {
+    this.matchForm.replaceChildren(...matchGroups((m) => {
       const select = el('select', { 'aria-label': m.label, disabled: !m.ready || (m.when && !m.when(this.match)), onchange: (e) => {
         const c = m.choices.find(([v]) => String(v) === e.target.value);
         this.match[m.key] = c ? c[0] : this.match[m.key];
@@ -743,7 +744,7 @@ export class OnlineUI {
     this.roomSlots = el('div', { class: 'slots' });
     this.roomWatchers = el('div', { class: 'watchers' });
     this.roomNotice = el('div', { class: 'notice' });
-    this.roomMatchForm = el('div', { class: 'form two' });
+    this.roomMatchForm = el('div', { class: 'match-groups' });
     this.roomMatchReset = el('button', { class: 'btn small', onclick: () => this.resetRoomMatch() }, 'Reset all to default');
     this.roomStart = el('button', { class: 'btn small primary', onclick: () => this.startOnline() }, 'Start');
     this.roomCode = el('span', { class: 'code', text: '' });
@@ -910,9 +911,10 @@ export class OnlineUI {
     const watchers = r.members.filter((x) => !seated.has(x.id));
     this.roomWatchers.replaceChildren(
       el('span', { class: 'nospell', text: watchers.length ? 'Watching: ' + watchers.map((x) => x.name).join(', ') : '' }),
-      mySlot >= 0 ? el('button', { class: 'btn small', onclick: () => net.spectate() }, 'Watch instead') : null);
+      // (replaceChildren would write a null out as the word)
+      ...(mySlot >= 0 ? [el('button', { class: 'btn small', onclick: () => net.spectate() }, 'Watch instead')] : []));
     // the match: the host changes it; everyone sees it
-    this.roomMatchForm.replaceChildren(...matchRows((x) => {
+    this.roomMatchForm.replaceChildren(...matchGroups((x) => {
       const select = el('select', { 'aria-label': x.label, disabled: !host || !x.ready || (x.when && !x.when(m)), onchange: (e) => {
         const c = x.choices.find(([v]) => String(v) === e.target.value);
         this.setRoomMatch({ [x.key]: c ? c[0] : m[x.key] });
