@@ -41,6 +41,8 @@ const MATCH = [
   { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy'], ['hive', 'Hive'], ['random', 'Random']] },
 ];
 
+// The games list, refreshed by itself this often (seconds) while it is shown and the page seen.
+const ROOM_REFRESH_S = 10;
 const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', hq: 'Destroy HQs', pizza: 'Pizza mode', ctf: 'Capture the flag', hero: 'Hunt the Hero' };
 
 const MATCH_DEFAULTS = {
@@ -199,14 +201,11 @@ export class OnlineUI {
     this.showAddress(name === 'room' && this.net && this.net.code);
     if (name === 'lobby') this.renderLobby();
     if (name === 'settings') this.renderSettings();
-    // (the list of games kept current while it is looked at)
+    // (the list of games kept current while it is looked at: roomTick)
     clearInterval(this.roomTimer);
     if (name === 'online') {
       this.refreshRooms();
-      this.roomTimer = setInterval(() => {
-        if (this.screens.online.classList.contains('active')) this.refreshRooms(true);
-        else clearInterval(this.roomTimer);
-      }, 10000);
+      this.roomTimer = setInterval(() => this.roomTick(), 1000);
     }
     if (name === 'room') this.renderRoom();
     const first = this.screens[name] && this.screens[name].querySelector('button:not(:disabled), select, input');
@@ -557,6 +556,7 @@ export class OnlineUI {
   buildOnline() {
     this.roomList = el('div', { class: 'rooms' });
     this.onlineNotice = el('div', { class: 'notice' });
+    this.refreshNote = el('div', { class: 'footnote' });
     this.joinCode = el('input', { type: 'text', maxlength: 6, placeholder: 'ABC123', 'aria-label': 'Room code', class: 'code-input',
       onkeydown: (e) => { if (e.key === 'Enter') this.joinByCode(); } });
     this.hostAccess = el('select', { 'aria-label': 'Who can join', onchange: () => { this.hostPassword.disabled = this.hostAccess.value !== 'password'; } },
@@ -570,7 +570,7 @@ export class OnlineUI {
         el('button', { class: 'btn small', onclick: back }, 'Back'),
         el('button', { class: 'btn small', onclick: () => this.refreshRooms() }, 'Refresh')),
       el('div', { class: 'online-grid' },
-        el('div', { class: 'panel' }, el('h2', { text: 'Games' }), el('div', { class: 'body' }, this.roomList, this.onlineNotice)),
+        el('div', { class: 'panel' }, el('h2', { text: 'Games' }), el('div', { class: 'body' }, this.roomList, this.onlineNotice, this.refreshNote)),
         el('div', { class: 'side' },
           el('div', { class: 'panel' }, el('h2', { text: 'Host a game' }),
             el('div', { class: 'body form' },
@@ -583,9 +583,40 @@ export class OnlineUI {
     this.root.append(s);
   }
 
+  // Each second while the games list is shown: its countdown, and at nought a refresh.  Paused
+  // while the page is not seen (another tab, the window covered); seen again after the list
+  // would have been refreshed, at once.
+  roomTick() {
+    if (!this.screens.online.classList.contains('active')) {
+      clearInterval(this.roomTimer);
+      return;
+    }
+    if (document.hidden) {
+      if (!this.roomHiddenAt) this.roomHiddenAt = Date.now();
+      return;
+    }
+    if (this.roomHiddenAt) {
+      const away = Date.now() - this.roomHiddenAt;
+      this.roomHiddenAt = 0;
+      if (away >= ROOM_REFRESH_S * 1000) {
+        this.refreshRooms(true);
+        return;
+      }
+    }
+    this.roomCountdown = (this.roomCountdown || ROOM_REFRESH_S) - 1;
+    if (this.roomCountdown <= 0) this.refreshRooms(true);
+    else this.showCountdown();
+  }
+
+  showCountdown() {
+    this.refreshNote.textContent = this.net ? 'Refreshing in ' + this.roomCountdown + ' s' : '';
+  }
+
   // (quiet: the list refreshed by itself, without "Looking for games..." each time)
   async refreshRooms(quiet) {
     if (!this.net) return;
+    this.roomCountdown = ROOM_REFRESH_S;
+    this.showCountdown();
     const mine = (this.refreshes = (this.refreshes || 0) + 1);
     if (!quiet) this.onlineNotice.textContent = 'Looking for games...';
     let rooms;
