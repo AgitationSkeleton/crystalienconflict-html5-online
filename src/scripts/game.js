@@ -3165,13 +3165,20 @@
                {
                   continue;
                }
-               if(option.MC.teamColour !== tint)
+               // (A picture already in this player's colour -- an Astro's on Orange, an Alien's on
+               // Green, the colours the game drew them in -- as the game drew it; the other side's,
+               // from a building taken from them, in this player's colour.  The Aliens' pizza has
+               // the Astros' picture.)
+               var side = option.type == "UJ_evil" || String(option.type).slice(-5) != "_evil" ? "good" : "evil";
+               var coloured = teamIcons && tint != (side == "evil" ? "green" : "orange");
+               var look = coloured ? tint : "none";
+               if(option.MC.teamColour !== look)
                {
-                  __as.set(option.MC, "teamColour", tint);
+                  __as.set(option.MC, "teamColour", look);
                }
-               if(option.MC.option?.teamPicture && option.MC.option.teamPicture._visible != teamIcons)
+               if(option.MC.option?.teamPicture && option.MC.option.teamPicture._visible != coloured)
                {
-                  __as.set(option.MC.option.teamPicture, "_visible", teamIcons);
+                  __as.set(option.MC.option.teamPicture, "_visible", coloured);
                }
                this.badge?.(option, "making", 1001, queuing && option.isUnit ? production.making?.(option.type) : 0, true);
                this.badge?.(option, "having", 1002, owned ? have[option.type] || 0 : 0, false);
