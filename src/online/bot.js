@@ -44,7 +44,10 @@ const PROFILES = {
   hard: { react: 15, speed: 8, miners: 4, army: 10, guns: 40, quiet: 900, attackEvery: 1, share: 3, raidEvery: 450, raidThreatened: 180, raidSize: 7, aggression: 30, hunters: 100, patrol: 300, superweapon: true, buildGap: 0, buildings: Infinity, outposts: 4, reach: 3, sortieGap: 0 },
 };
 const CELL = 96;                              // a tile, in world pixels
-const HERO_LEASH = 6;                         // cells a hero may be sent from its post (Hunt the Hero)
+// Hunt the Hero: a hero's rounds of its base, in cells from its headquarters (about a circle of
+// four: inside the five cells where the headquarters mends it); no trigonometry, so that every
+// browser has the same.
+const HERO_BEAT = [[4, 0], [3, 3], [0, 4], [-3, 3], [-4, 0], [-3, -3], [0, -4], [3, -3]];
 
 const NONE = 0, LOW = 1, MEDIUM = 2, HIGH = 3, CRITICAL = 4;
 
@@ -564,13 +567,9 @@ export class Bot {
   }
 
   order(u, kind, extra) {
-    // (Hunt the Hero: this player's hero goes nowhere far from its post: see heroes)
-    if (u.hero && this.settings.mode === 'hero') {
-      const post = this.heroPost();
-      const at = extra && (extra.anchor || extra.dest || extra.target);
-      const x = at && (at.posX !== undefined ? at.posX : at.x), y = at && (at.posY !== undefined ? at.posY : at.y);
-      if (post && (kind === 'enter' || kind === 'capture' || !at || cells(post.x, post.y, x, y) > HERO_LEASH)) return;
-    }
+    // (Hunt the Hero: this player's hero is ordered by heroBrain alone, while it has a
+    // headquarters to go home to; without one, it goes with everything else)
+    if (u.hero && this.settings.mode === 'hero' && !this.steering && this.heroHQ()) return;
     u.mission = Object.assign({ kind, since: this.tick }, extra || {});
     u.botHeld = 0;
     if (kind === 'hunt' || kind === 'attack' || kind === 'rescue') {
@@ -794,27 +793,145 @@ export class Bot {
   }
 
   // ---- Hunt the Hero -----------------------------------------------------------------------------
-  // This player's hero keeps to its headquarters, where it mends (Level.heroTick), guarding it;
-  // the others' heroes are what raids and hunts go for (value, raid).
-  heroPost() {
+  // This player's hero, each second (heroBrain): hurt, it goes home to mend by its headquarters
+  // (Level.heroTick mends it there, and anything of its team beside it anywhere) and stays till
+  // it is well; else it goes out with a raid party, a little behind it, mending it, if the enemy
+  // there is not the stronger; else it makes rounds to a hurt unit of its team, where that is
+  // safe; else it walks rounds of its base.  The others' heroes are what raids and hunts go for
+  // (value, raid).
+  heroHQ() {
     const own = this.ownBuildings((b) => this.code(b) === 'BA' && this.side(b) === this.player.faction)[0];
-    const hq = own || this.level.buildings.find((b) => b.active && b.owner && b.owner.team === this.player.team && b.owner !== this.player
-      && (this.code(b) === 'BA' || (this.code(b) === 'BK' && this.settings.opsHQ !== false)));
+    return own || this.level.buildings.find((b) => b.active && b.owner && b.owner.team === this.player.team && b.owner !== this.player
+      && (this.code(b) === 'BA' || (this.code(b) === 'BK' && this.settings.opsHQ !== false))) || null;
+  }
+
+  heroPost() {
+    const hq = this.heroHQ();
     return hq ? { x: hq.stats.dockX, y: hq.stats.dockY } : null;
   }
 
   heroes() {
-    const post = this.heroPost();
-    if (!post) return;
-    for (const u of this.own((x) => x.hero)) {
-      if (u.posX < 0) continue;
-      const m = this.missionOf(u);
-      const a = m.anchor;
-      if (m.kind === 'guard_area' && a && cells(a.x, a.y, post.x, post.y) <= 2) continue;
-      u.mission = { kind: 'guard_area', anchor: { x: post.x, y: post.y }, since: this.tick };
-      u.target = false;
-      u.nav.voyage(post.x, post.y, true);
+    for (const u of this.own((x) => x.hero)) if (u.posX >= 0) this.heroBrain(u);
+  }
+
+  heroBrain(u) {
+    const hq = this.heroHQ();
+    if (!hq) return;
+    const post = { x: hq.stats.dockX, y: hq.stats.dockY };
+    const well = u.health / u.stats.maxHealth;
+    const here = { x: u.posX, y: u.posY };
+    // hurt: home, till it is well again
+    if (u.heroMending ? well < 0.95 : well < 0.45 || (well < 0.7 && this.dangerAt(here, 7) > this.strengthAt(here, 5, u) + 2)) {
+      u.heroMending = true;
+      u.heroTask = 'mend';
+      this.heroGo(u, 'guard_area', post);
+      return;
     }
+    u.heroMending = false;
+    // with a raid party, a little behind it, if the enemy about it is not the stronger (once
+    // with one, it stays with two of it, and through a few seconds' lull where it is quiet)
+    let party = this.raidParty(post, u.heroTask === 'escort' ? 2 : 3);
+    if (party) {
+      u.heroParty = party;
+      u.heroLull = this.tick + 90;
+    } else if (u.heroTask === 'escort' && u.heroParty && this.tick < u.heroLull && !this.dangerAt(u.heroParty, 6)) {
+      party = u.heroParty;
+    }
+    if (party && well >= 0.7 && this.dangerAt(party, 6) <= party.strength) {
+      const back = cells(party.x, party.y, post.x, post.y) || 1;
+      const spot = { x: party.x + (post.x - party.x) * 1.5 / back, y: party.y + (post.y - party.y) * 1.5 / back };
+      u.heroTask = 'escort';
+      this.heroGo(u, 'guard_area', spot);
+      return;
+    }
+    // rounds to a hurt unit of its team, where that is safe
+    const patient = well >= 0.6 && this.patient(u, post);
+    if (patient) {
+      u.heroTask = 'rounds';
+      if (cells(u.posX, u.posY, patient.posX, patient.posY) > 1.3) this.heroGo(u, 'move', { x: patient.posX, y: patient.posY }, 0.5);
+      return;
+    }
+    // rounds of the base
+    u.heroTask = 'patrol';
+    this.heroPatrol(u, hq);
+  }
+
+  // The hero sent (only if it is not going there already).
+  heroGo(u, kind, p, near = 1.5) {
+    const m = this.missionOf(u);
+    const at = m.anchor || m.dest;
+    if (m.kind === kind && at && cells(at.x, at.y, p.x, p.y) <= near) return;
+    this.steering = true;
+    this.order(u, kind, kind === 'move' ? { dest: { x: p.x, y: p.y } } : { anchor: { x: p.x, y: p.y } });
+    this.steering = false;
+  }
+
+  heroPatrol(u, hq) {
+    const arena = this.arena;
+    const cx = hq.posX / CELL, cy = hq.posY / CELL;
+    u.heroBeat = u.heroBeat || 0;
+    for (let tries = 0; tries < HERO_BEAT.length; tries++) {
+      const [dx, dy] = HERO_BEAT[u.heroBeat % HERO_BEAT.length];
+      const tx = Math.round(cx + dx + 0.5), ty = Math.round(cy + dy + 0.5);
+      const bad = tx < 1 || ty < 1 || tx > arena.cols || ty > arena.rows || (arena.tiles[tx] && arena.tiles[tx][ty]);
+      const p = { x: (tx - 0.5) * CELL, y: (ty - 0.5) * CELL };
+      if (bad || cells(u.posX, u.posY, p.x, p.y) <= 1.2) { u.heroBeat++; continue; }
+      this.heroGo(u, 'move', p, 0.5);
+      return;
+    }
+  }
+
+  // What might hurt something at a spot: the threat of the enemy's armed units and buildings
+  // within r cells (a building's counts twice: it does not move and it hits hard).
+  dangerAt(p, r) {
+    let d = 0;
+    for (const t of this.level.units) {
+      if (t.active && t.owner && t.posX >= 0 && t.stats.weapon && !this.isMiner(t) && this.hostile(t) && cells(p.x, p.y, t.posX, t.posY) <= r) d += t.stats.threat || 1;
+    }
+    for (const b of this.level.buildings) {
+      if (b.active && b.owner && b.stats.weapon && this.hostile(b) && cells(p.x, p.y, b.posX, b.posY) <= r) d += 2 * (b.stats.threat || 1);
+    }
+    return d;
+  }
+
+  // And what of its team's is there to meet it (not the hero itself).
+  strengthAt(p, r, not) {
+    let s = 0;
+    for (const t of this.level.units) {
+      if (t !== not && t.active && t.owner && t.owner.team === this.player.team && t.posX >= 0 && t.stats.weapon && !this.isMiner(t) && cells(p.x, p.y, t.posX, t.posY) <= r) s += t.stats.threat || 1;
+    }
+    return s;
+  }
+
+  // Its units out raiding (attacking or hunting, away from home, on the ground), the biggest
+  // bunch of them, `least` or more: where they are, and their strength.
+  raidParty(post, least) {
+    const out = this.own((x) => !x.hero && this.armed(x) && !this.isMiner(x) && x.posX >= 0 && !this.aircraft(x)
+      && ['attack', 'hunt', 'rescue'].includes(this.missionOf(x).kind) && cells(x.posX, x.posY, post.x, post.y) > 6);
+    let bunch = null;
+    for (const a of out) {
+      const near = out.filter((b) => cells(a.posX, a.posY, b.posX, b.posY) <= 5);
+      if (!bunch || near.length > bunch.length) bunch = near;
+    }
+    if (!bunch || bunch.length < least) return null;
+    let x = 0, y = 0, strength = 0;
+    for (const b of bunch) { x += b.posX; y += b.posY; strength += b.stats.threat || 1; }
+    return { x: x / bunch.length, y: y / bunch.length, count: bunch.length, strength };
+  }
+
+  // A hurt unit of its team (not in the air) within reach of home and where it is safe to go:
+  // the worst hurt, the nearer the better.
+  patient(u, post) {
+    let best = null, bestV = Infinity;
+    for (const x of this.level.units) {
+      if (!x.active || x === u || !x.owner || x.owner.team !== this.player.team || x.stats.pickup || x.posX < 0 || this.aircraft(x)) continue;
+      if (!(x.health < x.stats.maxHealth * 0.75) || cells(x.posX, x.posY, post.x, post.y) > 22) continue;
+      const p = { x: x.posX, y: x.posY };
+      if (this.dangerAt(p, 6) > this.strengthAt(p, 5, u)) continue;
+      const v = x.health / x.stats.maxHealth + cells(u.posX, u.posY, x.posX, x.posY) / 40;
+      if (v < bestV) { bestV = v; best = x; }
+    }
+    return best;
   }
 
   // The nearest enemy hero this player has seen where it is.
