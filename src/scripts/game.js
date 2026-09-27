@@ -2413,7 +2413,8 @@
             var _loc3_ = new flash.geom.Matrix();
             _loc3_?.rotate?.(-0.463);
             _loc3_?.translate?.(this.MC?._x / this.zoom, this.MC?._y / this.zoom);
-            _loc3_?.translate?.(-this.count * 4, this.count * 2);
+            // (Online: at a palette's pace -- see calmWind)
+            _loc3_?.translate?.(-this.count * 4 * (this.windSpeed || 1), this.count * 2 * (this.windSpeed || 1));
             _loc2_?.beginBitmapFill?.(this.windBitmap, _loc3_);
             _loc2_?.moveTo?.(0, 0);
             _loc2_?.lineTo?.(this.viewWidth, 0);
@@ -2660,25 +2661,49 @@
             this.snowy = true;
             this.radar?.redrawTiles?.(15202815);
          };
+         // Online: the wind over a palette's ground (the Hive's, LEGO Battles'), given the
+         // ground's colour matrix: the ground's own colour with only the original's light and
+         // shade.  On Mars the dust is the ground's colour, a shade lighter or darker, and hardly
+         // shows; through a palette's colours, which stretch light and shade (and the Hive's own
+         // wind, a pale lime), it stood out, a sandstorm over everything.  And fainter and slower
+         // than the original's, to stay in the background.
+         this.calmWind = function (ground)
+         {
+            // (the Mars ground's mean colour -- its art's -- and the grey of it)
+            var mean = new Array(169, 99, 55.8);
+            var shade = 0.299 * mean[0] + 0.587 * mean[1] + 0.114 * mean[2];
+            var matrix = new Array();
+            var row = 0;
+            var to;
+            while(row < 3)
+            {
+               to = ground[row * 5] * mean[0] + ground[row * 5 + 1] * mean[1] + ground[row * 5 + 2] * mean[2] + ground[row * 5 + 4];
+               matrix = matrix.concat(new Array(0.299, 0.587, 0.114, 0, Math.min(255, Math.max(0, to)) - shade));
+               row++;
+            }
+            matrix = matrix.concat(new Array(0, 0, 0, 0.7, 0));
+            var windArt = this.windBitmap?.clone?.();
+            windArt?.applyFilter?.(windArt, windArt?.rectangle, new flash.geom.Point(0, 0), new flash.filters.ColorMatrixFilter(matrix));
+            this.windBitmap = windArt;
+            this.windSpeed = 0.5;
+         };
          // Online: the Hive palette: the lime green of the Special Ops levels of B1er0l14m's
          // Godot remake of CrystAlien Conflict (https://b1er0l14m.itch.io/cacr), whose palette
          // it is.  The remake paints its themes as tile sets of their own; these are colour
-         // matrices fitted pixel for pixel from its Mars art to its Hive art -- the ground, the
-         // tiles (rocks and pools; the crystals keep their colours, as the snow leaves them),
-         // and the wind -- so that the original's art, drawn as it is, comes out as the Hive's.
+         // matrices fitted pixel for pixel from its Mars art to its Hive art -- the ground and
+         // the tiles (rocks and pools; the crystals keep their colours, as the snow leaves them)
+         // -- so that the original's art, drawn as it is, comes out as the Hive's.  (Its wind, as
+         // the remake's, stood out: see calmWind.)
          this.doHive = function ()
          {
             var ground = new flash.filters.ColorMatrixFilter([-0.6531, 2.9987, 0.5272, 0, -101.47, 0.6762, -0.1945, 0.0497, 0, 78.49, 0.7242, -0.5075, 0.2067, 0, -50.73, 0, 0, 0, 1, 0]);
             var tiles = new flash.filters.ColorMatrixFilter([1.0574, -0.0515, -0.085, 0, 1.87, 1.0234, 0.205, -0.4901, 0, 72.44, 0.1709, -0.1177, 0.7904, 0, 0.52, 0, 0, 0, 1, 0]);
-            var wind = new flash.filters.ColorMatrixFilter([0.3708, -0.8361, 1.3222, 0, 90.81, 0.106, 0.0887, -0.0516, 0, 229.72, -0.2886, 1.1967, -0.1121, 0, 79.34, 0, 0, 0, 1, 0]);
             __as.set(this.terrainMC, "filters", new Array(ground));
             for(var piece of __as.keys(this.terrainMCs))
             {
                __as.set(this.terrainMCs[piece], "filters", new Array(ground));
             }
-            var windArt = this.windBitmap?.clone?.();
-            windArt?.applyFilter?.(windArt, windArt?.rectangle, new flash.geom.Point(0, 0), wind);
-            this.windBitmap = windArt;
+            this.calmWind?.(ground.matrix);
             var row = 0;
             var col;
             var handle;
@@ -2773,7 +2798,8 @@
                }
                row = row + 1;
             }
-            // The wind: the ground's dust in the ground's colour -- in the snow, the snow's.
+            // The wind: the ground's dust in the ground's colour (calmWind) -- in the snow, the
+            // snow's.
             if(look.snow)
             {
                this.windBitmap = flash.display.BitmapData?.loadBitmap?.("snow");
@@ -2781,9 +2807,7 @@
             }
             else
             {
-               var windArt = this.windBitmap?.clone?.();
-               windArt?.applyFilter?.(windArt, windArt?.rectangle, new flash.geom.Point(0, 0), ground);
-               this.windBitmap = windArt;
+               this.calmWind?.(look.ground);
             }
             // (and the radar, over the world's ground: Mars ground, 0xC45D2E, through the ground's)
             this.radar?.redrawTiles?.(look.radar);
