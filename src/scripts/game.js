@@ -3600,6 +3600,23 @@
                   __as.set(this.shortcuts?.UK_evil, "active", true);
                }
             }
+            // Online: Special Ops in the story's levels, if the player's settings allow them
+            // ("Special Ops in the Story", off by default; the story's Conflict is a skirmish,
+            // which has them): as a skirmish has them -- the Ops Ship or the Hive bought with a
+            // headquarters, and from it (above) its Driller, Switch Fighter and Reaper, and the
+            // Hive's Commander.  (Not in the tutorials' levels.)
+            if(!this.parent?.skirmish && !this.parent?.training && Online?.prefs?.storySpecOps)
+            {
+               var own = this.parent?.parent?.team;
+               if(this.parent?.findBuilding?.("BA_" + own, this.parent?.localPlayer))
+               {
+                  __as.set(this.shortcuts?.["BK_" + own], "active", true);
+               }
+               if(own == "evil" && this.parent?.findBuilding?.("BK_evil", this.parent?.localPlayer))
+               {
+                  __as.set(this.shortcuts?.UQ_evil, "active", true);
+               }
+            }
             if(this.buildingSite && !this.shortcuts?.[this.buildingSite?.type]?.active)
             {
                this.buildingSite?.destroy?.();
