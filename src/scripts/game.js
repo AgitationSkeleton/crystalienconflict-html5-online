@@ -2356,7 +2356,8 @@
          // Online: the view fills the stage beside the sidebar, and the map inside it zooms.
          // viewWidth and viewHeight are in map units, as the camera and culling use them; the
          // Px sizes are on screen.  posX and posY stay in map units; MC is scaled by zoom.
-         this.zoom = ZOOM;
+         // (the zoom the last skirmish was left at; the story's levels at the game's own)
+         this.zoom = this.parent?.skirmish ? ZOOM : 1;
          this.zoomMax = 2;
          this.fitView = function ()
          {
@@ -2402,7 +2403,12 @@
             var dy = y - this.viewHeightPx / 2;
             __as.op(camera, "posX", "+", dx / before - dx / this.zoom);
             __as.op(camera, "posY", "+", 2 * (dy / before - dy / this.zoom));
-            ZOOM = this.zoom;
+            // (kept for the next skirmish: the player's own, not the story's nor the Screensaver
+            // director's)
+            if(this.parent?.skirmish && !this.parent?.control?.directing?.())
+            {
+               ZOOM = this.zoom;
+            }
          };
          this.fitView();
          this.handle = function ()
@@ -11145,8 +11151,10 @@
             }
          };
          // How much is going on around a unit: fighting, hurt, on its way somewhere, and the
-         // enemies near it.  (0: nothing worth watching.)
-         this.interest = function (unit)
+         // enemies near it -- and first of all what the mode is about: a flag's carrier (Capture
+         // the Flag), a hero (Hunt the Hero).  (0: nothing worth watching.)  Busy: going on now
+         // -- a hero at rest is not.
+         this.interest = function (unit, busy)
          {
             if(!unit?.active || !unit.owner || unit.stats?.pickup || !(unit.posX >= 0) || unit.stats?.bait)
             {
@@ -11154,6 +11162,15 @@
             }
             var now = this.parent?.count;
             var score = 0;
+            var mode = 0;
+            if(this.parent?.flags?.some?.((flag) => flag?.carrier == unit))
+            {
+               mode += 15;
+            }
+            if(unit.hero && !busy)
+            {
+               mode += 6;
+            }
             if(now - unit.firedAt < 46)
             {
                score += 5;
@@ -11166,10 +11183,11 @@
             {
                score += unit.nav?.path?.length > 1 ? 4 : 2;
             }
-            if(!score)
+            if(!score && !mode)
             {
                return 0;
             }
+            score += mode;
             var near = 0;
             for(var index of __as.keys(this.parent?.units))
             {
@@ -11185,6 +11203,41 @@
                score -= 3;
             }
             return score;
+         };
+         // What the mode has just made happen, to be seen at once: a pizza come down (Pizza
+         // Mode), a flag taken up (Capture the Flag) -- each once.
+         this.modeEvent = function (d)
+         {
+            var level = this.parent;
+            var mode = level?.skirmish?.mode;
+            var index;
+            if(mode == "pizza")
+            {
+               d.pizzas = d.pizzas || {};
+               var pizzas = level.pizzas?.() || new Array();
+               for(index of __as.keys(pizzas))
+               {
+                  if(pizzas[index]?.active && !d.pizzas[pizzas[index].id])
+                  {
+                     d.pizzas[pizzas[index].id] = true;
+                     return pizzas[index];
+                  }
+               }
+            }
+            if(mode == "ctf")
+            {
+               d.carriers = d.carriers || {};
+               for(index of __as.keys(level.flags))
+               {
+                  var carrier = level.flags[index]?.carrier;
+                  if(carrier?.active && !d.carriers[carrier.id])
+                  {
+                     d.carriers[carrier.id] = true;
+                     return carrier;
+                  }
+               }
+            }
+            return null;
          };
          // The unit most worth watching now, but the one given (one of the few best, by chance).
          this.pickUnit = function (not)
@@ -11261,6 +11314,15 @@
                }
                unit = this.following;
             }
+            // (the mode's events before anything else)
+            var event = this.modeEvent?.(d);
+            if(event && event != this.following)
+            {
+               this.watch?.(event);
+               unit = event;
+               d.state = "follow";
+               d.idle = 0;
+            }
             if(d.state == "wait")
             {
                if(--d.wait > 0)
@@ -11282,7 +11344,7 @@
                else
                {
                   // (one gone quiet a while: another, if something else is going on)
-                  d.idle = this.interest?.(this.following) ? 0 : d.idle + 1;
+                  d.idle = this.interest?.(this.following, true) ? 0 : d.idle + 1;
                   if(d.idle > 138)
                   {
                      unit = this.pickUnit?.(this.following);
@@ -12334,6 +12396,9 @@
          }
          this.score = 0;
          this.active = true;
+         // (Online: the sidebar's width from the start -- the story's always the game's own; see
+         // fitStage -- not whatever the last match left)
+         SIDEBAR = this.parent?.skirmish?.screensaver && !Online?.prefs?.screensaverHud ? 0 : 150;
          this.MC = _root?.createEmptyMovieClip?.("Game", 1);
          this.mask = this.MC?.attachMovie?.("blank", "blank", 9999);
          __as.set(this.mask, "_width", SCREENX);
