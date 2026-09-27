@@ -27,6 +27,7 @@ const MATCH = [
   { key: 'pizzaCost', label: 'Pizza cost', ready: true, when: (m) => m.mode === 'pizza', choices: [[25000, '$25,000'], [50000, '$50,000'], [100000, '$100,000']] },
   { key: 'captures', label: 'Capture limit', ready: true, when: (m) => m.mode === 'ctf', choices: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => [n, n === 1 ? 'Once: out' : n + ' times']) },
   { key: 'speed', label: 'Unit speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Faster'], [2, 'Fastest']] },
+  { key: 'balance', label: 'Balance', ready: true, choices: [['vanilla', 'Vanilla'], ['conquer', 'Conquerer']] },
   { key: 'build', label: 'Build speed', ready: true, choices: [[0.5, 'Slow'], [1, 'Normal'], [2, 'Fast'], [3, 'Faster'], [10, 'Quickbuild (ten times)']] },
   { key: 'queue', label: 'Unit queue', ready: true, choices: [[false, 'Off'], [true, "Up to each unit's maximum"]] },
   { key: 'shields', label: 'Triple shields', ready: true, choices: [[false, 'Off'], [true, 'On, for everyone']] },
@@ -47,7 +48,7 @@ const ROOM_REFRESH_S = 10;
 const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', hq: 'Destroy HQs', pizza: 'Pizza mode', ctf: 'Capture the flag', hero: 'Hunt the Hero' };
 
 const MATCH_DEFAULTS = {
-  map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true,
+  map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true, balance: 'vanilla',
   christmas: false, crateRate: 'normal', income: 0, pizzaCost: 50000, speed: 1, shroud: true,
   superweapons: true, factions: 'all', regrowth: 1, palette: 'mars', build: 1, queue: false, shields: false, captures: 1,
   shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off',
@@ -533,7 +534,7 @@ export class OnlineUI {
     const palette = paletteFor(m.palette, this.settings.palette);
     const settings = {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
-      superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
+      superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false, balance: m.balance || 'vanilla',
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1,
       shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings,
@@ -962,7 +963,7 @@ export class OnlineUI {
     for (const x of r.members) if (!seated.has(x.id)) players.push({ name: x.name, control: 'spectator', member: x.id, faction: 'good', colour: 'black' });
     const settings = {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
-      superweapons: m.superweapons, palette: m.palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false,
+      superweapons: m.superweapons, palette: m.palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false, balance: m.balance || 'vanilla',
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1,
       shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings, players,

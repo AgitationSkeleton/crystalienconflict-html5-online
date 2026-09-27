@@ -1296,6 +1296,15 @@
             this.MCsprite?.gotoAndStop?.(this.type + "_" + this.shooter?.team);
             __as.set(this.MC, "_yscale", 50);
             this.life = 20;
+            // (Online: the Balance "Conquerer" -- it goes off on reaching where it was aimed, as the
+            // C&C mod's rocket does, and flies as far as that takes: Level.blast)
+            if(this.parent?.skirmish?.balance == "conquer")
+            {
+               this.aimX = target?.posX;
+               this.aimY = target?.posY;
+               this.fuse = Math.ceil(distance?.(x, y, tx, ty) / this.speed);
+               this.life = Math.max(this.life, this.fuse + 1);
+            }
          }
          else
          {
@@ -1312,7 +1321,14 @@
             __as.set(MC, "filters", new Array(this.filterGlow));
             this.dx = this.dy = 0;
             this.life = 5;
-            this.target?.pain?.(this);
+            if(this.parent?.skirmish?.balance == "conquer")
+            {
+               this.parent?.blast?.(this.target?.posX, this.target?.posY, this);
+            }
+            else
+            {
+               this.target?.pain?.(this);
+            }
          }
          this.handle = function ()
          {
@@ -1325,6 +1341,11 @@
             if(this.type == "rocket")
             {
                this.collision?.();
+               if(this.active && this.fuse !== undefined && this.count >= this.fuse)
+               {
+                  this.parent?.blast?.(this.aimX, this.aimY, this);
+                  this.destroy?.();
+               }
             }
             this.draw?.();
          };
@@ -1337,7 +1358,14 @@
          {
             if(this.target?.checkForHit?.(this.posX, this.posY))
             {
-               this.target?.pain?.(this);
+               if(this.fuse !== undefined)
+               {
+                  this.parent?.blast?.(this.target?.posX, this.target?.posY, this);
+               }
+               else
+               {
+                  this.target?.pain?.(this);
+               }
                this.destroy?.();
             }
          };
@@ -8207,7 +8235,9 @@
          };
          this.fireWeapon = function (shooter, type, x, y, tx, ty, target)
          {
-            if(this.weapons?.length > 50)
+            // (at most 50 shots in the air at once, the rest lost -- the original's; not in the
+            // Balance "Conquerer", as the C&C mod has no such limit: see blast)
+            if(this.weapons?.length > 50 && this.skirmish?.balance != "conquer")
             {
                return undefined;
             }
@@ -8219,6 +8249,44 @@
             else
             {
                this.weapons?.push?.(new Weapon(this, shooter, type, x - 1, y - 1, tx, ty, target));
+            }
+         };
+         // Online: the Balance "Conquerer" -- combat as the C&C mod's turns out, which is not as
+         // the original's.  The mod gives every CrystAlien shot, laser or rocket, one warhead meant
+         // to hit only its target (tools/gen_dll_types.py, CONST.CPP Warheads[WARHEAD_LASER]); but
+         // its SpreadFactor of 255 is the widest there is, not the tightest -- C&C takes damage off
+         // with distance by shifting it right by the spread factor, and a shift that far leaves
+         // nothing -- so every shot lands its full 25 on everything within a cell and a half of
+         // where it strikes (COMBAT.CPP Explosion_Damage), friend or foe, all but the one who
+         // fired it; an aircraft in the air only as the target (only what is down is caught).
+         // And its rockets, going off near where they were aimed, do not miss.
+         this.blast = function (x, y, weapon)
+         {
+            if(x === undefined || y === undefined)
+            {
+               return undefined;
+            }
+            var hurt = (thing) => {
+               if(!thing?.active || thing == weapon?.shooter || thing.stats?.pickup)
+               {
+                  return undefined;
+               }
+               if(thing.stats?.flying && thing != weapon?.target)
+               {
+                  return undefined;
+               }
+               if(thing == weapon?.target || distance?.(x, y, thing.posX, thing.posY) < 144)
+               {
+                  thing.pain?.(weapon);
+               }
+            };
+            for(var unit of this.units.slice())
+            {
+               hurt(unit);
+            }
+            for(var building of this.buildings.slice())
+            {
+               hurt(building);
             }
          };
          this.cleanup = function ()
