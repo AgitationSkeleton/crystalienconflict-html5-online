@@ -3168,9 +3168,11 @@
                // (A picture already in this player's colour -- an Astro's on Orange, an Alien's on
                // Green, the colours the game drew them in -- as the game drew it; the other side's,
                // from a building taken from them, in this player's colour.  The Aliens' pizza has
-               // the Astros' picture.)
+               // the Astros' picture.  Santa's Sleigh, Santa and his Reindeer, never the game's
+               // sidebar's, are in this player's colour in any colour.)
                var side = option.type == "UJ_evil" || String(option.type).slice(-5) != "_evil" ? "good" : "evil";
-               var coloured = teamIcons && tint != (side == "evil" ? "green" : "orange");
+               var always = option.type == "BJ_evil" || option.type == "UM_evil" || option.type == "UN_evil";
+               var coloured = teamIcons && (always || tint != (side == "evil" ? "green" : "orange"));
                var look = coloured ? tint : "none";
                if(option.MC.teamColour !== look)
                {
