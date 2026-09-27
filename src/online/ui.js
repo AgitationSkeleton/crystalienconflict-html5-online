@@ -2,7 +2,7 @@
 // play (the list of games, a room's lobby: see net.js for the match itself) and the settings.  The game's own menus are still there for the story (STORY), and the game
 // comes back here when a match or a story game ends (Online.menu, called from game.js).
 
-import { COLOURS, COLOUR_CSS, UI_SCALES, loadSettings, saveSettings } from './settings.js';
+import { COLOURS, COLOUR_CSS, PALETTES, UI_SCALES, loadSettings, saveSettings } from './settings.js';
 import { american } from './spelling.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
@@ -40,7 +40,7 @@ const MATCH = [
   { key: 'shareUnits', label: 'Allies share units', ready: true, choices: SHARE },
   { key: 'shareBuildings', label: 'Allies share buildings', ready: true, choices: SHARE },
   { key: 'regrowth', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
-  { key: 'palette', label: 'Map palette', ready: true, choices: [['mars', 'Mars'], ['snowy', 'Snowy'], ['hive', 'Hive'], ['random', 'Random']] },
+  { key: 'palette', label: 'Map palette', ready: true, choices: [...PALETTES, ['random', 'Random']] },
 ];
 
 // The games list, refreshed by itself this often (seconds) while it is shown and the page seen.
@@ -55,11 +55,10 @@ const MATCH_DEFAULTS = {
 };
 
 // The palette a match is seen in: the host's, unless this player prefers one; either may be
-// Random: Mars, Snowy or Hive for the match (the host's the same for everyone, by the match's
-// seed: the palette changes only how the map looks).
-const PALETTES = ['mars', 'snowy', 'hive'];
+// Random: any of them for the match (the host's the same for everyone, by the match's seed: the
+// palette changes only how the map looks).
 function paletteFor(host, mine, seed) {
-  const pick = (p, n) => (p === 'random' ? PALETTES[n % PALETTES.length] : p);
+  const pick = (p, n) => (p === 'random' ? PALETTES[n % PALETTES.length][0] : p);
   if (mine && mine !== 'all') return pick(mine, Math.floor(Math.random() * PALETTES.length));
   return pick(host || 'mars', seed === undefined ? Math.floor(Math.random() * PALETTES.length) : Math.abs(Math.trunc(seed)));
 }
@@ -1044,9 +1043,7 @@ export class OnlineUI {
         onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); } } })));
     const palette = el('select', { 'aria-label': 'Map palette', onchange: (e) => { st.palette = e.target.value; save(); } },
       el('option', { value: 'all', text: 'As the host chooses', selected: st.palette === 'all' }),
-      el('option', { value: 'mars', text: 'Always Mars', selected: st.palette === 'mars' }),
-      el('option', { value: 'snowy', text: 'Always Snowy', selected: st.palette === 'snowy' }),
-      el('option', { value: 'hive', text: 'Always Hive', selected: st.palette === 'hive' }),
+      ...PALETTES.map(([key, name]) => el('option', { value: key, text: 'Always ' + name, selected: st.palette === key })),
       el('option', { value: 'random', text: 'Random each match', selected: st.palette === 'random' }));
     const SIZE_NAMES = { small: 'Small (see more of the map)', medium: 'Medium', large: 'Large', fill: 'Fill the window' };
     const size = el('select', { 'aria-label': 'In-Game Interface Size', onchange: (e) => { st.size = e.target.value; save(); if (this.hooks.setSize) this.hooks.setSize(st.size); } },

@@ -2699,6 +2699,95 @@
             // (and the radar, over Hive ground: Mars ground, 0xC45D2E, through the ground's)
             this.radar?.redrawTiles?.(4899638);
          };
+         // Online: the LEGO Battles palettes -- the DS game's three worlds, Mars, the King's castle
+         // lands and the Pirates' islands, as it colours them and as its FactionWars mod recolours
+         // them (REbalance ships the same colours).  Each world's tiles are drawn from one
+         // 256-colour palette (the cartridge's MarsTileset, KingTileset and PirateTileset.NCLR),
+         // and these colour matrices were fitted to it, tone for tone, from the original's art:
+         // the ground to the world's ground (Mars's maroon, with its orange-brown sand in the
+         // light), the rocks to its rocks, the green pools to its water (or goo), and the
+         // crystals to what its builders harvest there (Mars's crystals; elsewhere its trees);
+         // the rocks' and pools' see-through edges, the ground's colour, as the ground's.
+         this.doLego = function (name)
+         {
+            var looks = {
+               "lb-mars":{ground:[0.9387,1.352,0.2626,0,-174.958,0.3407,0.919,0.1299,0,-111.803,0.0833,0.1636,0.2818,0,-17.5614,0,0,0,1,0],rock:[0.6718,0.5155,-0.2091,0,-3.0006,0.473,0.3505,-0.2967,0,12.002,0.8323,-0.0241,-0.7493,0,13.2853,0,0,0,1,0],pool:[0.6643,0.2024,0.2724,0,-4.7461,0.1331,1.0905,-0.6356,0,2.832,0.7354,-0.1148,-0.4121,0,2.3138,0,0,0,1,0],crystal:[0.1935,0.0855,0.0166,0,-3.7187,0.1698,0.4834,0.0647,0,-8.7794,0.0581,0.114,0.1721,0,3.5632,0,0,0,1,0],radar:9580058},
+               "lb-castle":{ground:[0.9963,1.4651,0.2845,0,-247.704,0.3042,0.8471,0.116,0,18.9668,0.4889,0.9598,0.4364,0,-130.444,0,0,0,1,0],rock:[0.4625,0.5364,0.0149,0,4.4407,0.8985,0.4864,-0.6266,0,-2.9591,0.3029,0.3009,0.0088,0,-9.6868,0,0,0,1,0],pool:[0.4999,-0.0503,0.7207,0,-0.8472,1.0506,-0.0089,-0.1748,0,-1.9617,-0.0487,1.1576,-0.3897,0,-9.6217,0,0,0,1,0],crystal:[0.2465,0.1894,0.0368,0,-3.3382,0.2162,0.5744,0.0824,0,3.5032,0.0516,0.1013,0.1697,0,-2.9185,0,0,0,1,0],radar:6333002},
+               "lb-pirate":{ground:[0.4535,0.3995,0.0776,0,113.352,0.3611,0.9589,0.1377,0,2.1322,0.0873,0.1715,0.2833,0,17.5779,0,0,0,1,0],rock:[1.4488,0.1283,-1.2585,0,32.4244,1.0916,0.3079,-0.9453,0,-11,0.1618,0.1278,0.0282,0,-1.0343,0,0,0,1,0],pool:[2.2053,-1.4092,-0.3353,0,23.2926,0.9847,0.6682,-1.1155,0,-7.2179,-0.0857,1.1088,-0.6752,0,-3.2147,0,0,0,1,0],crystal:[0.112,-0.0746,-0.0145,0,2.5897,0.236,0.6133,0.09,0,-3.0381,0.0138,0.027,0.1552,0,-1.6321,0,0,0,1,0],radar:15902783},
+               "lb-mars-fw":{ground:[0.6888,0.8615,0.1673,0,-169.417,0.4378,1.1095,0.1669,0,-150.439,0.4491,0.8816,0.4212,0,-136.911,0,0,0,1,0],rock:[0.2437,0.1931,-0.0079,0,0.2899,0.3005,0.3137,-0.1502,0,3.4098,0.5042,0.2064,-0.259,0,3.5247,0,0,0,1,0],pool:[-0.0853,0.9541,-0.3514,0,-3.0639,0.3899,-0.1958,0.3905,0,-0.7625,0.0323,1.2988,-0.7996,0,-0.739,0,0,0,1,0],crystal:[0.3689,0.4297,0.0834,0,-6.4399,-0.0315,0.0881,-0.012,0,-0.944,0.2072,0.4069,0.229,0,-2.5639,0,0,0,1,0],radar:3485236},
+               "lb-castle-fw":{ground:[0.8563,1.1902,0.2312,0,-67.3689,0.4608,1.1546,0.1757,0,21.371,0.2952,0.5796,0.3626,0,102.531,0,0,0,1,0],rock:[1.2686,0.409,-0.8808,0,-21.0142,1.3358,0.4349,-1.1002,0,-10.6151,1.1949,0.2608,-0.9114,0,17.0806,0,0,0,1,0],pool:[1.6101,-0.7822,0.1547,0,-14.8116,1.7301,-0.5926,-0.3063,0,-7.8302,1.5187,-0.1479,-0.7873,0,19.0612,0,0,0,1,0],crystal:[0.3718,0.4354,0.0846,0,0.4498,0.2847,0.7089,0.1085,0,3.2816,0.3386,0.6647,0.2791,0,7.1266,0,0,0,1,0],radar:14541798,snow:true},
+               "lb-pirate-fw":{ground:[0.422,0.3377,0.0656,0,106.092,0.3367,0.911,0.1284,0,10.0505,0.0621,0.1218,0.2737,0,47.9779,0,0,0,1,0],rock:[0.7328,0.371,-0.3718,0,25.6151,0.9801,0.3377,-0.8129,0,-9.4106,0.7574,-0.0918,-0.722,0,10.8798,0,0,0,1,0],pool:[1.2255,-0.305,-0.1819,0,22.9269,0.8623,0.7356,-1.0067,0,-5.3315,0.9457,-0.4846,-0.3766,0,5.9472,0,0,0,1,0],crystal:[0.2546,0.2053,0.0399,0,-1.5647,0.1224,0.3902,0.0467,0,-3.1001,0.0877,0.1722,0.1835,0,0.419,0,0,0,1,0],radar:14657108}
+            };
+            var look = looks[name];
+            if(!look)
+            {
+               return undefined;
+            }
+            var ground = new flash.filters.ColorMatrixFilter(look.ground);
+            var rock = new flash.filters.ColorMatrixFilter(look.rock);
+            var pool = new flash.filters.ColorMatrixFilter(look.pool);
+            var crystal = new flash.filters.ColorMatrixFilter(look.crystal);
+            __as.set(this.terrainMC, "filters", new Array(ground));
+            for(var piece of __as.keys(this.terrainMCs))
+            {
+               __as.set(this.terrainMCs[piece], "filters", new Array(ground));
+            }
+            // (tiles 1 to 24 are rocks, 25 to 28 marks in the ground, 29 to 44 the pools, 47
+            // crystals; 45, 49 and 50 -- a shadow, a flag, a wreck -- as they are)
+            var filterFor = (handle) => {
+               var id = handle?.id;
+               if(handle?.bait || id == 47)
+               {
+                  return crystal;
+               }
+               if(id >= 1 && id <= 24)
+               {
+                  return rock;
+               }
+               if(id >= 29 && id <= 44)
+               {
+                  return pool;
+               }
+               if(id >= 25 && id <= 28 || id == 46 || id == 48)
+               {
+                  return ground;
+               }
+               return undefined;
+            };
+            var row = 0;
+            var col;
+            var handle;
+            var filter;
+            while(!(row > this.rows + 1))
+            {
+               col = 0;
+               while(!(col > this.cols + 1))
+               {
+                  handle = this.tileHandles?.["_" + col + "_" + row];
+                  filter = handle?.MC && filterFor(handle);
+                  if(filter)
+                  {
+                     __as.set(handle.MC, "filters", new Array(filter));
+                  }
+                  col = col + 1;
+               }
+               row = row + 1;
+            }
+            // The wind: the ground's dust in the ground's colour -- in the snow, the snow's.
+            if(look.snow)
+            {
+               this.windBitmap = flash.display.BitmapData?.loadBitmap?.("snow");
+               this.snowy = true;
+            }
+            else
+            {
+               var windArt = this.windBitmap?.clone?.();
+               windArt?.applyFilter?.(windArt, windArt?.rectangle, new flash.geom.Point(0, 0), ground);
+               this.windBitmap = windArt;
+            }
+            // (and the radar, over the world's ground: Mars ground, 0xC45D2E, through the ground's)
+            this.radar?.redrawTiles?.(look.radar);
+         };
          this.layoutTiles?.();
          this.extendTerrain?.();
       };
@@ -8844,6 +8933,10 @@
             if(settings?.palette == "hive")
             {
                this.arena?.doHive?.();
+            }
+            if(String(settings?.palette).startsWith("lb-"))
+            {
+               this.arena?.doLego?.(settings.palette);
             }
             // Crystals grow back at the original's rate times the settings' (0: never).
             if(settings?.regrowth != undefined)
