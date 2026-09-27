@@ -781,7 +781,9 @@
       };
       dialogue = function dialogue(id)
       {
-         var _loc2_ = this.dialogueStore?.[id];
+         // (Online: on a touch screen, a line's touch-screen wording where it has one, id_touch --
+         // a tap for a click, the buttons for the keys: src/online/touch.js)
+         var _loc2_ = Online?.touch && this.dialogueStore?.[id + "_touch"]?.length ? this.dialogueStore[id + "_touch"] : this.dialogueStore?.[id];
          if(_loc2_?.length)
          {
             return _loc2_;
@@ -11256,17 +11258,15 @@
             __as.set(this.MC, "cash", "$" + this.displayCash);
             __as.set(this.MC?.training, "_visible", this.parent?.level?.training);
             __as.set(this.MC, "deselect", "");
-            // (Online: on a touch screen, the hint is for its button.)
-            var touch = Online?.touch ? "_touch" : "";
             if(this.parent?.level?.construction?.buildingSite)
             {
-               __as.set(this.MC, "deselect", dialogue?.("int_buildingsite_deselect" + touch)?.toUpperCase?.());
+               __as.set(this.MC, "deselect", dialogue?.("int_buildingsite_deselect")?.toUpperCase?.());
             }
             else
             {
                if(this.parent?.level?.control?.selected?.length)
                {
-                  __as.set(this.MC, "deselect", dialogue?.("int_deselect" + touch)?.toUpperCase?.());
+                  __as.set(this.MC, "deselect", dialogue?.("int_deselect")?.toUpperCase?.());
                }
             }
          };
