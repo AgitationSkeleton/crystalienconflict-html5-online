@@ -10934,7 +10934,7 @@
                      this.cursorState = "standard";
                   }
                   // (Online: a miner, to any of the places it may unload -- see Level.isDepot.)
-                  if(this.selected?.length == 1 && (this.selected?.[0]?.stats?.home == this.activeTarget || this.selected?.[0]?.stats?.miner && this.parent?.skirmish && this.parent?.isDepot?.(this.activeTarget, this.selected?.[0])) && (this.selected?.[0]?.stats?.miner || this.selected?.[0]?.stats?.boomerang))
+                  if(this.goesHome?.(this.activeTarget))
                   {
                      this.cursorState = "infiltrate";
                      return undefined;
@@ -11151,18 +11151,55 @@
             var _loc5_ = min?.(this.posY, this.pressY);
             var _loc3_ = max?.(this.posY, this.pressY);
             var _loc2_ = false;
+            var boxed = new Array();
             for(var _loc7_ of __as.keys(this.parent?.units))
             {
                if(this.parent?.units?.[_loc7_]?.checkForHit?.(_loc6_, _loc5_, _loc4_, _loc3_) && !this.parent?.units?.[_loc7_]?.selected && this.commands?.(this.parent?.units?.[_loc7_]))
                {
-                  __as.set(this.parent?.units?.[_loc7_], "selected", true);
-                  _loc2_ = true;
+                  boxed.push(this.parent.units[_loc7_]);
                }
+            }
+            // (Online: miners, and engineers and saboteurs, left out of a box that holds anything
+            // else, if the player's settings say so: "Ignore Miners / Engineers When Dragging")
+            var ignored = (unit) => !!(Online?.prefs?.ignoreMinersDrag && unit?.stats?.miner || Online?.prefs?.ignoreEngineersDrag && unit?.stats?.repair);
+            var others = boxed.filter((unit) => !ignored(unit));
+            if(others.length)
+            {
+               boxed = others;
+            }
+            for(var unit of boxed)
+            {
+               __as.set(unit, "selected", true);
+               _loc2_ = true;
             }
             if(_loc2_)
             {
                this.parent?.parent?.sfx?.play?.("INT_cursor_select");
             }
+         };
+         // Online: whether what is selected goes home at a click on this: one miner (to its home, or
+         // in a skirmish any place it may unload) or one Boomerang -- an Astro or Strike Fighter --
+         // to its home, as the original; or, if the player's settings allow, several miners, or
+         // several fighters (each to its own home, a click on any of theirs): "Allow Multiple
+         // Miners / Fighters to Return On Click".
+         this.goesHome = function (target)
+         {
+            var chosen = this.selected;
+            if(!chosen?.length || !target)
+            {
+               return false;
+            }
+            var miner = (unit) => !!(unit?.stats?.miner && (unit.stats.home == target || this.parent?.skirmish && this.parent?.isDepot?.(target, unit)));
+            var fighter = (unit) => !!unit?.stats?.boomerang;
+            if(chosen.length == 1)
+            {
+               return miner(chosen[0]) || fighter(chosen[0]) && chosen[0].stats.home == target;
+            }
+            if(Online?.prefs?.multiMinerReturn && chosen.every(miner))
+            {
+               return true;
+            }
+            return !!(Online?.prefs?.multiFighterReturn && chosen.every(fighter) && chosen.some((unit) => unit.stats.home == target));
          };
          this.updateSelected = function ()
          {

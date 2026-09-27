@@ -1053,6 +1053,10 @@ export class OnlineUI {
       el('label', { text: 'Team-Coloured Sidebar Icons' }), onOff('teamIcons', 'Team-Coloured Sidebar Icons'),
       el('label', { text: 'Special Ops in the Story' }), onOff('storySpecOps', 'Special Ops in the Story'),
       el('label', { text: 'Always Show Health Bars' }), healthBars,
+      el('label', { text: 'Ignore Miners When Dragging' }), onOff('ignoreMinersDrag', 'Ignore Miners When Dragging'),
+      el('label', { text: 'Ignore Engineers When Dragging' }), onOff('ignoreEngineersDrag', 'Ignore Engineers When Dragging'),
+      el('label', { text: 'Allow Multiple Miners to Return On Click' }), onOff('multiMinerReturn', 'Allow Multiple Miners to Return On Click'),
+      el('label', { text: 'Allow Multiple Fighters to Return On Click' }), onOff('multiFighterReturn', 'Allow Multiple Fighters to Return On Click'),
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface sounds' }), slider('ui'),
@@ -1070,7 +1074,9 @@ export class OnlineUI {
 
   // What the game reads of the settings while it plays.
   applyPrefs() {
-    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons !== false, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off' };
+    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons !== false, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off',
+      ignoreMinersDrag: !!this.settings.ignoreMinersDrag, ignoreEngineersDrag: !!this.settings.ignoreEngineersDrag,
+      multiMinerReturn: !!this.settings.multiMinerReturn, multiFighterReturn: !!this.settings.multiFighterReturn };
   }
 
   applyVolumes() {

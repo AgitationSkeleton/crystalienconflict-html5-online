@@ -33,6 +33,10 @@ export const DEFAULTS = {
   teamIcons: true,          // the sidebar's pictures in your colour
   storySpecOps: false,      // Special Ops (the Ops Ship, the Hive) in the story's levels too
   healthBars: 'off',        // health bars always shown: 'off' (as the original), 'units', 'buildings' or 'all'
+  ignoreMinersDrag: false,  // a dragged box leaves out miners, unless they are all it holds
+  ignoreEngineersDrag: false, // ... and engineers and saboteurs
+  multiMinerReturn: false,  // several miners selected go home at a click on a headquarters
+  multiFighterReturn: false, // ... and several fighters (Boomerangs), each to its own home
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -51,7 +55,7 @@ export function loadSettings() {
   if (!['all', 'mars', 'snowy', 'hive', 'random'].includes(s.palette)) s.palette = DEFAULTS.palette;
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
   if (!['off', 'units', 'buildings', 'all'].includes(s.healthBars)) s.healthBars = DEFAULTS.healthBars;
-  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'teamIcons', 'storySpecOps']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
+  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'teamIcons', 'storySpecOps', 'ignoreMinersDrag', 'ignoreEngineersDrag', 'multiMinerReturn', 'multiFighterReturn']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);
     s[k] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULTS[k];
