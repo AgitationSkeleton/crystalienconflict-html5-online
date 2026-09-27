@@ -2,7 +2,7 @@
 // play (the list of games, a room's lobby: see net.js for the match itself) and the settings.  The game's own menus are still there for the story (STORY), and the game
 // comes back here when a match or a story game ends (Online.menu, called from game.js).
 
-import { COLOURS, COLOUR_CSS, loadSettings, saveSettings } from './settings.js';
+import { COLOURS, COLOUR_CSS, UI_SCALES, loadSettings, saveSettings } from './settings.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
@@ -994,11 +994,25 @@ export class OnlineUI {
       el('option', { value: 'snowy', text: 'Always Snowy', selected: st.palette === 'snowy' }),
       el('option', { value: 'hive', text: 'Always Hive', selected: st.palette === 'hive' }),
       el('option', { value: 'random', text: 'Random each match', selected: st.palette === 'random' }));
-    const size = el('select', { 'aria-label': 'Interface size', onchange: (e) => { st.size = e.target.value; save(); if (this.hooks.setSize) this.hooks.setSize(st.size); } },
-      el('option', { value: 'small', text: 'Small: see more', selected: st.size === 'small' }),
-      el('option', { value: 'medium', text: 'Medium', selected: st.size === 'medium' }),
-      el('option', { value: 'large', text: 'Large', selected: st.size === 'large' }),
-      el('option', { value: 'fill', text: 'Fill the window', selected: st.size === 'fill' }));
+    const SIZE_NAMES = { small: 'Small (see more of the map)', medium: 'Medium', large: 'Large', fill: 'Fill the window' };
+    const size = el('select', { 'aria-label': 'In-Game Interface Size', onchange: (e) => { st.size = e.target.value; save(); if (this.hooks.setSize) this.hooks.setSize(st.size); } },
+      ...Object.keys(UI_SCALES).map((k) => el('option', { value: k, text: SIZE_NAMES[k], selected: st.size === k })));
+    // What the size does -- the game in a match, not these menus -- and which sizes look the same
+    // in this window: none enlarges the game past what the window holds (src/main.js setSize).
+    const sizeNote = el('div', { class: 'wide note' });
+    this.explainSize = () => {
+      const r = this.player.renderer && this.player.renderer.canvas.getBoundingClientRect();
+      const fit = r && r.width && r.height ? Math.min(r.width / 600, r.height / 400) : Infinity;
+      const alike = Object.keys(UI_SCALES).filter((k) => UI_SCALES[k] >= fit).map((k) => SIZE_NAMES[k].replace(/ \(.*/, ''));
+      const list = alike.length > 1 ? alike.slice(0, -1).join(', ') + ' and ' + alike[alike.length - 1] : '';
+      sizeNote.textContent = 'How big a match is drawn: the sidebar, the map and its units (not these menus). Smaller shows more of the map at once.' +
+        (list ? ' In a window this size ' + list + ' look the same: a bigger window tells them apart.' : '');
+    };
+    this.explainSize();
+    if (!this.watchingSize) {
+      this.watchingSize = true;
+      addEventListener('resize', () => { if (this.screens.settings.classList.contains('active')) this.explainSize(); });
+    }
     const onOff = (key, label) => el('select', { 'aria-label': label, onchange: (e) => { st[key] = e.target.value === 'on'; save(); } },
       el('option', { value: 'on', text: 'On', selected: st[key] }),
       el('option', { value: 'off', text: 'Off', selected: !st[key] }));
@@ -1010,14 +1024,14 @@ export class OnlineUI {
       el('label', { text: 'Faction' }), faction,
       el('label', { text: 'Colour' }), colours,
       el('label', { text: 'Map palette' }), palette,
-      el('label', { text: 'Interface size' }), size,
+      el('label', { text: 'In-Game Interface Size' }), size, sizeNote,
       el('label', { text: 'Scroll at the edges' }), onOff('edgeScroll', 'Scroll at the edges'),
       el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
       el('label', { text: 'Show Unit/Building Count' }), onOff('ownedCounts', 'Show Unit/Building Count'),
       el('label', { text: 'Team-Coloured Sidebar Icons' }), onOff('teamIcons', 'Team-Coloured Sidebar Icons'),
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
-      el('label', { text: 'Interface' }), slider('ui'),
+      el('label', { text: 'Interface sounds' }), slider('ui'),
       this.appNote());
   }
 
