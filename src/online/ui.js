@@ -151,6 +151,14 @@ export class OnlineUI {
     // The game calls Online.menu() when a match or a story game is over: back to the room, for
     // a match over the network.
     player.online.menu = (screen) => {
+      // (Screensaver Mode: a match over, the next -- until it is quit, to the main menu)
+      if (this.screensaver) {
+        if (screen === 'lobby') {
+          setTimeout(() => { if (this.screensaver) this.startScreensaver(); }, 0);
+          return;
+        }
+        this.screensaver = false;
+      }
       if (screen === 'lobby' && this.net && this.net.code) {
         this.net.ended();
         this.open('room');
@@ -158,6 +166,7 @@ export class OnlineUI {
       }
       this.open(screen);
     };
+    this.buildIngame();
     this.watch();
   }
 
@@ -176,6 +185,7 @@ export class OnlineUI {
       const p = this.panel;
       const storyMenus = p && !this.root.classList.contains('shown') && !p.game && p.state !== 'hidden';
       this.back.classList.toggle('shown', !!storyMenus);
+      this.showIngame(this.paused());
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -225,6 +235,8 @@ export class OnlineUI {
   }
 
   story() {
+    // (at the game's own speed: a skirmish, or the Screensaver, may have left it faster or slower)
+    if (this.hooks.setSpeed) this.hooks.setSpeed(1);
     this.close();
     const p = this.panel;
     if (p) {
@@ -251,6 +263,7 @@ export class OnlineUI {
         el('button', { class: 'btn', onclick: go(() => this.show('lobby')) }, 'Skirmish'),
         el('button', { class: 'btn', disabled: !this.net, onclick: go(() => this.show('online')) }, 'Online'),
         el('button', { class: 'btn', onclick: go(() => this.story()) }, 'Story'),
+        el('button', { class: 'btn', onclick: go(() => this.startScreensaver()) }, 'Screensaver Mode'),
         el('button', { class: 'btn', onclick: go(() => this.show('settings')) }, 'Settings')),
       el('div', { class: 'chars' },
         el('img', { class: 'astro', src: 'assets/online/astro.png', alt: '' }),
@@ -563,6 +576,74 @@ export class OnlineUI {
     p.startSkirmish(settings);
   }
 
+
+  // ---- Screensaver Mode ---------------------------------------------------------------------------
+  // A match of computer players to watch, everything about it by chance -- the map, how many
+  // play (as many as it has room for) and in which colours, one team each, the mode and its
+  // rules, the palette (unless this player prefers one: the settings' Map palette) -- and when
+  // it is over, another (Online.menu), until the player quits it from the pause menu.  The
+  // Skirmish lobby's settings are its own: nothing here is kept.
+  startScreensaver() {
+    const p = this.panel;
+    if (!p || !p.startSkirmish) return;
+    const pick = (list) => list[Math.floor(Math.random() * list.length)];
+    const shuffled = (list) => list.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
+    const choice = (key, keep) => pick(MATCH.find((m) => m.key === key).choices.map(([v]) => v).filter(keep || (() => true)));
+    const map = pick(this.maps().filter((m) => m.bases >= 2));
+    const count = 2 + Math.floor(Math.random() * (map.bases - 1));
+    const colours = shuffled(COLOURS).slice(0, count);
+    const players = colours.map((colour, i) => ({ name: 'Computer ' + (i + 1), faction: Math.random() < 0.5 ? 'good' : 'evil', colour,
+      control: 'bot', difficulty: pick(['medium', 'hard']), base: undefined, slot: i }));
+    const crates = choice('crates');
+    const settings = {
+      map: /^\d+$/.test(map.id) ? Number(map.id) : map.id, mode: choice('mode'), cash: choice('cash'), units: choice('units'), prebuilt: choice('prebuilt'),
+      shroud: false, superweapons: choice('superweapons'), palette: paletteFor(pick(['mars', 'snowy', 'hive', 'lb-mars-fw']), this.settings.palette),
+      // (never a match without crystals growing back: it could stand still for good)
+      speed: choice('speed'), regrowth: choice('regrowth', (v) => v > 0), specops: choice('specops'), opsHQ: choice('opsHQ'), balance: choice('balance'),
+      crates, christmas: crates && choice('christmas'), crateRate: choice('crateRate'), income: choice('income'), pizzaCost: choice('pizzaCost'),
+      build: choice('build'), queue: choice('queue'), shields: choice('shields'), captures: choice('captures', (n) => n <= 5),
+      shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off',
+      players, spectator: { name: this.settings.name, faction: 'good' }, screensaver: true,
+    };
+    const bases = (map.info && map.info.bases) || [];
+    const chosen = spreadBases(bases, colours);
+    players.forEach((pl, i) => { pl.base = chosen ? chosen[i] : bases[i]; });
+    this.screensaver = true;
+    if (this.hooks.setSpeed) this.hooks.setSpeed(settings.speed);
+    this.close();
+    p.startSkirmish(settings);
+  }
+
+  // ---- the options in a match: the settings a match can take, beside the pause menu --------------
+  // What the game draws and how it is controlled, and the sound: nothing the match itself runs
+  // on, and not who this player is (name, faction, colour) or the palette, which a match takes
+  // as it starts.  The Screensaver's own, in Screensaver Mode.
+  buildIngame() {
+    this.ingameBody = el('div', { class: 'body form' });
+    this.ingame = el('div', { class: 'panel ingame', role: 'dialog', 'aria-label': 'Options' }, el('h2', { text: 'Options' }), this.ingameBody);
+    // (its clicks and keys are its own, not the game's under it)
+    for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'wheel', 'keydown', 'keyup']) this.ingame.addEventListener(type, (e) => e.stopPropagation());
+    document.body.append(this.ingame);
+  }
+
+  // The game's pause menu is up: a match (or the story) under way, and stopped -- or, over the
+  // network, where the game goes on, this player's controls stopped.
+  paused() {
+    const game = this.panel && this.panel.game;
+    const level = game && game.level;
+    if (!game || !level || this.root.classList.contains('shown')) return false;
+    return game.active === false || !!(level.control && level.control.active === false);
+  }
+
+  showIngame(shown) {
+    if (shown === this.ingameShown) return;
+    this.ingameShown = shown;
+    if (shown) {
+      this.ingameBody.replaceChildren(...this.settingsRows(true));
+      this.respell();
+    }
+    this.ingame.classList.toggle('shown', shown);
+  }
 
   // ---- online: the list of games ---------------------------------------------------------------
   buildOnline() {
@@ -1041,6 +1122,10 @@ export class OnlineUI {
   }
 
   renderSettings() {
+    this.settingsBody.replaceChildren(...this.settingsRows(false));
+  }
+
+  settingsRows(ingame) {
     const st = this.settings;
     const save = () => { saveSettings(st); this.applyVolumes(); this.applyPrefs(); };
     const name = el('input', { type: 'text', maxlength: 16, value: st.name, 'aria-label': 'Name', oninput: (e) => { st.name = e.target.value.trim() || 'Player'; save(); } });
@@ -1050,7 +1135,7 @@ export class OnlineUI {
       el('option', { value: 'random', text: 'Random', selected: st.faction === 'random' }));
     const colours = el('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour' },
       ...COLOURS.map((c) => el('span', { class: 'swatch' + (st.colour === c ? ' on' : ''), role: 'radio', 'aria-checked': st.colour === c ? 'true' : 'false', tabindex: 0, title: c, style: 'background:' + COLOUR_CSS[c],
-        onclick: () => { st.colour = c; this.slots[0].colour = c; save(); this.sound('INT_cursor_select'); this.renderSettings(); },
+        onclick: () => { st.colour = c; this.slots[0].colour = c; save(); this.sound('INT_cursor_select'); if (!ingame) this.renderSettings(); },
         onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); } } })));
     const palette = el('select', { 'aria-label': 'Map palette', onchange: (e) => { st.palette = e.target.value; save(); } },
       el('option', { value: 'all', text: 'As the host chooses', selected: st.palette === 'all' }),
@@ -1088,13 +1173,14 @@ export class OnlineUI {
       el('option', { value: 'european', text: 'European (Colour, Centre, Defence)', selected: st.english !== 'american' }),
       el('option', { value: 'american', text: 'American (Color, Center, Defense)', selected: st.english === 'american' }));
     const section = (title) => el('div', { class: 'wide section', text: title });
-    this.settingsBody.replaceChildren(
-      el('label', { text: 'Name' }), name,
-      el('label', { text: 'Faction' }), faction,
-      el('label', { text: 'Colour' }), colours,
+    const row = (label, control) => [el('label', { text: label }), control];
+    // (in a match: the Screensaver's, if it is one)
+    const screensaver = !ingame || !!(this.screensaver && this.panel && this.panel.skirmish && this.panel.skirmish.screensaver);
+    return [
+      ...(ingame ? [] : [...row('Name', name), ...row('Faction', faction), ...row('Colour', colours)]),
       section('Display'),
-      el('label', { text: 'Map palette' }), palette,
-      el('label', { text: 'In-Game Interface Size' }), size, sizeNote,
+      ...(ingame ? [] : row('Map palette', palette)),
+      el('label', { text: 'In-Game Interface Size' }), size, ...(ingame ? [] : [sizeNote]),
       el('label', { text: 'English Spelling' }), english,
       el('label', { text: 'Team-Coloured Sidebar Icons' }), onOff('teamIcons', 'Team-Coloured Sidebar Icons'),
       el('label', { text: 'Show Unit/Building Count' }), onOff('ownedCounts', 'Show Unit/Building Count'),
@@ -1107,13 +1193,17 @@ export class OnlineUI {
       el('label', { text: 'Allow Multiple Fighters to Return On Click' }), onOff('multiFighterReturn', 'Allow Multiple Fighters to Return On Click'),
       section('Gameplay'),
       el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
-      el('label', { text: 'Special Ops in the Story' }), onOff('storySpecOps', 'Special Ops in the Story'),
+      ...(ingame ? [] : row('Special Ops in the Story', onOff('storySpecOps', 'Special Ops in the Story'))),
+      ...(screensaver ? [section('Screensaver'),
+        ...row('Screensaver Auto Director', onOff('screensaverDirector', 'Screensaver Auto Director')),
+        ...row('Screensaver Shows HUD', onOff('screensaverHud', 'Screensaver Shows HUD'))] : []),
       section('Sound'),
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface sounds' }), slider('ui'),
-      el('div', { class: 'wide actions' }, el('button', { class: 'btn small', onclick: () => this.resetSettings() }, 'Reset all to default')),
-      this.appNote());
+      ...(ingame ? [] : [el('div', { class: 'wide actions' }, el('button', { class: 'btn small', onclick: () => this.resetSettings() }, 'Reset all to default')),
+        this.appNote()]),
+    ];
   }
 
   // The settings as they are at first -- all but the player's name (who they are, not a
@@ -1154,7 +1244,7 @@ export class OnlineUI {
       const it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       for (let n = it.nextNode(); n; n = it.nextNode()) fix(n);
     };
-    this.respell = () => walk(this.root);
+    this.respell = () => { walk(this.root); if (this.ingame) walk(this.ingame); };
     new MutationObserver((changes) => {
       for (const c of changes) {
         if (c.type === 'characterData') fix(c.target);
@@ -1178,7 +1268,8 @@ export class OnlineUI {
     this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons !== false, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off',
       ignoreMinersDrag: !!this.settings.ignoreMinersDrag, ignoreEngineersDrag: !!this.settings.ignoreEngineersDrag,
       multiMinerReturn: !!this.settings.multiMinerReturn, multiFighterReturn: !!this.settings.multiFighterReturn,
-      english: this.settings.english === 'american' ? 'american' : 'european' };
+      english: this.settings.english === 'american' ? 'american' : 'european',
+      screensaverDirector: this.settings.screensaverDirector !== false, screensaverHud: !!this.settings.screensaverHud };
   }
 
   applyVolumes() {

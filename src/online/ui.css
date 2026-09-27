@@ -247,6 +247,19 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 }
 .ui-back.shown { display: flex; }
 
+/* The options in a match (OnlineUI.buildIngame): beside the game's pause menu, at the window's
+   right, between its bars, small enough to leave the game in view. */
+.panel.ingame {
+  position: fixed; top: 50%; right: 10px; transform: translateY(-50%); z-index: 11; display: none; width: min(300px, 34vw); max-height: calc(100% - 200px);
+  overflow-y: auto; font: 400 13px/1.3 'NissanD', 'Arial Black', Arial, sans-serif; text-transform: uppercase; color: var(--ink);
+  background: rgba(20, 12, 8, 0.9);
+}
+.panel.ingame.shown { display: block; }
+.panel.ingame > h2 { position: sticky; top: 0; z-index: 1; font-size: 14px; }
+.panel.ingame .form { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 6px 8px; }
+.panel.ingame .form label { font-size: 11px; }
+.panel.ingame select { font-size: 12px; padding: 4px 6px 3px; }
+
 /* The error notice (errors.js): small, in a corner, over the game and the menus. */
 .errnote {
   position: fixed; left: 10px; bottom: 10px; z-index: 1000; display: flex; align-items: center; gap: 8px;

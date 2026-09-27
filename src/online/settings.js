@@ -44,6 +44,8 @@ export const DEFAULTS = {
   multiMinerReturn: false,  // several miners selected go home at a click on a headquarters
   multiFighterReturn: false, // ... and several fighters (Boomerangs), each to its own home
   english: 'european',      // the game's and the menus' spelling: 'european' (as the game's) or 'american'
+  screensaverDirector: true, // Screensaver Mode: the view follows what is going on by itself
+  screensaverHud: false,     // Screensaver Mode: the sidebar shown (off: the battlefield across the screen)
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -63,7 +65,8 @@ export function loadSettings() {
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
   if (!['off', 'units', 'buildings', 'all'].includes(s.healthBars)) s.healthBars = DEFAULTS.healthBars;
   if (!['european', 'american'].includes(s.english)) s.english = DEFAULTS.english;
-  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'teamIcons', 'storySpecOps', 'ignoreMinersDrag', 'ignoreEngineersDrag', 'multiMinerReturn', 'multiFighterReturn']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
+  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'teamIcons', 'storySpecOps', 'ignoreMinersDrag', 'ignoreEngineersDrag', 'multiMinerReturn', 'multiFighterReturn',
+    'screensaverDirector', 'screensaverHud']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);
     s[k] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULTS[k];

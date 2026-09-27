@@ -316,6 +316,7 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
   bar.className = 'touchbar';
   for (const [label, code, title] of [['✕', 32, 'Deselect'], ['⌂', 72, 'Home'], ['≡', 27, 'Menu']]) {
     const b = document.createElement('button');
+    b.dataset.key = code;
     b.type = 'button';
     b.textContent = label;
     b.title = title;
@@ -340,7 +341,10 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
       flush();
       const c = control();
       if (c) c.sensitivity = touchMode ? 7 : 5;
-      bar.classList.toggle('shown', !!(touchMode && inMatch() && !(level() && level().spectating)));
+      // (watching, only the Menu: there is nothing to deselect, and no home)
+      const watching = !!(level() && level().spectating);
+      bar.classList.toggle('shown', !!(touchMode && inMatch()));
+      for (const b of bar.children) b.style.display = watching && b.dataset.key !== '27' ? 'none' : '';
     },
   };
 }

@@ -1243,7 +1243,7 @@
          // pointer, and the view with it (drag, each frame; RADARHELD goes with the button).
          this.hits = function (x, y)
          {
-            return !!(this.active && this.parent?.parent?.parent?.hud?.MC?.radar?.hitTest?.(x, y, true));
+            return !!(this.active && SIDEBAR && this.parent?.parent?.parent?.hud?.MC?.radar?.hitTest?.(x, y, true));
          };
          this.doMouse = function (x, y)
          {
@@ -2321,7 +2321,7 @@
          __as.set(this.mask, "_width", this.viewWidth);
          __as.set(this.mask, "_height", this.viewHeight);
          this.arenaMC?.setMask?.(this.mask);
-         __as.set(this.arenaMC, "_x", 150);
+         __as.set(this.arenaMC, "_x", SIDEBAR);
          this.MC = this.arenaMC?.createEmptyMovieClip?.("terrain", 2);
          this.terrainMC = this.MC?.attachMovie?.("terrain", "terrain", -10);
          this.scorchMC = this.MC?.createEmptyMovieClip?.("scorch", -2);
@@ -2360,7 +2360,7 @@
          this.zoomMax = 2;
          this.fitView = function ()
          {
-            this.viewWidthPx = SCREENX - 150;
+            this.viewWidthPx = SCREENX - SIDEBAR;
             this.viewHeightPx = SCREENY;
             this.zoomMin = 0.18;
             if(this.width)
@@ -2369,12 +2369,13 @@
             }
             var zoom = Math.min(Math.max(this.zoom, this.zoomMin), Math.max(this.zoomMax, this.zoomMin));
             this.zoom = zoom;
-            if(this.viewZoom == zoom && this.viewStage == SCREENX + "x" + SCREENY)
+            if(this.viewZoom == zoom && this.viewStage == SCREENX + "x" + SCREENY + "+" + SIDEBAR)
             {
                return undefined;
             }
             this.viewZoom = zoom;
-            this.viewStage = SCREENX + "x" + SCREENY;
+            this.viewStage = SCREENX + "x" + SCREENY + "+" + SIDEBAR;
+            __as.set(this.arenaMC, "_x", SIDEBAR);
             this.viewWidth = this.viewWidthPx / zoom;
             this.viewHeight = this.viewHeightPx / zoom;
             this.viewWidth2 = this.viewWidth / 2;
@@ -2397,7 +2398,7 @@
             {
                return undefined;
             }
-            var dx = x - 150 - this.viewWidthPx / 2;
+            var dx = x - SIDEBAR - this.viewWidthPx / 2;
             var dy = y - this.viewHeightPx / 2;
             __as.op(camera, "posX", "+", dx / before - dx / this.zoom);
             __as.op(camera, "posY", "+", 2 * (dy / before - dy / this.zoom));
@@ -5963,6 +5964,7 @@
                if(weapon?.shooter)
                {
                   this.lastShooter = weapon.shooter;
+                  this.hurtAt = this.parent?.count;
                }
                this.health -= weapon?.dmg;
                if(this.hal?.type == "still")
@@ -8379,6 +8381,14 @@
                }
                index++;
             }
+            // (Online: the Screensaver's match that no one is winning ends after half an hour of
+            // the game's own time, for the next)
+            if(this.active && this.skirmish?.screensaver && this.count > 23 * 60 * 30)
+            {
+               this.active = false;
+               this.timeUp = true;
+               this.levelUpCounterMax = 46;
+            }
             if(!this.active)
             {
                this.outtro?.();
@@ -8387,7 +8397,7 @@
          this.outtro = function ()
          {
             this.levelUpCounter++;
-            if(this.levelUpCounter == 1)
+            if(this.levelUpCounter == 1 && !this.timeUp)
             {
                if(this.skirmish)
                {
@@ -8966,6 +8976,8 @@
                _loc2_ = _loc2_ + 1;
             }
             __as.set(this.nav, "nextAngle", this.angle = _loc2_);
+            // (Online: when, for the Screensaver's director, which only looks)
+            this.firedAt = this.parent?.count;
             this.parent?.fireWeapon?.(this, this.stats?.weapon, this.posX, this.posY - this.stats?.size - this.stats?.altitudeT2, target?.posX, target?.posY - target?.stats?.size - target?.stats?.altitudeT2, target);
             this.pulse = true;
             this.weaponCharge = this.stats?.maxWeaponCharge + random?.(this.stats?.maxWeaponCharge);
@@ -10901,7 +10913,7 @@
             // or not.)
             var shownX = this.parent?.arena?.MC ? this.parent.arena.MC._x / this.parent.arena.zoom : this.parent?.arena?.posX;
             var shownY = this.parent?.arena?.MC ? this.parent.arena.MC._y / this.parent.arena.zoom : this.parent?.arena?.posY;
-            this.posX = Math.round((limit?.(_xmouse, 151, SCREENX) - 150) / this.parent?.arena?.zoom - shownX);
+            this.posX = Math.round((limit?.(_xmouse, SIDEBAR + 1, SCREENX) - SIDEBAR) / this.parent?.arena?.zoom - shownX);
             this.posY = Math.round(limit?.(_ymouse, 1, this.parent?.arena?.viewHeightPx) / this.parent?.arena?.zoom - shownY) * 2;
             if(this.prevMouseX == _xmouse && this.prevMouseY == _ymouse && this.parent?.count > 20)
             {
@@ -10914,7 +10926,9 @@
             this.prevMouseX = _xmouse;
             this.prevMouseY = _ymouse;
             this.tilePos = this.parent?.arena?.translatePos?.(this.posX, this.posY);
-            if(this.still > 1 && Online?.prefs?.edgeScroll !== false && !Online?.touch)
+            // (not while the Screensaver's director has the view: a pointer left at an edge would
+            // pull it away)
+            if(this.still > 1 && Online?.prefs?.edgeScroll !== false && !Online?.touch && !this.directing?.())
             {
                if(_xmouse > SCREENX - this.scrollMargin && _xmouse < SCREENX)
                {
@@ -10922,12 +10936,12 @@
                }
                else
                {
-                  if(_xmouse < 150 + this.scrollMargin && _xmouse > 150)
+                  if(_xmouse < SIDEBAR + this.scrollMargin && _xmouse > SIDEBAR)
                   {
                      this.LEFT = true;
                   }
                }
-               if(_xmouse > 150)
+               if(_xmouse > SIDEBAR)
                {
                   if(_ymouse < this.scrollMargin && _ymouse > 0)
                   {
@@ -10945,13 +10959,15 @@
             // Online: the wheel zooms about the pointer, or about the view's centre over the sidebar.
             if(WHEELSTEPS)
             {
-               if(_xmouse > 150)
+               // (the Screensaver's director lets the view go a while: see direct)
+               this.takeOver?.();
+               if(_xmouse > SIDEBAR)
                {
                   this.parent?.arena?.zoomBy?.(Math.pow(1.12, WHEELSTEPS), _xmouse, _ymouse);
                }
                else if(!this.parent?.construction?.wheel?.(_xmouse, _ymouse, WHEELSTEPS))
                {
-                  this.parent?.arena?.zoomBy?.(Math.pow(1.12, WHEELSTEPS), 150 + this.parent?.arena?.viewWidthPx / 2, this.parent?.arena?.viewHeightPx / 2);
+                  this.parent?.arena?.zoomBy?.(Math.pow(1.12, WHEELSTEPS), SIDEBAR + this.parent?.arena?.viewWidthPx / 2, this.parent?.arena?.viewHeightPx / 2);
                }
                WHEELSTEPS = 0;
             }
@@ -11001,7 +11017,7 @@
                      this.mouseDownCount = 0;
                   }
                   this.cursorState = "standard";
-                  if(this.mouseDownCount < 2 && this.MOUSEDOWN && _xmouse > 150 && this.parent?.construction?.buildingSite?.breakGround?.())
+                  if(this.mouseDownCount < 2 && this.MOUSEDOWN && _xmouse > SIDEBAR && this.parent?.construction?.buildingSite?.breakGround?.())
                   {
                      delete this.parent?.construction?.buildingSite;
                      this.mouseDownCount = 0;
@@ -11053,7 +11069,7 @@
             // Online: a right-click deselects too, once per click.
             var rightButton = ASnative?.(800, 2)?.(2);
             // (Online: over a unit being made, with the host's Unit queue, it takes one off.)
-            if(rightButton && !this.rightButton && _xmouse < 150 && this.parent?.construction?.unqueue?.())
+            if(rightButton && !this.rightButton && _xmouse < SIDEBAR && this.parent?.construction?.unqueue?.())
             {
                this.rightButton = rightButton;
             }
@@ -11063,9 +11079,10 @@
                this.resetSelected?.();
             }
             this.rightButton = rightButton;
+            this.direct?.();
             this.follow?.();
             this.updateSelected?.();
-            if(_xmouse < 150)
+            if(_xmouse < SIDEBAR)
             {
                this.cursorState = "standard";
             }
@@ -11095,16 +11112,213 @@
             if(!this.MOUSEDOWN && MOUSEDOWN && this.parent?.arena?.radar?.doMouse?.(_xmouse, _ymouse))
             {
                this.watch?.(null);
+               this.takeOver?.();
             }
-            if(!this.MOUSEDOWN && MOUSEDOWN && _xmouse > 150)
+            if(!this.MOUSEDOWN && MOUSEDOWN && _xmouse > SIDEBAR)
             {
                this.watch?.(this.activeTarget || null);
+               this.takeOver?.();
                if(this.activeTarget)
                {
                   this.parent?.parent?.sfx?.play?.("INT_cursor_select");
                }
             }
             this.MOUSEDOWN = MOUSEDOWN;
+         };
+         // Online: the Screensaver's Auto Director (a setting, on unless turned off): it picks a
+         // unit to watch -- one fighting, or on its way to a fight -- and follows it; killed by
+         // a unit, it follows that one (as follow does); killed by a building, or by nothing,
+         // it waits two seconds and picks another -- or, with nothing going on, draws back to
+         // show the battlefield, and comes in again for the next.  A key, the wheel, the radar
+         // or a click takes the view back from it for a while (takeOver).  It only moves the
+         // view, and draws on no random numbers of the game's.
+         this.directing = function ()
+         {
+            return !!(this.parent?.skirmish?.screensaver && this.parent?.spectating && Online?.prefs?.screensaverDirector !== false);
+         };
+         this.takeOver = function ()
+         {
+            if(this.directing?.())
+            {
+               this.director = this.director || {state:"overview",wait:0,idle:0,shown:0};
+               this.director.manual = 230;
+            }
+         };
+         // How much is going on around a unit: fighting, hurt, on its way somewhere, and the
+         // enemies near it.  (0: nothing worth watching.)
+         this.interest = function (unit)
+         {
+            if(!unit?.active || !unit.owner || unit.stats?.pickup || !(unit.posX >= 0) || unit.stats?.bait)
+            {
+               return 0;
+            }
+            var now = this.parent?.count;
+            var score = 0;
+            if(now - unit.firedAt < 46)
+            {
+               score += 5;
+            }
+            if(now - unit.hurtAt < 46)
+            {
+               score += 4;
+            }
+            if(unit.target?.active)
+            {
+               score += unit.nav?.path?.length > 1 ? 4 : 2;
+            }
+            if(!score)
+            {
+               return 0;
+            }
+            var near = 0;
+            for(var index of __as.keys(this.parent?.units))
+            {
+               var other = this.parent.units[index];
+               if(other?.active && other.owner && other.owner != unit.owner && !other.stats?.pickup && Math.abs(other.posX - unit.posX) < 500 && Math.abs(other.posY - unit.posY) < 1000)
+               {
+                  near++;
+               }
+            }
+            score += Math.min(near, 6) * 0.5;
+            if(unit.stats?.miner)
+            {
+               score -= 3;
+            }
+            return score;
+         };
+         // The unit most worth watching now, but the one given (one of the few best, by chance).
+         this.pickUnit = function (not)
+         {
+            var best = new Array();
+            var score;
+            for(var index of __as.keys(this.parent?.units))
+            {
+               var unit = this.parent.units[index];
+               if(unit == not)
+               {
+                  continue;
+               }
+               score = this.interest?.(unit);
+               if(score > 2)
+               {
+                  best.push({unit:unit,score:score});
+               }
+            }
+            best.sort((a, b) => b.score - a.score);
+            if(!best.length)
+            {
+               return null;
+            }
+            return best[(Online?.fxRandom || random)?.(Math.min(3, best.length))]?.unit || best[0].unit;
+         };
+         // Zoomed towards a zoom, a little each frame, about the view's middle.
+         this.zoomTowards = function (want)
+         {
+            var arena = this.parent?.arena;
+            if(!arena)
+            {
+               return undefined;
+            }
+            want = Math.min(Math.max(want, arena.zoomMin || 0.18), arena.zoomMax || 2);
+            if(Math.abs(want - arena.zoom) > 0.004)
+            {
+               arena.zoomBy?.(Math.pow(want / arena.zoom, 0.05), SIDEBAR + arena.viewWidthPx / 2, arena.viewHeightPx / 2);
+            }
+         };
+         this.direct = function ()
+         {
+            if(!this.directing?.())
+            {
+               this.director = null;
+               return undefined;
+            }
+            var d = this.director = this.director || {state:"overview",wait:0,idle:0,shown:0};
+            if(this.UP || this.RIGHT || this.DOWN || this.LEFT)
+            {
+               d.manual = 230;
+            }
+            if(d.manual > 0)
+            {
+               d.manual--;
+               d.state = this.following ? "follow" : "overview";
+               d.shown = 46;
+               return undefined;
+            }
+            var unit = this.following;
+            // Killed: its killer, if a unit; else a moment's wait.
+            if(unit && !unit.active)
+            {
+               var killer = unit.lastShooter;
+               if(killer?.active && killer.isUnit && killer.owner && killer.posX >= 0)
+               {
+                  this.watch?.(killer);
+               }
+               else
+               {
+                  this.watch?.(null);
+                  d.state = "wait";
+                  d.wait = 46;
+               }
+               unit = this.following;
+            }
+            if(d.state == "wait")
+            {
+               if(--d.wait > 0)
+               {
+                  return undefined;
+               }
+               unit = this.pickUnit?.();
+               this.watch?.(unit);
+               d.state = unit ? "follow" : "overview";
+               d.idle = d.shown = 0;
+            }
+            if(d.state == "follow")
+            {
+               if(!this.following)
+               {
+                  d.state = "overview";
+                  d.shown = 0;
+               }
+               else
+               {
+                  // (one gone quiet a while: another, if something else is going on)
+                  d.idle = this.interest?.(this.following) ? 0 : d.idle + 1;
+                  if(d.idle > 138)
+                  {
+                     unit = this.pickUnit?.(this.following);
+                     if(unit)
+                     {
+                        this.watch?.(unit);
+                     }
+                     d.idle = 0;
+                  }
+                  this.zoomTowards?.(1);
+               }
+            }
+            if(d.state == "overview")
+            {
+               // The battlefield: drawn back, the view drifting to the map's middle; then, after a
+               // few seconds, in again for the next unit worth watching.
+               var arena = this.parent?.arena;
+               var camera = this.parent?.camera;
+               d.shown++;
+               this.zoomTowards?.(0);
+               if(arena && camera)
+               {
+                  __as.set(camera, "posX", camera.posX + (arena.width / 2 - camera.posX) * 0.04);
+                  __as.set(camera, "posY", camera.posY + (arena.height - camera.posY) * 0.04);
+               }
+               if(d.shown > 92 && !(d.shown % 23))
+               {
+                  unit = this.pickUnit?.();
+                  if(unit)
+                  {
+                     this.watch?.(unit);
+                     d.state = "follow";
+                     d.idle = 0;
+                  }
+               }
+            }
          };
          // The one unit followed (selected, the camera on it), or none.
          this.watch = function (unit)
@@ -11185,7 +11399,7 @@
             {
                return undefined;
             }
-            var x = Math.round((limit?.(_xmouse, 151, SCREENX) - 150) / arena.zoom - arena.MC._x / arena.zoom);
+            var x = Math.round((limit?.(_xmouse, SIDEBAR + 1, SCREENX) - SIDEBAR) / arena.zoom - arena.MC._x / arena.zoom);
             var y = Math.round(limit?.(_ymouse, 1, arena.viewHeightPx) / arena.zoom - arena.MC._y / arena.zoom) * 2;
             return arena.translatePos?.(x, y);
          };
@@ -11393,7 +11607,7 @@
                MOUSEDOWN = false;
                return undefined;
             }
-            if(_xmouse < 150)
+            if(_xmouse < SIDEBAR)
             {
                MOUSEDOWN = false;
                return undefined;
@@ -11715,16 +11929,49 @@
          this.frameArt = flash.display.BitmapData?.loadBitmap?.("#4511", this.parent?.localColour);
          __as.set(this.MC, "teamColour", this.parent?.localColour);
          this.frameMC = this.MC?.createEmptyMovieClip?.("frame", -16358);    // replaces the timeline's art at depth 26
+         // Online: the Screensaver without its HUD: the sidebar and the frame hidden -- all of the
+         // HUD but the pause menu, the messages and the flash -- and put back as they were when
+         // it is wanted again (a setting, which may change while paused).  (Esc pauses; on a
+         // touch screen, the touch bar's Menu button.)
+         this.bare = function (bare)
+         {
+            var keep = new Array(this.MC?.popup, this.MC?.messageUp, this.MC?.flasher);
+            var child;
+            if(bare)
+            {
+               this.hiddenKids = this.hiddenKids || new Array();
+               for(child of this.MC?.$children || new Array())
+               {
+                  if(child?._visible && keep.indexOf(child) < 0)
+                  {
+                     __as.set(child, "_visible", false);
+                     if(this.hiddenKids.indexOf(child) < 0)
+                     {
+                        this.hiddenKids.push(child);
+                     }
+                  }
+               }
+            }
+            else if(this.hiddenKids)
+            {
+               for(child of this.hiddenKids)
+               {
+                  __as.set(child, "_visible", true);
+               }
+               this.hiddenKids = null;
+            }
+         };
          this.layoutWidth = 0;
          this.layoutHeight = 0;
          this.layout = function ()
          {
-            if(this.layoutWidth == SCREENX && this.layoutHeight == SCREENY)
+            if(this.layoutWidth == SCREENX && this.layoutHeight == SCREENY && this.layoutSidebar == SIDEBAR)
             {
                return undefined;
             }
             this.layoutWidth = SCREENX;
             this.layoutHeight = SCREENY;
+            this.layoutSidebar = SIDEBAR;
             var edge = 12;
             var middle = SCREENX - 150 - 2 * edge;
             var stretch = middle / (450 - 2 * edge);
@@ -11750,7 +11997,7 @@
                done += more;
             }
             this.frameMC?.attachBitmap?.(art, 1, "never", false);
-            var centre = 150 + (SCREENX - 150) / 2;
+            var centre = SIDEBAR + (SCREENX - SIDEBAR) / 2;
             __as.set(this.MC?.messageUp, "_x", centre);
             __as.set(this.MC?.messageUp, "_y", 340 + extra);
             __as.set(this.MC?.$childAt?.(44 - 16384), "_x", centre - 198);
@@ -11818,7 +12065,7 @@
             // (and the bars the buttons sit on, drawn across the view beside the sidebar, however
             // wide it is: the original's reach from near one edge of its 600 to the other.  The
             // buttons keep their size, in the middle.)
-            var stretch = Math.max(1, (SCREENX - 150) * 0.9 / 500 / scale);
+            var stretch = Math.max(1, (SCREENX - SIDEBAR) * 0.9 / 500 / scale);
             var bars = new Array(popup?.top, popup?.bottom);
             var bar;
             var index = 0;
@@ -12125,6 +12372,10 @@
                this.stageWidth = SCREENX;
                this.stageHeight = SCREENY;
             }
+            // (Online: the Screensaver, without its HUD if the settings say so -- see Hud.bare)
+            var bare = !!(this.parent?.skirmish?.screensaver && !Online?.prefs?.screensaverHud);
+            SIDEBAR = bare ? 0 : 150;
+            this.hud?.bare?.(bare);
             this.hud?.layout?.();
             this.hud?.fitPopup?.();
             this.level?.arena?.fitView?.();
@@ -12855,6 +13106,9 @@
       MOUSEDOWN = false;
       // (Online: a press on the radar, still held: Radar.doMouse)
       RADARHELD = false;
+      // (Online: the sidebar's width -- the view is beside it -- or 0 while the Screensaver
+      // shows no HUD: Game.fitStage)
+      SIDEBAR = 150;
       MOUSESCROLL = 0;
       WHEELSTEPS = 0;
       ZOOM = 1;
