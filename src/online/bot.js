@@ -1420,6 +1420,16 @@ export class Bot {
   superweapon() {
     const p = this.production;
     const uk = this.mine('UK');
+    // (The Balance "Conquerer": it is not bought but charges by itself -- Production.charge --
+    // and is fired, at the same, as each charge is ready.)
+    if (p.charging) {
+      const charged = p.charges.find((c) => c.progress === c.time);
+      if (!charged || !this.profile.superweapon) return;
+      const hostile = this.level.buildings.filter((b) => b.active && b.owner && this.hostile(b));
+      const target = hostile.find((b) => !this.pizzaProtected(b)) || hostile[0];
+      if (target && p.fireCharge(charged.type)) this.level.launchSuperweapon(target.posX, target.posY);
+      return;
+    }
     if (p.unit && p.unit.type === uk && p.unit.progress === p.unit.constructionTime) {
       // (The mod fires at the first hostile building, a Pizza Mode headquarters too, which
       // shrugs it off.  Here a building that can be harmed comes first; but a headquarters

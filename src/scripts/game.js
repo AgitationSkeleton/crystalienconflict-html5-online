@@ -2899,6 +2899,25 @@
                }
                index++;
             }
+            // (Conquerer: each uplink's charge, filling its entry as a unit being made would -- but
+            // holding up nothing else: see charged)
+            if(production?.charging)
+            {
+               for(var side of new Array("good", "evil"))
+               {
+                  option = this.shortcuts?.["UK_" + side];
+                  item = production.chargeFor?.("UK_" + side);
+                  if(option)
+                  {
+                     __as.set(option, "charge", item);
+                     __as.set(option?.MC?.progress, "_visible", !!item);
+                     if(item)
+                     {
+                        option?.MC?.progress?.gotoAndStop?.(Math.max(1, Math.ceil(100 * item.progress / item.time)));
+                     }
+                  }
+               }
+            }
             if(production)
             {
                production.speed = this.speed;
@@ -2908,6 +2927,28 @@
                   production.finished = false;
                }
             }
+         };
+         // Online: the Balance "Conquerer": an uplink's superweapon charges by itself (Production.
+         // charge); its entry shows the charge, and is not a unit being made.
+         this.charged = function (option)
+         {
+            return !!(option?.superweapon && this.production?.()?.charging);
+         };
+         // What its entry says when pointed at: DEPLOY when charged; else the time to go,
+         // minutes and seconds, and whether the charge is held back by low power.
+         this.chargeText = function (charge)
+         {
+            if(!charge)
+            {
+               return "";
+            }
+            if(charge.progress >= charge.time)
+            {
+               return dialogue?.("int_construction_complete");
+            }
+            var seconds = Math.ceil((charge.time - charge.progress) / 23);
+            var clock = Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+            return this.parent?.localPlayer?.powerLow ? dialogue?.("int_superweapon_lowpower")?.replace?.("%s", clock) : clock;
          };
          // Online: as many rows as the sidebar has room for (six on the original's 400).
          this.fitRows = function ()
@@ -2979,7 +3020,7 @@
                __as.set(_loc2_?.MC, "filters", []);
                __as.set(_loc2_?.MC, "_alpha", 100);
                _loc2_?.checkMax?.(_loc2_?.total);
-               _loc6_ = _loc2_?.isBuilding && this.constructingBuilding && this.constructingBuilding != _loc2_ || _loc2_?.isUnit && this.constructingUnit && this.constructingUnit != _loc2_;
+               _loc6_ = _loc2_?.isBuilding && this.constructingBuilding && this.constructingBuilding != _loc2_ || _loc2_?.isUnit && this.constructingUnit && this.constructingUnit != _loc2_ && !this.charged?.(_loc2_);
                if(_loc2_?.disabled || _loc6_)
                {
                   __as.set(_loc2_?.MC, "_alpha", 50);
@@ -3018,6 +3059,10 @@
                                  _loc4_ = dialogue?.("int_construction_insufficient");
                               }
                            }
+                        }
+                        if(this.charged?.(_loc2_))
+                        {
+                           _loc4_ = this.chargeText?.(_loc2_.charge);
                         }
                         if(_loc2_?.disabled)
                         {
@@ -3436,6 +3481,20 @@
          // A click on the sidebar in a skirmish: what the original's does, by command.
          this.skirmishClick = function (current)
          {
+            // (Conquerer: a charged superweapon is aimed; one charging, or none, is not ready)
+            if(this.charged?.(current))
+            {
+               if(current?.charge && current.charge.progress >= current.charge.time)
+               {
+                  this.aiming = current.type;
+                  __as.set(this.parent?.control, "advancedCursorState", "superweapon");
+               }
+               else
+               {
+                  this.parent?.parent?.sfx?.play?.("INT_invalid");
+               }
+               return true;
+            }
             var complete = current?.progress == current?.constructionTime;
             if(this.constructingBuilding == current && complete)
             {
@@ -7856,6 +7915,66 @@
          this.unit = false;
          this.queue = new Array();
          this.queuing = !!level?.skirmish?.queue;
+         // Online: the Balance "Conquerer" -- the superweapon as the C&C mod has it: not bought
+         // but charged, free, on the engine's clock (its SuperClass): the first uplink held gets
+         // the ion cannon's ten minutes (ION_CANNON_GONE_TIME), and a second, a player holding
+         // both, the nuke's fourteen (NUKE_GONE_TIME) -- each charging from nothing when it comes,
+         // held back while the power is low, charging again once fired, and gone with its uplink
+         // (the second first).  Each is shown on an uplink's entry, UK_good or UK_evil: the first
+         // on the owner's own side's while they hold it.  (At the original's 23 frames a second.)
+         this.charging = level?.skirmish?.balance == "conquer";
+         this.charges = new Array();
+         this.chargeTimes = new Array(600 * 23, 840 * 23);
+         this.charge = function ()
+         {
+            if(!(this.level?.count % 23) || this.uplinks == undefined)
+            {
+               var tech = this.level?.techFor?.(this.owner);
+               var own = this.owner?.faction == "evil" ? "evil" : "good";
+               var other = own == "good" ? "evil" : "good";
+               this.uplinks = new Array(own, other).filter((side) => tech?.["UK_" + side]);
+            }
+            while(this.charges.length > this.uplinks.length)
+            {
+               this.charges.pop();
+            }
+            while(this.charges.length < this.uplinks.length)
+            {
+               this.charges.push({progress:0,time:this.chargeTimes[this.charges.length]});
+            }
+            var index = 0;
+            var charge;
+            while(index < this.charges.length)
+            {
+               charge = this.charges[index];
+               charge.type = "UK_" + this.uplinks[index];
+               if(charge.progress < charge.time && !this.owner?.powerLow)
+               {
+                  charge.progress++;
+                  if(charge.progress == charge.time)
+                  {
+                     this.finished = "building";
+                  }
+               }
+               index++;
+            }
+         };
+         this.chargeFor = function (type)
+         {
+            return this.charges.find((charge) => charge.type == type);
+         };
+         // A charged superweapon, spent (the uplink's named, or the first charged): it charges
+         // again.
+         this.fireCharge = function (type)
+         {
+            var charge = type ? this.chargeFor?.(type) : this.charges.find((c) => c.progress == c.time);
+            if(charge && charge.progress == charge.time)
+            {
+               charge.progress = 0;
+               return true;
+            }
+            return false;
+         };
          this.handle = function ()
          {
             // What can no longer be made -- its factory or its prerequisites gone -- is given up,
@@ -7887,12 +8006,21 @@
             }
             this.advance?.(this.building);
             this.advance?.(this.unit);
+            if(this.charging)
+            {
+               this.charge?.();
+            }
          };
          // Start building or training a type, if the owner may and nothing of its kind is under
          // way.  Returns whether it started.
          this.start = function (type)
          {
             var isBuilding = type?.charAt?.(0) == "B";
+            // (Conquerer: a superweapon charges; it is not bought.)
+            if(this.charging && (type == "UK_good" || type == "UK_evil"))
+            {
+               return false;
+            }
             if(isBuilding && this.building || !isBuilding && this.unit && !this.queuing)
             {
                return false;
@@ -10144,7 +10272,7 @@
                   who.production?.place?.(c.x, c.y);
                   break;
                case "superweapon":
-                  if(who.production?.fire?.())
+                  if(who.production?.charging ? who.production?.fireCharge?.(c.k) : who.production?.fire?.())
                   {
                      this.launchSuperweapon?.(c.x, c.y);
                   }
@@ -10782,7 +10910,8 @@
                   this.pressY = this.posY;
                   if(this.parent?.skirmish)
                   {
-                     this.parent?.issue?.({t:"superweapon",x:this.posX,y:this.posY});
+                     // (Conquerer: the uplink's whose charge it is)
+                     this.parent?.issue?.({t:"superweapon",x:this.posX,y:this.posY,k:this.parent?.construction?.aiming});
                   }
                   else
                   {
@@ -11387,7 +11516,8 @@
             this.following = null;
             if(this.cursorState == "superweapon")
             {
-               if(this.parent?.skirmish)
+               // (Conquerer: a charge not fired stays charged -- nothing was bought)
+               if(this.parent?.skirmish && !this.parent?.localPlayer?.production?.charging)
                {
                   this.parent?.issue?.({t:"cancel",building:false});
                }
