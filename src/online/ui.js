@@ -12,36 +12,45 @@ const SHARE = [['off', 'Off'], ['humans', 'Human control only'], ['all', 'All']]
 
 // The match settings, with the choices the lobby offers.  `ready` says whether the game does
 // anything with a setting yet; the rest are shown, and marked as coming.  `when` says which
-// other settings a setting depends on (the pizza's cost is only for Pizza Mode).
+// other settings a setting depends on (the pizza's cost is only for Pizza Mode).  `group` is the
+// part of the Match panel it is shown in (MATCH_GROUPS).
 const MATCH = [
-  { key: 'mode', label: 'Game mode', ready: true, choices: [['all', 'Destroy all'], ['structures', 'Destroy structures'], ['hq', 'Destroy HQs'], ['pizza', 'Pizza mode'], ['ctf', 'Capture the flag'], ['hero', 'Hunt the Hero']] },
-  { key: 'cash', label: 'Starting money', ready: true, choices: [[2500, '$2,500'], [5000, '$5,000'], [7500, '$7,500'], [10000, '$10,000'], [15000, '$15,000'], [20000, '$20,000'], [30000, '$30,000'], [50000, '$50,000']] },
-  { key: 'units', label: 'Starting units', ready: true, choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']] },
-  { key: 'prebuilt', label: 'Base', ready: true, choices: [[false, 'HQ only'], [true, 'HQ, power, barracks']] },
-  { key: 'specops', label: 'Special Ops', ready: true, choices: [['on', 'On'], ['tech', 'Need the tech centre'], ['off', 'Off']] },
-  { key: 'opsHQ', label: 'Ops Ship and Hive', ready: true, when: (m) => m.specops !== 'off', choices: [[true, 'Headquarters too'], [false, 'As in the story']] },
-  { key: 'crates', label: 'Crates', ready: true, choices: [[true, 'On'], [false, 'Off']] },
-  { key: 'christmas', label: 'Christmas crate', ready: true, choices: [[true, 'On'], [false, 'Off']], when: (m) => m.crates },
-  { key: 'crateRate', label: 'Crates appear', ready: true, choices: [['rare', 'Rarely'], ['normal', 'Normally'], ['often', 'Often']], when: (m) => m.crates },
-  { key: 'income', label: 'Passive income', ready: true, choices: [[0, 'None'], [200, '$200 a minute'], [400, '$400 a minute'], [800, '$800 a minute']] },
-  { key: 'pizzaCost', label: 'Pizza cost', ready: true, when: (m) => m.mode === 'pizza', choices: [[25000, '$25,000'], [50000, '$50,000'], [100000, '$100,000']] },
-  { key: 'captures', label: 'Capture limit', ready: true, when: (m) => m.mode === 'ctf', choices: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => [n, n === 1 ? 'Once: out' : n + ' times']) },
-  { key: 'speed', label: 'Unit speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Faster'], [2, 'Fastest']] },
-  { key: 'balance', label: 'Balance', ready: true, choices: [['vanilla', 'Vanilla'], ['conquer', 'Conquerer']] },
-  { key: 'build', label: 'Build speed', ready: true, choices: [[0.5, 'Slow'], [1, 'Normal'], [2, 'Fast'], [3, 'Faster'], [10, 'Quickbuild (ten times)']] },
-  { key: 'queue', label: 'Unit queue', ready: true, choices: [[false, 'Off'], [true, "Up to each unit's maximum"]] },
-  { key: 'shields', label: 'Triple shields', ready: true, choices: [[false, 'Off'], [true, 'On, for everyone']] },
-  { key: 'shroud', label: 'Shroud', ready: true, choices: [[true, 'On'], [false, 'Off']] },
-  { key: 'superweapons', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
-  { key: 'factions', label: 'Factions', ready: true, choices: [['all', 'Astro and Alien'], ['good', 'Astro only'], ['evil', 'Alien only'], ['random', 'All random']] },
+  { key: 'mode', group: 'Game', label: 'Game mode', ready: true, choices: [['all', 'Destroy all'], ['structures', 'Destroy structures'], ['hq', 'Destroy HQs'], ['pizza', 'Pizza mode'], ['ctf', 'Capture the flag'], ['hero', 'Hunt the Hero']] },
+  { key: 'cash', group: 'Start', label: 'Starting money', ready: true, choices: [[2500, '$2,500'], [5000, '$5,000'], [7500, '$7,500'], [10000, '$10,000'], [15000, '$15,000'], [20000, '$20,000'], [30000, '$30,000'], [50000, '$50,000']] },
+  { key: 'units', group: 'Start', label: 'Starting units', ready: true, choices: [[0, 'None'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5'], [6, '6']] },
+  { key: 'prebuilt', group: 'Start', label: 'Base', ready: true, choices: [[false, 'HQ only'], [true, 'HQ, power, barracks']] },
+  { key: 'specops', group: 'Special Ops', label: 'Special Ops', ready: true, choices: [['on', 'On'], ['tech', 'Need the tech centre'], ['off', 'Off']] },
+  { key: 'opsHQ', group: 'Special Ops', label: 'Ops Ship and Hive', ready: true, when: (m) => m.specops !== 'off', choices: [[true, 'Headquarters too'], [false, 'As in the story']] },
+  { key: 'crates', group: 'Crates', label: 'Crates', ready: true, choices: [[true, 'On'], [false, 'Off']] },
+  { key: 'christmas', group: 'Crates', label: 'Christmas crate', ready: true, choices: [[true, 'On'], [false, 'Off']], when: (m) => m.crates },
+  { key: 'crateRate', group: 'Crates', label: 'Crates appear', ready: true, choices: [['rare', 'Rarely'], ['normal', 'Normally'], ['often', 'Often']], when: (m) => m.crates },
+  { key: 'income', group: 'Economy', label: 'Passive income', ready: true, choices: [[0, 'None'], [200, '$200 a minute'], [400, '$400 a minute'], [800, '$800 a minute']] },
+  { key: 'pizzaCost', group: 'Game', label: 'Pizza cost', ready: true, when: (m) => m.mode === 'pizza', choices: [[25000, '$25,000'], [50000, '$50,000'], [100000, '$100,000']] },
+  { key: 'captures', group: 'Game', label: 'Capture limit', ready: true, when: (m) => m.mode === 'ctf', choices: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => [n, n === 1 ? 'Once: out' : n + ' times']) },
+  { key: 'speed', group: 'Production and speed', label: 'Unit speed', ready: true, choices: [[0.75, 'Slow'], [1, 'Normal'], [1.25, 'Fast'], [1.5, 'Faster'], [2, 'Fastest']] },
+  { key: 'balance', group: 'Combat', label: 'Balance', ready: true, choices: [['vanilla', 'Vanilla'], ['conquer', 'Conquerer']] },
+  { key: 'build', group: 'Production and speed', label: 'Build speed', ready: true, choices: [[0.5, 'Slow'], [1, 'Normal'], [2, 'Fast'], [3, 'Faster'], [10, 'Quickbuild (ten times)']] },
+  { key: 'queue', group: 'Production and speed', label: 'Unit queue', ready: true, choices: [[false, 'Off'], [true, "Up to each unit's maximum"]] },
+  { key: 'shields', group: 'Combat', label: 'Triple shields', ready: true, choices: [[false, 'Off'], [true, 'On, for everyone']] },
+  { key: 'shroud', group: 'Map', label: 'Shroud', ready: true, choices: [[true, 'On'], [false, 'Off']] },
+  { key: 'superweapons', group: 'Combat', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
+  { key: 'factions', group: 'Game', label: 'Factions', ready: true, choices: [['all', 'Astro and Alien'], ['good', 'Astro only'], ['evil', 'Alien only'], ['random', 'All random']] },
   // What allies (players of one colour) share: between people only, or computer players too.
-  { key: 'shareMoney', label: 'Allies share money', ready: true, choices: SHARE },
-  { key: 'sharePower', label: 'Allies share energy (and radar)', ready: true, choices: SHARE },
-  { key: 'shareUnits', label: 'Allies share units', ready: true, choices: SHARE },
-  { key: 'shareBuildings', label: 'Allies share buildings', ready: true, choices: SHARE },
-  { key: 'regrowth', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
-  { key: 'palette', label: 'Map palette', ready: true, choices: [...PALETTES, ['random', 'Random']] },
+  { key: 'shareMoney', group: 'Allies', label: 'Allies share money', ready: true, choices: SHARE },
+  { key: 'sharePower', group: 'Allies', label: 'Allies share energy (and radar)', ready: true, choices: SHARE },
+  { key: 'shareUnits', group: 'Allies', label: 'Allies share units', ready: true, choices: SHARE },
+  { key: 'shareBuildings', group: 'Allies', label: 'Allies share buildings', ready: true, choices: SHARE },
+  { key: 'regrowth', group: 'Economy', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
+  { key: 'palette', group: 'Map', label: 'Map palette', ready: true, choices: [...PALETTES, ['random', 'Random']] },
 ];
+
+// The Match panel's parts, in this order, each under a thin line; within one, its settings in
+// alphabetical order.  (Both panels, the skirmish's and a room's.)
+const MATCH_GROUPS = ['Game', 'Combat', 'Start', 'Economy', 'Production and speed', 'Special Ops', 'Crates', 'Allies', 'Map'];
+function matchRows(row) {
+  return MATCH_GROUPS.flatMap((group) => [el('div', { class: 'wide section', text: group }),
+    ...MATCH.filter((m) => m.group === group).sort((a, b) => a.label.localeCompare(b.label)).flatMap(row)]);
+}
 
 // The games list, refreshed by itself this often (seconds) while it is shown and the page seen.
 const ROOM_REFRESH_S = 10;
@@ -425,7 +434,7 @@ export class OnlineUI {
     }
     this.slotList.replaceChildren(...rows);
 
-    this.matchForm.replaceChildren(...MATCH.flatMap((m) => {
+    this.matchForm.replaceChildren(...matchRows((m) => {
       const select = el('select', { 'aria-label': m.label, disabled: !m.ready || (m.when && !m.when(this.match)), onchange: (e) => {
         const c = m.choices.find(([v]) => String(v) === e.target.value);
         this.match[m.key] = c ? c[0] : this.match[m.key];
@@ -903,7 +912,7 @@ export class OnlineUI {
       el('span', { class: 'nospell', text: watchers.length ? 'Watching: ' + watchers.map((x) => x.name).join(', ') : '' }),
       mySlot >= 0 ? el('button', { class: 'btn small', onclick: () => net.spectate() }, 'Watch instead') : null);
     // the match: the host changes it; everyone sees it
-    this.roomMatchForm.replaceChildren(...MATCH.flatMap((x) => {
+    this.roomMatchForm.replaceChildren(...matchRows((x) => {
       const select = el('select', { 'aria-label': x.label, disabled: !host || !x.ready || (x.when && !x.when(m)), onchange: (e) => {
         const c = x.choices.find(([v]) => String(v) === e.target.value);
         this.setRoomMatch({ [x.key]: c ? c[0] : m[x.key] });

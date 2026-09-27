@@ -221,6 +221,7 @@ select:focus, input:focus { outline: 2px solid var(--orange); outline-offset: 1p
 /* a settings list's parts (Display, Controls, ...), each under a thin line */
 .form .section { margin-top: 8px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 12px; font-weight: 700;
   letter-spacing: 0.14em; color: var(--orange-hi); }
+.form > .section:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 
 .mapcard { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
 .mapcard canvas { width: 160px; height: auto; flex: none; border-radius: 6px; background: #3a1a08; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); image-rendering: pixelated; }
