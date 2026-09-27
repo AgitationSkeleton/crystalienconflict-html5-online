@@ -2,7 +2,7 @@
 // play (the list of games, a room's lobby: see net.js for the match itself) and the settings.  The game's own menus are still there for the story (STORY), and the game
 // comes back here when a match or a story game ends (Online.menu, called from game.js).
 
-import { COLOURS, COLOUR_CSS, PALETTES, UI_SCALES, loadSettings, saveSettings } from './settings.js';
+import { COLOURS, COLOUR_CSS, DEFAULTS, PALETTES, UI_SCALES, loadSettings, saveSettings } from './settings.js';
 import { american } from './spelling.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
@@ -1101,7 +1101,24 @@ export class OnlineUI {
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface sounds' }), slider('ui'),
+      el('div', { class: 'wide actions' }, el('button', { class: 'btn small', onclick: () => this.resetSettings() }, 'Reset all to default')),
       this.appNote());
+  }
+
+  // The settings as they are at first -- all but the player's name (who they are, not a
+  // preference) and the skirmish last set up (not on this menu).
+  resetSettings() {
+    const st = this.settings;
+    for (const key of Object.keys(DEFAULTS)) if (key !== 'name' && key !== 'lobby') st[key] = DEFAULTS[key];
+    this.slots[0].faction = st.faction;
+    this.slots[0].colour = st.colour;
+    saveSettings(st);
+    this.applyVolumes();
+    this.applyPrefs();
+    if (this.hooks.setSize) this.hooks.setSize(st.size);
+    this.respell();
+    this.sound('INT_cursor_select');
+    this.renderSettings();
   }
 
   // The menus' own text in the player's English (spelling.js; the game's goes by the same setting,
