@@ -1013,6 +1013,8 @@ export class OnlineUI {
       this.watchingSize = true;
       addEventListener('resize', () => { if (this.screens.settings.classList.contains('active')) this.explainSize(); });
     }
+    const healthBars = el('select', { 'aria-label': 'Always Show Health Bars', onchange: (e) => { st.healthBars = e.target.value; save(); } },
+      ...[['off', 'Off (Vanilla)'], ['units', 'Units'], ['buildings', 'Buildings'], ['all', 'All']].map(([v, t]) => el('option', { value: v, text: t, selected: st.healthBars === v })));
     const onOff = (key, label) => el('select', { 'aria-label': label, onchange: (e) => { st[key] = e.target.value === 'on'; save(); } },
       el('option', { value: 'on', text: 'On', selected: st[key] }),
       el('option', { value: 'off', text: 'Off', selected: !st[key] }));
@@ -1030,6 +1032,7 @@ export class OnlineUI {
       el('label', { text: 'Show Unit/Building Count' }), onOff('ownedCounts', 'Show Unit/Building Count'),
       el('label', { text: 'Team-Coloured Sidebar Icons' }), onOff('teamIcons', 'Team-Coloured Sidebar Icons'),
       el('label', { text: 'Special Ops in the Story' }), onOff('storySpecOps', 'Special Ops in the Story'),
+      el('label', { text: 'Always Show Health Bars' }), healthBars,
       el('label', { text: 'Music' }), slider('music'),
       el('label', { text: 'Sound' }), slider('sound'),
       el('label', { text: 'Interface sounds' }), slider('ui'),
@@ -1047,7 +1050,7 @@ export class OnlineUI {
 
   // What the game reads of the settings while it plays.
   applyPrefs() {
-    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons !== false, storySpecOps: !!this.settings.storySpecOps };
+    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons !== false, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off' };
   }
 
   applyVolumes() {

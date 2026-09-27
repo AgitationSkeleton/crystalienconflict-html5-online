@@ -4167,6 +4167,13 @@
             {
                __as.set(this.MCsprite?.health, "_alpha", __as.set(this.MCsprite?.title, "_alpha", 100));
             }
+            // (Online: its health bar always shown, if the player's settings say so: "Always Show
+            // Health Bars", buildings or all; the name still only when selected or pointed at)
+            else if(Online?.prefs?.healthBars == "buildings" || Online?.prefs?.healthBars == "all")
+            {
+               __as.set(this.MCsprite?.health, "_visible", true);
+               __as.set(this.MCsprite?.health, "_alpha", 100);
+            }
             this.MCsprite?.health?.gotoAndStop?.(this.healthPerc);
             if(this.hilite)
             {
@@ -5586,6 +5593,13 @@
             }
             if(this.selected)
             {
+               __as.set(this.MCsprite?.health, "_alpha", 100);
+            }
+            // (Online: its health bar always shown, if the player's settings say so: "Always Show
+            // Health Bars", units or all -- not a pickup's)
+            else if((Online?.prefs?.healthBars == "units" || Online?.prefs?.healthBars == "all") && !this.stats?.pickup)
+            {
+               __as.set(this.MCsprite?.health, "_visible", true);
                __as.set(this.MCsprite?.health, "_alpha", 100);
             }
             __as.set(this.MCsprite?.squad, "squad", this.squadNumber);

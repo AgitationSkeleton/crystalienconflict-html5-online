@@ -32,6 +32,7 @@ export const DEFAULTS = {
   ownedCounts: false,       // the sidebar shows how many of each thing you have
   teamIcons: true,          // the sidebar's pictures in your colour
   storySpecOps: false,      // Special Ops (the Ops Ship, the Hive) in the story's levels too
+  healthBars: 'off',        // health bars always shown: 'off' (as the original), 'units', 'buildings' or 'all'
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -49,6 +50,7 @@ export function loadSettings() {
   if (!COLOURS.includes(s.colour)) s.colour = DEFAULTS.colour;
   if (!['all', 'mars', 'snowy', 'hive', 'random'].includes(s.palette)) s.palette = DEFAULTS.palette;
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
+  if (!['off', 'units', 'buildings', 'all'].includes(s.healthBars)) s.healthBars = DEFAULTS.healthBars;
   for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'teamIcons', 'storySpecOps']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);
