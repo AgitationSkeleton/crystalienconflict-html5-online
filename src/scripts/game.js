@@ -1155,6 +1155,18 @@
          this.redrawTiles(12868654);
          this.handle = function ()
          {
+            // (Online: the box held, following the pointer -- see doMouse)
+            if(this.grab)
+            {
+               if(RADARHELD && this.active)
+               {
+                  this.drag?.(_xmouse, _ymouse);
+               }
+               else
+               {
+                  this.grab = null;
+               }
+            }
             __as.set(this.MC, "_visible", false);
             if(this.active && !this.prevActive)
             {
@@ -1225,25 +1237,44 @@
          {
             this.blips?.push?.(obj);
          };
+         // Online: a press on the radar takes hold of the box of what is in view, where it was
+         // pressed -- or, pressed outside it, the box jumps there, its middle under the pointer,
+         // as the original's click did -- and while the button is held the box follows the
+         // pointer, and the view with it (drag, each frame; RADARHELD goes with the button).
+         this.hits = function (x, y)
+         {
+            return !!(this.active && this.parent?.parent?.parent?.hud?.MC?.radar?.hitTest?.(x, y, true));
+         };
          this.doMouse = function (x, y)
          {
-            if(!this.active)
+            if(!this.hits?.(x, y))
             {
                return false;
             }
-            var _loc2_ = this.parent?.parent?.parent?.hud?.MC?.radar;
-            if(!_loc2_?.hitTest?.(x, y, true))
-            {
-               return false;
-            }
-            x = (x - _loc2_?._x - this.marginX) / this.width;
-            y = (y - _loc2_?._y - this.marginY) / this.height;
-            x = limit?.(x, 0, 1);
-            y = limit?.(y, 0, 1);
-            __as.set(this.parent?.parent?.camera, "posX", x * this.parent?.width);
-            __as.set(this.parent?.parent?.camera, "posY", y * this.parent?.height * 2);
+            var camera = this.parent?.parent?.camera;
+            var at = {x:x,y:y};
+            this.MC?.globalToLocal?.(at);
+            var middleX = camera.posX * this.scaler + this.marginX;
+            var middleY = camera.posY * this.scaler + this.marginY;
+            var halfW = this.parent?.viewWidth * this.scaler / 2;
+            var halfH = this.parent?.viewHeight * this.scaler;
+            var inside = Math.abs(at.x - middleX) <= halfW && Math.abs(at.y - middleY) <= halfH;
+            this.grab = inside ? {x:at.x - middleX,y:at.y - middleY} : {x:0,y:0};
+            RADARHELD = true;
+            this.drag?.(x, y);
             MOUSEDOWN = false;
             return true;
+         };
+         this.drag = function (x, y)
+         {
+            var camera = this.parent?.parent?.camera;
+            var at = {x:x,y:y};
+            this.MC?.globalToLocal?.(at);
+            __as.set(camera, "focus", false);
+            __as.set(camera, "dx", 0);
+            __as.set(camera, "dy", 0);
+            __as.set(camera, "posX", limit?.((at.x - this.grab.x - this.marginX) / this.scaler, 0, this.parent?.width));
+            __as.set(camera, "posY", limit?.((at.y - this.grab.y - this.marginY) / this.scaler, 0, this.parent?.height * 2));
          };
          this.showStats = function (title, cost)
          {
@@ -11057,6 +11088,11 @@
                   break;
                }
             }
+            // (Online: the radar moves the view, as a player's does, and lets go of the unit followed)
+            if(!this.MOUSEDOWN && MOUSEDOWN && this.parent?.arena?.radar?.doMouse?.(_xmouse, _ymouse))
+            {
+               this.watch?.(null);
+            }
             if(!this.MOUSEDOWN && MOUSEDOWN && _xmouse > 150)
             {
                this.watch?.(this.activeTarget || null);
@@ -12814,6 +12850,8 @@
          CHEATMODE = true;
       }
       MOUSEDOWN = false;
+      // (Online: a press on the radar, still held: Radar.doMouse)
+      RADARHELD = false;
       MOUSESCROLL = 0;
       WHEELSTEPS = 0;
       ZOOM = 1;
@@ -12852,6 +12890,7 @@
       onMouseUp = function ()
       {
          MOUSEDOWN = false;
+         RADARHELD = false;
       };
       mouseListener = new Object();
       __as.set(mouseListener, "onMouseWheel", function (delta)

@@ -48,6 +48,11 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
   const inMatch = () => !!level();
   const control = () => level() && level().control;
   const placing = () => !!(level() && level().construction && level().construction.buildingSite);
+  // (a point on the radar, while it shows the map)
+  const onRadar = (pt) => {
+    const radar = level() && level().arena && level().arena.radar;
+    return !!(radar && radar.hits && radar.hits(pt[0], pt[1]));
+  };
 
   // CSS pixels for a stage unit.
   const scale = () => {
@@ -136,6 +141,13 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
       const now = performance.now();
       const g = gesture = { id: ev.pointerId, mode: 'wait', x0: ev.clientX, y0: ev.clientY, x: ev.clientX, y: ev.clientY, pt, sidebar: pt[0] < SIDEBAR, listPixels: 0 };
       if (!inMatch()) return;
+      if (onRadar(pt)) {
+        // On the radar: pressed at once, and the pointer follows the finger -- the game drags
+        // the box of what is in view (or jumps it here) until the finger lifts.
+        g.mode = 'radar';
+        g.pressed = press(pt);
+        return;
+      }
       if (g.sidebar) {
         // Held still on the sidebar: a right-click there.
         g.hold = setTimeout(() => {
@@ -242,6 +254,8 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
       const c = control();
       if (moved && c) c.dblClickCount = 0;
       if (!down) player.pointerMove(pt[0], pt[1]);
+    } else if (g.mode === 'radar') {
+      if (!down) player.pointerMove(pt[0], pt[1]);
     } else if (g.mode === 'site') {
       if (moved) g.confirm = false;
       if (!g.confirm) player.pointerMove(pt[0], pt[1]);
@@ -270,13 +284,13 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     clearTimeout(g.hold);
     gesture = null;
     if (ev.type !== 'pointerup') {
-      if (g.mode === 'box') letGo(g.pt, g.pressed);
+      if (g.mode === 'box' || g.mode === 'radar') letGo(g.pt, g.pressed);
       return;
     }
     if (g.mode === 'wait') {
       letGo(g.pt, press(g.pt));
       lastTap = g.sidebar ? null : { t: performance.now(), x: ev.clientX, y: ev.clientY };
-    } else if (g.mode === 'box') {
+    } else if (g.mode === 'box' || g.mode === 'radar') {
       letGo(stagePoint(ev), g.pressed);
     } else if (g.mode === 'site' && g.confirm) {
       const at = player.mouse ? [player.mouse[0], player.mouse[1]] : g.pt;
