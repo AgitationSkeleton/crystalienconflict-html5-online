@@ -5936,6 +5936,9 @@
                   if(_loc5_ == this.parent?.localPlayer)
                   {
                      this.parent?.parent?.hud?.showMessage?.(dialogue?.("int_present"));
+                     // (the Sleigh on the sidebar now, not when the sidebar next looks again --
+                     // when a building next goes up or down)
+                     this.parent?.construction?.doPrerequisites?.(true);
                   }
                   return undefined;
                }

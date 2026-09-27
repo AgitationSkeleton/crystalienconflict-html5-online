@@ -202,8 +202,12 @@ export class Renderer {
     }
     // Online (speed): an outer glow or a drop shadow is the canvas's own shadow, cast as the
     // object draws -- no image to make offscreen and nothing to read back from the GPU, which
-    // is what made a volley of laser fire (each shot glows) stall the whole frame.
-    if (fl.length === 1 && (fl[0].type === 'glow' || fl[0].type === 'dropShadow') && !fl[0].inner && !fl[0].knockout) {
+    // is what made a volley of laser fire (each shot glows) stall the whole frame.  Not text's
+    // strong glow, though: that is the game's black outline round its lettering (strength 5 and
+    // 15, which in Flash is solid), which a shadow only smudges; text is little and seldom
+    // changes, and a filtered picture of it is kept until it does (drawFiltered).
+    const outline = (fl[0].strength || 1) >= 2 && (obj instanceof EditText || obj instanceof TextObj);
+    if (fl.length === 1 && (fl[0].type === 'glow' || fl[0].type === 'dropShadow') && !fl[0].inner && !fl[0].knockout && !outline) {
       return this.drawShadowed(ctx, obj, m, cx, fl[0]);
     }
     this.drawFiltered(ctx, obj, m, cx, fl);
