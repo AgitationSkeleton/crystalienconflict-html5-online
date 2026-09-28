@@ -51,6 +51,11 @@
   overflow-y: auto;
 }
 .screen.active { display: flex; flex-direction: column; align-items: center; }
+/* (a screen's parts keep their height and the screen scrolls, rather than being squeezed into
+   the window, where a panel -- which hides what overflows it -- would lose its bottom) */
+.screen > * { flex-shrink: 0; }
+/* The menus' scrollbars, always there to see (not only while scrolling), in the menus' colours. */
+.screen, .panel.ingame, .chatlog { scrollbar-width: thin; scrollbar-color: var(--orange) rgba(0, 0, 0, 0.35); }
 
 /* ---- the title --------------------------------------------------------------------------- */
 
