@@ -61,8 +61,9 @@ export class DisplayObject {
     else if (!this.$staleAll) (this.$staleKids || (this.$staleKids = new Set())).add(via);
   }
 
-  // Smooth drawing: where a script found the object when it first moved it in a frame, so that
-  // a drawing made between two frames can show it part of the way (render.js, smoothed()).
+  // Smooth drawing: where a script found the object when it first moved it in a frame -- and at
+  // what size -- so that a drawing made between two frames can show it part of the way
+  // (render.js, smoothed()).
   $moving() {
     const p = this.$player;
     const f = p ? p.frame : 0;
@@ -70,6 +71,8 @@ export class DisplayObject {
       this.$ipFrame = f;
       this.$ipX = this.$m[4];
       this.$ipY = this.$m[5];
+      this.$ipA = this.$m[0];
+      this.$ipD = this.$m[3];
       if (p) p.lastMove = f;
     }
   }
@@ -168,6 +171,7 @@ export class DisplayObject {
   set _xscale(v) {
     v = +v;
     if (Number.isNaN(v) || this.$removed) return;
+    this.$moving();
     this.$cacheSR()[0] = v / 100;
     this.$applySR();
     this.$scripted = true;
@@ -177,6 +181,7 @@ export class DisplayObject {
   set _yscale(v) {
     v = +v;
     if (Number.isNaN(v) || this.$removed) return;
+    this.$moving();
     this.$cacheSR()[1] = v / 100;
     this.$applySR();
     this.$scripted = true;

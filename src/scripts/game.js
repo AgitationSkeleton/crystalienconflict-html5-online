@@ -2386,7 +2386,11 @@
             __as.set(this.MC, "_xscale", zoom * 100);
             __as.set(this.MC, "_yscale", zoom * 100);
             this.radar?.fitPortal?.();
-            this.snap = true;
+            // (a zoom carries what is shown with it -- zoomBy -- rather than jumping to the camera)
+            if(!this.keepShown)
+            {
+               this.snap = true;
+            }
          };
          // Zoom by factor, keeping the map point under stage point (x, y) where it is.
          this.zoomBy = function (factor, x, y)
@@ -2394,11 +2398,19 @@
             var camera = this.parent?.camera;
             var before = this.zoom;
             this.zoom = before * factor;
+            this.keepShown = true;
             this.fitView();
+            this.keepShown = false;
             if(this.zoom == before)
             {
                return undefined;
             }
+            // (Online: what is shown zoomed as the map is, the point under (x, y) staying there,
+            // and the view going on easing after the camera from there -- not jumping to it,
+            // which, zoomed a little every frame as the Screensaver's director does, jolted)
+            var k = this.zoom / before;
+            __as.set(this.MC, "_x", Math.round(x - SIDEBAR - (x - SIDEBAR - this.MC?._x) * k));
+            __as.set(this.MC, "_y", Math.round(y - (y - this.MC?._y) * k));
             var dx = x - SIDEBAR - this.viewWidthPx / 2;
             var dy = y - this.viewHeightPx / 2;
             __as.op(camera, "posX", "+", dx / before - dx / this.zoom);

@@ -189,7 +189,16 @@ export class Renderer {
     const dx = l[4] - obj.$ipX, dy = l[5] - obj.$ipY;
     if (obj.$born === this.ipFrame || obj.$shown === this.ipFrame || dx * dx + dy * dy > 160 * 160) return mul(parentM, l);
     const back = 1 - this.ipAlpha;
-    return mul(parentM, [l[0], l[1], l[2], l[3], l[4] - dx * back, l[5] - dy * back]);
+    // (its size too, if only that changed, a little: a view zooming about a point keeps that
+    // point still only if its size and place go part of the way together.  Not a turn or a
+    // flip, which a straight line between two matrices would squash on the way.)
+    let a = l[0], d = l[3];
+    const da = a - obj.$ipA, dd = d - obj.$ipD;
+    if ((da || dd) && !l[1] && !l[2] && a * obj.$ipA > 0 && d * obj.$ipD > 0 && Math.abs(da) < Math.abs(a) * 0.25 && Math.abs(dd) < Math.abs(d) * 0.25) {
+      a -= da * back;
+      d -= dd * back;
+    }
+    return mul(parentM, [a, l[1], l[2], d, l[4] - dx * back, l[5] - dy * back]);
   }
 
   // A colour matrix on a single shape needs no offscreen work: nothing inside one shape
