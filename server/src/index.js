@@ -14,11 +14,11 @@ export { Lobby } from './lobby.js';
 export { Room } from './room.js';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return preflight(env, request);
     try {
-      if (url.pathname.startsWith('/hiscore/')) return await handleScores(request, env, url);
+      if (url.pathname.startsWith('/hiscore/')) return await handleScores(request, env, url, ctx);
       if (url.pathname === '/lobbies' || url.pathname.startsWith('/lobbies/')) return await handleLobbies(request, env, url);
       if (url.pathname === '/rooms' || url.pathname.startsWith('/rooms/')) return await handleRooms(request, env, url);
       if (url.pathname === '/health') return json(env, request, { ok: true, time: Date.now() });

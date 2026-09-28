@@ -36,6 +36,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { json, allowedOrigin, sha256Hex, cleanName } from './http.js';
 import { censor } from '../../src/online/profanity.js';
+import { discord, plain, modeName, mapName, lasted } from './discord.js';
 
 const CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 const CODE_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/;
@@ -96,6 +97,8 @@ export async function handleRooms(request, env, url) {
 }
 
 // ---- the room ------------------------------------------------------------------------------------
+const ACCESS_NAMES = { public: 'anyone can join', password: 'with a password', invite: 'invite only' };
+
 export class Room extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -352,6 +355,11 @@ export class Room extends DurableObject {
       delete this.timers.grace[mem.id];
     }
     if (!r.host || !this.members.get(r.host) || !this.members.get(r.host).connected) r.host = mem.id;
+    // (the owner's log: the room, once someone is in it)
+    if (!r.announced) {
+      r.announced = true;
+      discord(this.env, this.ctx, `\u{1F195} **Lobby created:** ${plain(r.name)}, by ${plain(mem.name)} (${ACCESS_NAMES[r.access] || r.access})`);
+    }
     clearTimeout(this.timers.expire);
     this.startHeartbeat();
     this.send(conn.ws, { type: 'welcome', you: mem.id, room: this.view() });
@@ -449,6 +457,10 @@ export class Room extends DurableObject {
   }
 
   close() {
+    if (this.room && this.room.announced) {
+      const played = this.room.matches ? ', ' + this.room.matches + (this.room.matches === 1 ? ' match' : ' matches') + ' played' : '';
+      discord(this.env, this.ctx, `\u{1F6AA} **Lobby closed:** ${plain(this.room.name)} (open ${lasted(Date.now() - this.room.created)}${played})`);
+    }
     for (const mem of this.members.values()) {
       if (mem.ws) this.send(mem.ws, { type: 'bye', reason: 'closed' });
     }
@@ -530,6 +542,15 @@ export class Room extends DurableObject {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
     this.game = { settings, seed, seats, players, delay, turnMs, next: 0, inputs: new Map(), first: new Map(), log: [], hashes: new Map(), started: Date.now() };
     r.phase = 'playing';
+    // (the owner's log: who plays, where, and how)
+    {
+      const people = players.filter((p) => !p.left && !p.watching).length;
+      const bots = settings.players.filter((p) => p.control === 'bot').length;
+      const watching = players.filter((p) => p.watching).length;
+      const who = [people + (people === 1 ? ' person' : ' people'), bots ? bots + (bots === 1 ? ' computer' : ' computers') : null,
+        watching ? watching + ' watching' : null].filter(Boolean).join(', ');
+      discord(this.env, this.ctx, `\u{25B6}\u{FE0F} **Match started** in ${plain(r.name)}: ${people + bots} players (${who}), ${plain(settings.mapName || mapName(settings.map))}, ${modeName(settings.mode)}`);
+    }
     this.broadcast({ type: 'start', settings, seed, seats, delay, turnTicks: TURN_TICKS });
     this.changed();
     // The first turns have nothing in them: nobody could have ordered anything yet.
@@ -641,6 +662,7 @@ export class Room extends DurableObject {
     const values = new Set(row.values());
     if (values.size > 1 && !g.desynced) {
       g.desynced = n;
+      discord(this.env, this.ctx, `\u{26A0}\u{FE0F} **Desync** in ${plain(this.room.name)}, at turn ${n}`);
       this.broadcast({ type: 'desync', n, hashes: Object.fromEntries(row) });
     }
     // (only the recent past is kept)
@@ -651,6 +673,8 @@ export class Room extends DurableObject {
   ended(mem) {
     const r = this.room;
     if (!this.game || this.game.seats[mem.id] === undefined) return;
+    discord(this.env, this.ctx, `\u{23F9}\u{FE0F} **Match over** in ${plain(r.name)} after ${lasted(Date.now() - this.game.started)}: back to the lobby`);
+    r.matches = (r.matches || 0) + 1;
     this.game = null;
     r.phase = 'lobby';
     // Players who left the room during the match no longer have slots.

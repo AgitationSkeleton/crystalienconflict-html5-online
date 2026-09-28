@@ -15,6 +15,7 @@
 
 import { json, text, sha1Hex, sha256Hex, clientIp, cleanName, decentName } from './http.js';
 import { censor } from '../../src/online/profanity.js';
+import { discord, plain, siteOf } from './discord.js';
 
 const GAMES = /^[A-Za-z0-9_-]{1,40}$/;
 // The fastest a Conflict run could plausibly be: five minutes of the game's 23 frames a second.
@@ -36,7 +37,7 @@ export async function top(env, game, limit = 15) {
   return (results || []).map((r) => Object.assign({}, r, { name: censor(r.name) }));
 }
 
-export async function handleScores(request, env, url) {
+export async function handleScores(request, env, url, ctx) {
   const path = url.pathname.replace(/^\/hiscore/, '');
   if (path === '/GetScores' && request.method === 'GET') {
     const game = url.searchParams.get('gamename') || '';
@@ -73,7 +74,16 @@ export async function handleScores(request, env, url) {
     const now = Date.now();
     const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM scores WHERE ip_hash = ?1 AND created > ?2').bind(ipHash, now - 3600000).first();
     if (recent && recent.n >= PER_HOUR) return text(env, request, 'result=error&reason=later', 429);
+    // (the owner's log: the score, where it stands on the table -- each name's best -- and which
+    // site it came from; the two share the table)
+    const before = await env.DB.prepare('SELECT MAX(score) AS best FROM scores WHERE game = ?1 AND lower(name) = lower(?2)').bind(game, name).first();
     await env.DB.prepare('INSERT INTO scores (game, name, score, created, ip_hash) VALUES (?1, ?2, ?3, ?4, ?5)').bind(game, name, score, now, ipHash).run();
+    const better = await env.DB.prepare('SELECT COUNT(*) AS n FROM (SELECT lower(name) AS who, MAX(score) AS best FROM scores WHERE game = ?1 GROUP BY lower(name)) WHERE best > ?2 AND who != lower(?3)')
+      .bind(game, score, name).first();
+    const rank = (better ? better.n : 0) + 1;
+    const own = before && before.best >= score ? ` (not beating their best, ${before.best})` : '';
+    const place = own ? '' : rank <= 15 ? `, **#${rank}** on the table` : `, #${rank} (the table shows 15)`;
+    discord(env, ctx, `\u{1F3C6} **High score:** ${plain(name)}, ${score}${place}${own}, from ${siteOf(request)}`);
     return text(env, request, 'result=ok');
   }
   // the table's owner

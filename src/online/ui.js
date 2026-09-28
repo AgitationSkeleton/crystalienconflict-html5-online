@@ -1061,6 +1061,8 @@ export class OnlineUI {
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1,
       shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings, players,
+      // (the map by its name, for the server's log: the game goes by map)
+      mapName: map.name,
     };
     net.start(settings);
   }

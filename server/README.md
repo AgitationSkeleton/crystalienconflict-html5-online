@@ -29,8 +29,15 @@ it for you, it adds a second binding instead: keep the one called `DB`), then:
 ```
 npm run db:init                          # makes the scores table in the database
 npx wrangler secret put ADMIN_KEY        # the NAME is ADMIN_KEY; it then asks for the password
+npx wrangler secret put DISCORD_WEBHOOK  # optional: a Discord channel's webhook, for the log below
 npm run deploy
 ```
+
+With `DISCORD_WEBHOOK` set, the server posts to that channel (src/discord.js): a room made (once
+its maker is in it), each match started (how many play, people and computers, the map and mode)
+and over, a desync, the room closed, and each high score saved (its place on the table, and which
+site sent it).  The webhook is a secret, never in this repository: anyone who has it can post to
+the channel.  Without it nothing is sent.
 
 A Cloudflare account that has never had a Worker has no `workers.dev` subdomain, and the first
 deploy fails asking for one (code 10063): open Workers & Pages in the dashboard once, and deploy
