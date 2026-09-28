@@ -49,6 +49,9 @@
   padding: max(16px, 3vh) 16px 16px;
   box-sizing: border-box;
   overflow-y: auto;
+  /* (a finger's scroll kept to the screen, with the phone's own glide on older iPhones) */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .screen.active { display: flex; flex-direction: column; align-items: center; }
 /* (a screen's parts keep their height and the screen scrolls, rather than being squeezed into
