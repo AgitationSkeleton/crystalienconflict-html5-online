@@ -2463,11 +2463,17 @@
             __as.set(_loc2_, "_x", -this.MC?._x / this.zoom);
             __as.set(_loc2_, "_y", -this.MC?._y / this.zoom);
             _loc2_?.clear?.();
+            // Online: the wind's drift kept going, not taken from the arena's count, which starts
+            // again every 90 frames: the dust jumped back each time -- a little at the original's
+            // pace, which is almost one width of its picture in 90 frames, and by half of it at the
+            // palettes' half pace.  It drifts along the picture's own width (the original's 4 across
+            // and 2 down a frame, turned as the picture is), wrapped at that width: seamless at
+            // any pace (a palette's, see calmWind).
+            this.windDrift = ((this.windDrift || 0) + Math.sqrt(20) * (this.windSpeed || 1)) % (this.windBitmap?.width || 400);
             var _loc3_ = new flash.geom.Matrix();
+            _loc3_?.translate?.(-this.windDrift, 0);
             _loc3_?.rotate?.(-0.463);
             _loc3_?.translate?.(this.MC?._x / this.zoom, this.MC?._y / this.zoom);
-            // (Online: at a palette's pace -- see calmWind)
-            _loc3_?.translate?.(-this.count * 4 * (this.windSpeed || 1), this.count * 2 * (this.windSpeed || 1));
             _loc2_?.beginBitmapFill?.(this.windBitmap, _loc3_);
             _loc2_?.moveTo?.(0, 0);
             _loc2_?.lineTo?.(this.viewWidth, 0);
