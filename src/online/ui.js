@@ -230,7 +230,10 @@ export class OnlineUI {
       this.roomTimer = setInterval(() => this.roomTick(), 1000);
     }
     if (name === 'room') this.renderRoom();
-    const first = this.screens[name] && this.screens[name].querySelector('button:not(:disabled), select, input');
+    // (for the keys: the screen's first control -- not a text box, and nothing on a touch screen,
+    // where focusing one brings up the keyboard)
+    const touch = this.player.online.touch || (window.matchMedia && matchMedia('(pointer: coarse)').matches);
+    const first = !touch && this.screens[name] && this.screens[name].querySelector('button:not(:disabled), select, input:not([type=text])');
     if (first) first.focus({ preventScroll: true });
   }
 
