@@ -3231,7 +3231,9 @@
             for(var key of __as.keys(this.options))
             {
                option = this.options[key];
-               if(!option?.MC)
+               // (an option no longer offered keeps the picture it had, which went with the old
+               // lists when buildMenus made new ones)
+               if(!option?.active || !option?.MC || option.MC.$removed)
                {
                   continue;
                }
@@ -3271,6 +3273,10 @@
             if(!mc)
             {
                mc = option.MC.createEmptyMovieClip(name, depth);
+               if(!mc)
+               {
+                  return undefined;
+               }
                var field = mc.createTextField("count", 1, 0, -2.5, 30, 16);
                field.setNewTextFormat(new TextFormat("NissanD", 10, 16777215, true));
                mc.shown = 0;
@@ -3707,7 +3713,15 @@
                {
                   if(!item?.superweapon)
                   {
-                     this.parent?.units?.push?.(new Unit(this.parent, item?.type, undefined, undefined, 0.125 * random?.(8), this.parent?.localPlayer));
+                     var made = new Unit(this.parent, item?.type, undefined, undefined, 0.125 * random?.(8), this.parent?.localPlayer);
+                     this.parent?.units?.push?.(made);
+                     // (Online: in the story, a miner just made goes to the nearest crystals, if the
+                     // player's settings say so -- "New miners to crystals", as a skirmish's do: the
+                     // order a click would give.  Not in the tutorials, which teach it.)
+                     if(made?.stats?.miner && !this.parent?.skirmish && !this.parent?.training && Online?.prefs?.autoMine !== false)
+                     {
+                        this.parent?.sendMiner?.(made);
+                     }
                      this.cancel?.(item);
                      this.parent?.parent?.sfx?.play?.("INT_constructioncomplete_unit");
                   }
@@ -12262,6 +12276,8 @@
             var centre = SIDEBAR + (SCREENX - SIDEBAR) / 2;
             __as.set(this.MC?.messageUp, "_x", centre);
             __as.set(this.MC?.messageUp, "_y", 340 + extra);
+            this.messageFor = null;
+            this.fitMessage?.();
             __as.set(this.MC?.$childAt?.(44 - 16384), "_x", centre - 198);
             __as.set(this.MC?.$childAt?.(38 - 16384), "_x", SCREENX - 171);
             __as.set(this.MC?.$childAt?.(38 - 16384), "_y", 380 + extra);
@@ -12279,7 +12295,9 @@
             __as.set(this.MC?.popup, "_xscale", 100 * popupScale);
             __as.set(this.MC?.popup, "_yscale", 100 * popupScale);
             __as.set(this.MC?.popup, "_x", Math.round(popupScale < 1 ? (SCREENX - 600 * popupScale) / 2 : Math.min(centre - 300, SCREENX - 600)));
-            __as.set(this.MC?.popup, "_y", Math.round(popupScale < 1 ? (SCREENY - 400 * popupScale) / 2 : 0));
+            // (at the top of the stage, however it is scaled -- on a narrow, tall one, a phone held
+            // upright, it was in the middle; its bottom bar goes to the stage's foot: fitPopup)
+            __as.set(this.MC?.popup, "_y", 0);
          };
          this.layout();
          // The pause popup's two dimming layers (timeline depths 1 and 2) are stretched across
@@ -12309,7 +12327,7 @@
             // timeline has placed it each frame -- its own place kept, so that the lowering is
             // never added twice -- rather than set, which would stop the timeline moving it)
             var bottom = popup?.bottom;
-            var drop = scale < 1 ? 0 : SCREENY - 400;
+            var drop = Math.max(0, SCREENY / scale - 400);
             if(bottom?.$m)
             {
                if(bottom.$m[5] !== bottom.fitY)
@@ -12348,6 +12366,8 @@
             this.doCash?.();
             this.doPower?.();
             this.draw?.();
+            this.messagePace?.();
+            this.fitMessage?.();
             // (Online: the next message kept back while one naming a player is read.)
             if(this.heldFrames > 0 && !--this.heldFrames && this.held?.length)
             {
@@ -12459,9 +12479,76 @@
             this.MC?.messageUp?.gotoAndPlay?.(2);
             this.MC?.messageUp?.play?.();
             __as.set(this.MC?.messageUp?.message, "message", html ? message : message?.toUpperCase?.());
+            this.fitMessage?.();
+            // (Online: at a skirmish's own speed, faster or slower than the original's, the message
+            // is still up as long -- its clip moved on at the original's pace: messagePace)
+            var pace = this.pace?.();
+            if(pace != 1)
+            {
+               this.MC?.messageUp?.stop?.();
+               this.messageFrame = 2;
+               this.messageClock = 0;
+            }
             if(html)
             {
-               this.heldFrames = 46;
+               this.heldFrames = Math.round(46 * pace);
+            }
+         };
+         // Online: the message (a level's tutorial lines and objectives among them) kept to the view
+         // beside the sidebar.  Where the view is narrower than the message's 401 -- a phone held
+         // upright has 270 of the stage there -- its field is narrowed to the view, the text
+         // wrapping onto more lines, and the whole made smaller, as far as nine tenths; and on a
+         // touch screen its last line stands clear of the buttons at the stage's foot (touch.js),
+         // the lines rising from there.  Elsewhere it is the original's, where the original's was.
+         this.fitMessage = function ()
+         {
+            var clip = this.MC?.messageUp;
+            var field = clip?.message?.$childAt?.(1 - 16384);
+            var room = SCREENX - SIDEBAR - 16;
+            var inset = Number(Online?.touchInset) || 0;
+            var key = SCREENX + "x" + SCREENY + " " + SIDEBAR + " " + inset + " " + field?.$id + " " + clip?.message?.message;
+            if(!clip || key == this.messageFor)
+            {
+               return undefined;
+            }
+            this.messageFor = key;
+            var narrow = room < 402;
+            var scale = narrow ? Math.max(0.9, room / 402) : 1;
+            field?.$fitBox?.(narrow ? room / scale : 0, 110);
+            __as.set(clip, "_xscale", __as.set(clip, "_yscale", 100 * scale));
+            if(narrow || inset > 0)
+            {
+               // (the field's top is at the clip's; its text starts two below, and has its gutter under it)
+               __as.set(clip, "_y", Math.round(SCREENY - 8 - inset - (4 + (field?.textHeight || 48)) * scale));
+            }
+            else
+            {
+               __as.set(clip, "_y", SCREENY - 60);
+            }
+         };
+         // Online: the game's speed (a skirmish's setting; the story's is the original's).
+         this.pace = function ()
+         {
+            return Number(this.parent?.parent?.skirmish?.speed) || 1;
+         };
+         // The message's clip, a frame of it for each of the original's frames, whatever the speed.
+         this.messagePace = function ()
+         {
+            var clip = this.MC?.messageUp;
+            if(!this.messageFrame || !clip)
+            {
+               return undefined;
+            }
+            this.messageClock += 1 / this.pace?.();
+            while(this.messageClock >= 1 && this.messageFrame)
+            {
+               this.messageClock -= 1;
+               this.messageFrame++;
+               clip.gotoAndStop?.(this.messageFrame);
+               if(!(this.messageFrame < clip._totalframes))
+               {
+                  this.messageFrame = 0;
+               }
             }
          };
          // Online: a message about a player (the dialogue's %s), their name in their colour.
@@ -12922,7 +13009,9 @@
                      __as.set(SO?.data, "specialEvilUnlocked", false);
                   }
                   __as.set(this.MC?.splash?.bottom?.code, "_visible", true);
-                  if(String?.(Selection.getFocus()) != String?.(this.MC?.splash?.bottom?.code?.codeentry))
+                  // (Online: not on a touch screen, where a box focused without a tap only takes keys
+                  // the phone has no keyboard up for -- tapping it brings the keyboard: touch.js)
+                  if(!Online?.touch && String?.(Selection.getFocus()) != String?.(this.MC?.splash?.bottom?.code?.codeentry))
                   {
                      Selection.setFocus(this.MC?.splash?.bottom?.code?.codeentry);
                   }

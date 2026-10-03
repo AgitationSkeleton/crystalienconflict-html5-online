@@ -275,6 +275,18 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 .panel.ingame .form { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 6px 8px; }
 .panel.ingame .form label { font-size: 11px; }
 .panel.ingame select { font-size: 12px; padding: 4px 6px 3px; }
+/* On a narrow screen (a phone held upright): folded to its title, a tab at the right, till that is
+   tapped; open, wider, with each label over its control. */
+@media (max-width: 700px) {
+  .panel.ingame { width: min(320px, 84vw); }
+  .panel.ingame:not(.open) { width: auto; }
+  .panel.ingame:not(.open) > .body { display: none; }
+  .panel.ingame > h2 { cursor: pointer; }
+  .panel.ingame > h2::after { content: ' ◂'; font-family: system-ui, sans-serif; }
+  .panel.ingame.open > h2::after { content: ' ▾'; }
+  .panel.ingame .form { grid-template-columns: minmax(0, 1fr); gap: 3px 0; }
+  .panel.ingame .form select { margin-bottom: 6px; }
+}
 
 /* The error notice (errors.js): small, in a corner, over the game and the menus. */
 .errnote {

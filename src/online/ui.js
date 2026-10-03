@@ -674,7 +674,10 @@ export class OnlineUI {
   // as it starts.  The Screensaver's own, in Screensaver Mode.
   buildIngame() {
     this.ingameBody = el('div', { class: 'body form' });
-    this.ingame = el('div', { class: 'panel ingame', role: 'dialog', 'aria-label': 'Options' }, el('h2', { text: 'Options' }), this.ingameBody);
+    // (on a narrow screen it starts folded to its title, which opens it: ui.css)
+    const title = el('h2', { text: 'Options', role: 'button', tabindex: 0, 'aria-expanded': 'false',
+      onclick: () => { const open = this.ingame.classList.toggle('open'); title.setAttribute('aria-expanded', String(open)); } });
+    this.ingame = el('div', { class: 'panel ingame', role: 'dialog', 'aria-label': 'Options' }, title, this.ingameBody);
     // (its clicks and keys are its own, not the game's under it)
     for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'wheel', 'keydown', 'keyup']) this.ingame.addEventListener(type, (e) => e.stopPropagation());
     document.body.append(this.ingame);

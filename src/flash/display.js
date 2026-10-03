@@ -1102,6 +1102,29 @@ export class EditText extends DisplayObject {
     return lines.reduce((w, L) => Math.max(w, L.width), 0);
   }
 
+  // (Online: the text's height, all its lines', as it is laid out.)
+  get textHeight() {
+    this.$player.text.bind(this);
+    const L = this.$player.text.layout(this);
+    return L.lines.reduce((h, line) => h + line.ascent + line.descent, 0) + Math.max(0, L.lines.length - 1) * L.leading;
+  }
+
+  // Online: the field's box made w wide and h high, about its middle and down from its top, as
+  // a TextField's _width and _height would make it in Flash: its text wraps to the new width,
+  // and nothing is scaled.  (On its own copy of the definition, as $format makes; with no w, the
+  // box it was defined with.)
+  $fitBox(w, h) {
+    const b = this.$lib.char(this.$cid).b;
+    const box = w ? [(b[0] + b[2] - w) / 2, b[1], (b[0] + b[2] + w) / 2, b[1] + h] : b;
+    if (this.$char.b.every((v, i) => v === box[i])) return;
+    if (!this.$ownChar) {
+      this.$char = { ...this.$char };
+      this.$ownChar = true;
+    }
+    this.$char.b = box;
+    this.$changed();
+  }
+
   // Online: a TextFormat, for the whole field (a field here has the one format): its font (one
   // of the movie's, by name), size, colour, boldness and alignment.
   setTextFormat(...args) { this.$format(args[args.length - 1]); }

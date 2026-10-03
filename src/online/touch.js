@@ -32,6 +32,52 @@ const STILL_WAITING = 1e6;       // the game's count of frames left for a second
 
 export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
   let gesture = null;
+
+  // The phone's keyboard, for the game's own text boxes (the story's code box): a text field of
+  // the page's, out of sight, focused by the touch itself -- nothing else brings a keyboard up --
+  // and what is typed into it given to the game as keys (the game's box keeps the text).
+  const typing = document.createElement('input');
+  typing.type = 'text';
+  typing.autocomplete = 'off';
+  typing.spellcheck = false;
+  typing.setAttribute('autocorrect', 'off');
+  typing.setAttribute('autocapitalize', 'characters');
+  typing.setAttribute('aria-hidden', 'true');
+  typing.tabIndex = -1;
+  typing.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0;margin:0;pointer-events:none';
+  document.body.appendChild(typing);
+  let typed = '';
+  const typeKey = (key, code) => {
+    player.keyDown({ keyCode: code, key });
+    player.keyUp({ keyCode: code, key: '' });
+  };
+  typing.addEventListener('input', () => {
+    const now = typing.value;
+    let same = 0;
+    while (same < typed.length && same < now.length && typed[same] === now[same]) same++;
+    for (let i = typed.length; i > same; i--) typeKey('Backspace', 8);
+    for (const ch of now.slice(same)) typeKey(ch, ch.toUpperCase().charCodeAt(0));
+    typed = now;
+  });
+  // (its keys are its own -- the page's would give them to the game twice -- but Enter, which
+  // the game is given and which puts the keyboard away)
+  for (const type of ['keydown', 'keyup']) {
+    typing.addEventListener(type, (e) => {
+      e.stopPropagation();
+      if (type === 'keydown' && e.key === 'Enter') {
+        typeKey('Enter', 13);
+        typing.blur();
+      }
+    });
+  }
+  let typingFor = null;               // the game's box it types in, and since when
+  let typingSince = 0;
+  const openKeyboard = (field) => {
+    typed = typing.value = String(field.$text || '');
+    typingFor = field;
+    typingSince = performance.now();
+    typing.focus({ preventScroll: true });
+  };
   const fingers = new Map();
   let release = null;             // a click's release, waiting for the game to have seen the press
   let down = null;                // a press, waiting for the game to be ready for it
@@ -124,6 +170,8 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     cam.focus = false;
     cam.dx = cam.dy = 0;
     if (lv.control) lv.control.following = null;      // (a spectator's view let go of the unit it followed)
+    // (and the Screensaver's director lets the view go a while, as for the keys: Control.takeOver)
+    if (lv.control && lv.control.takeOver) lv.control.takeOver();
     cam.posX -= dx / zoom;
     cam.posY -= (2 * dy) / zoom;
   };
@@ -140,6 +188,10 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
       const pt = stagePoint(ev);
       const now = performance.now();
       const g = gesture = { id: ev.pointerId, mode: 'wait', x0: ev.clientX, y0: ev.clientY, x: ev.clientX, y: ev.clientY, pt, sidebar: pt[0] < SIDEBAR, listPixels: 0 };
+      // (a text box of the game's under the finger -- the story's code box: the keyboard, now,
+      // while the touch is still the page's to answer)
+      const field = player.inputFieldAt && player.inputFieldAt(pt[0], pt[1]);
+      if (field) openKeyboard(field);
       if (!inMatch()) return;
       if (onRadar(pt)) {
         // On the radar: pressed at once, and the pointer follows the finger -- the game drags
@@ -325,6 +377,8 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     bar.appendChild(b);
   }
   document.body.appendChild(bar);
+  let barInset = 0;                  // stage units the buttons take at the stage's foot
+  let barFor = '';                   // ... measured at this stage size
   // (iOS's own pinch zooms the whole page, whatever the canvas says)
   for (const t of ['gesturestart', 'gesturechange']) document.addEventListener(t, (e) => e.preventDefault(), { passive: false });
 
@@ -339,12 +393,28 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     // a match is on; and a double tap's allowance (the game's, in frames, a little longer).
     frame(touchMode) {
       flush();
+      // (the keyboard put away when the game's box is no longer the one being typed in -- given
+      // a moment first, for the game to have seen the touch that brought it up)
+      if (document.activeElement === typing && performance.now() - typingSince > 700 && (player.focus !== typingFor || !typingFor || typingFor.$removed)) typing.blur();
       const c = control();
       if (c) c.sensitivity = touchMode ? 7 : 5;
       // (watching, only the Menu: there is nothing to deselect, and no home)
       const watching = !!(level() && level().spectating);
-      bar.classList.toggle('shown', !!(touchMode && inMatch()));
+      // (not over the pause menu, which has its own buttons where these stand)
+      const g = player.levels[1] && player.levels[1].panel && player.levels[1].panel.game;
+      const paused = !!(g && (g.active === false || (g.level && g.level.control && g.level.control.active === false)));
+      const on = !!(touchMode && inMatch());
+      bar.classList.toggle('shown', on && !paused);
       for (const b of bar.children) b.style.display = watching && b.dataset.key !== '27' ? 'none' : '';
+      // (and how far up the stage the buttons reach, in a match on a touch screen, paused or not:
+      // the game's messages stand clear of them -- Hud.fitMessage.  Measured while they show.)
+      const r = player.renderer;
+      if (on && !paused && barFor !== r.stageW + 'x' + r.stageH) {
+        const box = bar.getBoundingClientRect();
+        barInset = Math.max(0, Math.ceil(r.stageH - stagePoint({ clientX: box.left, clientY: box.top })[1]));
+        barFor = r.stageW + 'x' + r.stageH;
+      }
+      player.online.touchInset = on ? barInset : 0;
     },
   };
 }
