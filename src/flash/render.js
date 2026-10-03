@@ -305,7 +305,13 @@ export class Renderer {
     // at a time unless there are masks.
     const plain = !(obj.$gfx && obj.$gfx.ops.length) && !kids.some((c) => c.$clipDepth);
     const indexed = plain && !kids.some((c) => c.$filters);
-    e.job = { key, b, canvas, M: [m[0], 0, 0, m[3], 1 - b[0] * m[0], 1 - b[1] * m[3]], next: -1, plain,
+    // (What it holds keeps, in the picture, the fraction of a pixel it is from the clip's own
+    // origin -- the picture's corner is a whole pixel from there, not at the edge of what it
+    // holds -- and the picture is put down a whole number of pixels from where the origin is
+    // drawn: pictures of clips laid side by side, the map's bands of tile rows, meet as their
+    // tiles would have, with neither a pixel's gap between them nor a row drawn twice (which,
+    // through a pale see-through tile, showed as a lighter line).  See blitCache.)
+    e.job = { key, b, canvas, M: [m[0], 0, 0, m[3], 1 - Math.floor(b[0] * m[0]), 1 - Math.floor(b[1] * m[3])], next: -1, plain,
       kids: indexed ? new Map() : null, order: indexed ? new Map() : null, grid: indexed ? new Map() : null };
     obj.$stale = false;
     obj.$staleAll = false;
@@ -365,7 +371,6 @@ export class Renderer {
     e.kids = job.kids;
     e.order = job.order;
     e.grid = job.grid;
-    if (obj.$bleed) this.bleedDown(e);
     if (obj.$stale && !this.mendCache(e, obj)) {
       e.key = '';
       return false;
@@ -456,29 +461,14 @@ export class Renderer {
     } finally {
       this.ipFrame = ip;
     }
-    if (obj.$bleed) this.bleedDown(e);
     return true;
-  }
-
-  // (Online: a picture's bottom edge carried a pixel lower, where nothing is drawn.  Pictures
-  // laid one under another -- the map's bands of tile rows, $bleed -- are each put down at a
-  // whole pixel, and at some sizes the two roundings left a pixel's gap between them, where the
-  // ground under the sea showed through in a line.  The band above now covers it.)
-  bleedDown(e) {
-    const c = e.canvas, g = c.getContext('2d'), H = c.height;
-    g.save();
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.globalCompositeOperation = 'destination-over';
-    g.imageSmoothingEnabled = false;
-    for (const y of [H - 3, H - 2]) if (y >= 0) g.drawImage(c, 0, y, c.width, 1, 0, y + 1, c.width, 1);
-    g.restore();
   }
 
   blitCache(ctx, e, m, cx) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = cx ? Math.max(0, cx[3] / 256) : 1;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(e.canvas, Math.round(m[4] + e.x0 * m[0] - 1), Math.round(m[5] + e.y0 * m[3] - 1));
+    ctx.drawImage(e.canvas, Math.round(m[4] - 1) + Math.floor(e.x0 * m[0]), Math.round(m[5] - 1) + Math.floor(e.y0 * m[3]));
     ctx.globalAlpha = 1;
     return true;
   }

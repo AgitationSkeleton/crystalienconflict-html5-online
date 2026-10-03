@@ -1195,7 +1195,8 @@
                __as.set(_loc3_, "_x", _loc2_?.posX * this.scaler + this.marginX);
                __as.set(_loc3_, "_y", _loc2_?.posY * this.scaler + this.marginY);
                _loc3_?.gotoAndStop?.(_loc2_?.team);
-               if(TEAM_RGB?.[_loc2_?.owner?.colour] != undefined)
+               // (in a skirmish; the story's radar is the original's, though its sides have colours)
+               if(this.parent?.parent?.skirmish && TEAM_RGB?.[_loc2_?.owner?.colour] != undefined)
                {
                   new Color(_loc3_)?.setRGB?.(TEAM_RGB?.[_loc2_?.owner?.colour]);
                }
@@ -2342,12 +2343,6 @@
             {
                band = this.tileMC?.createEmptyMovieClip?.("band" + index, index);
                __as.set(band, "cacheAsBitmap", true);
-               // (its picture's bottom edge carried a pixel down, under the next band: no line
-               // between them at any zoom -- the renderer's bleedDown)
-               if(band)
-               {
-                  band.$bleed = true;
-               }
                this.tileBands[index] = band;
             }
             return band;
@@ -2653,44 +2648,32 @@
             return x > _loc4_ && x < _loc4_ + this.viewWidth && y > _loc3_ && y < _loc3_ + this.viewHeight;
          };
          // Online: the terrain is one piece of ground 2880 pixels square -- thirty tiles by sixty,
-         // enough for any of the story's maps.  A bigger map gets more of it, side by side.
+         // enough for any of the story's maps.  A bigger map has the ground carried on under the
+         // rest of it: the piece is a window on its picture repeated (a 500-pixel square, which
+         // repeats without a seam), and one fill of that picture, placed as the piece places it,
+         // goes on from it.  (Not more pieces side by side, mirrored to meet: at most sizes their
+         // edges, each drawn soft, let the dark through in a line between them.  Under the piece
+         // the fill is the same ground, so its edge shows nothing either.)
          this.extendTerrain = function ()
          {
             var across = Math.ceil(this.cols * this.tileSize / 2880);
             var down = Math.ceil(this.rows * this.tileSize2 / 2880);
-            var tx = 0;
-            var ty;
-            var piece;
             this.terrainMCs = new Array(this.terrainMC);
-            while(tx < across)
+            if(across < 2 && down < 2)
             {
-               ty = 0;
-               while(ty < down)
-               {
-                  if(tx || ty)
-                  {
-                     piece = this.MC?.attachMovie?.("terrain", "terrain_" + tx + "_" + ty, -20 - tx * 16 - ty);
-                     __as.set(piece, "_x", tx * 2880);
-                     __as.set(piece, "_y", ty * 2880);
-                     // (every other piece across, and down, the mirror image of its neighbour, so
-                     // that the pieces meet without a seam: the original's ground was never meant
-                     // to repeat, and its edges do not match)
-                     if(tx % 2)
-                     {
-                        __as.set(piece, "_xscale", -100);
-                        __as.set(piece, "_x", (tx + 1) * 2880);
-                     }
-                     if(ty % 2)
-                     {
-                        __as.set(piece, "_yscale", -100);
-                        __as.set(piece, "_y", (ty + 1) * 2880);
-                     }
-                     this.terrainMCs?.push?.(piece);
-                  }
-                  ty++;
-               }
-               tx++;
+               return undefined;
             }
+            var ground = this.MC?.createEmptyMovieClip?.("terrainAll", -20);
+            var place = new flash.geom.Matrix();
+            place?.translate?.(1290, 1290);
+            ground?.beginBitmapFill?.(flash.display.BitmapData?.loadBitmap?.("#4349"), place, true, false);
+            ground?.moveTo?.(0, 0);
+            ground?.lineTo?.(across * 2880, 0);
+            ground?.lineTo?.(across * 2880, down * 2880);
+            ground?.lineTo?.(0, down * 2880);
+            ground?.lineTo?.(0, 0);
+            ground?.endFill?.();
+            this.terrainMCs?.push?.(ground);
          };
          this.doSnow = function ()
          {
@@ -3197,11 +3180,11 @@
          // many of a thing this player has (a setting of theirs, "Show Unit/Building Count").
          // And the pictures in this player's colour -- drawn again from their sources' layers
          // (buildMenus) -- or as the game drew them (another setting, "Team-Coloured Sidebar
-         // Icons"; the story's sidebar is the original's either way).
+         // Icons"; in the story, the colour of the player's side there: Game.iconColour).
          this.showCounts = function ()
          {
-            var teamIcons = Online?.prefs?.teamIcons !== false && !!this.parent?.parent?.localColour;
-            var tint = teamIcons ? this.parent?.parent?.localColour : "none";
+            var teamIcons = Online?.prefs?.teamIcons !== false && !!this.parent?.parent?.iconColour;
+            var tint = teamIcons ? this.parent?.parent?.iconColour : "none";
             var production = this.production?.();
             var queuing = !!production?.queuing;
             var owned = !!Online?.prefs?.ownedCounts && !this.parent?.spectating;
@@ -3424,7 +3407,7 @@
                   // the thing apart, each coloured in the player's colour -- over the game's own,
                   // while the player's settings ask for team-coloured icons: showCounts)
                   var art = Online?.mugshots?.[_loc3_?.type];
-                  var ownColour = this.parent?.parent?.localColour;
+                  var ownColour = this.parent?.parent?.iconColour;
                   if(art && ownColour)
                   {
                      var teamPicture = MC?.option?.createEmptyMovieClip?.("teamPicture", 1001);
@@ -4357,6 +4340,13 @@
          this.MC = this.parent?.arena?.MC?.createEmptyMovieClip?.("building_" + __as.upd(this.parent, "uniqid", 1, false), this.parent?.arena?.MC?.getNextHighestDepth?.());
          __as.set(this.MC, "teamColour", this.owner?.colour);
          this.MCbaseplate = this.MC?.attachMovie?.("baseplate", "baseplate", 1);
+         // (Online: in the story, the plate as the original drew it -- its side's, which a capture
+         // changes -- rather than in its owner's colour, as in a skirmish: only what is drawn in
+         // a side's colour takes the other side's.)
+         if(!this.parent?.skirmish)
+         {
+            __as.set(this.MCbaseplate, "teamColour", "none");
+         }
          if(this.stats?.width == 1)
          {
             this.MCbaseplate?.gotoAndStop?.(this.team + "_1");
@@ -10801,7 +10791,11 @@
             var options = this.skirmish?.players;
             if(!options)
             {
-               options = new Array({faction:this.parent?.team,control:"local"}, {faction:this.parent?.oppo,control:"script"});
+               // (each in its side's colour -- the Astros' orange, the Aliens' green, the colours the
+               // game drew them in -- so that what a side builds or takes of the other's is drawn in
+               // its colour, as in a skirmish: only the look; the sides are as they were)
+               var storyColour = {good:"orange",evil:"green"};
+               options = new Array({faction:this.parent?.team,team:this.parent?.team,colour:storyColour[this.parent?.team],control:"local"}, {faction:this.parent?.oppo,team:this.parent?.oppo,colour:storyColour[this.parent?.oppo],control:"script"});
             }
             var index = 0;
             while(index < options?.length)
@@ -11596,11 +11590,12 @@
                }
             }
          };
-         // The one unit followed (selected, the camera on it), or none.
+         // The one unit followed (selected, the camera on it), or none.  (A pickup -- a pizza -- is
+         // followed but not selected, which would show it a health bar.)
          this.watch = function (unit)
          {
             this.resetSelected?.();
-            if(unit)
+            if(unit && !unit.stats?.pickup)
             {
                __as.set(unit, "selected", true);
                this.selected = new Array(unit);
@@ -12709,6 +12704,10 @@
          {
             this.localColour = "gray";
          }
+         // (The sidebar's pictures may be in it as well, a setting of the player's; in the story,
+         // in the colour of the player's side there, which the HUD's frame is not: it stays the
+         // original's.)
+         this.iconColour = this.localColour || (this.parent?.skirmish ? undefined : this.team == "evil" ? "green" : "orange");
          this.hud = new Hud(this);
          // Online: the mask and the flash follow the stage's size, paused or not.
          this.stageWidth = SCREENX;
