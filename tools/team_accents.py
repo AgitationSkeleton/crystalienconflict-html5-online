@@ -52,6 +52,21 @@ ACCENT_OVERRIDE = {
 # Astro Defence Station's turret, one facing of which has its orange run to yellow (55-60).
 ACCENT_BAND = {
     'BD_good': 26.0,
+    # (and where the faction's colour runs into another at its edges and in its moving parts --
+    # the Alien Hive's yellow into green at its rims, the Vehicle Factory's orange into red and
+    # yellow in its lights, the Strike Fighter's yellow-green into yellow -- and was left showing)
+    'BK_evil': 42.0,
+    'BE_good': 42.0,
+    'UG_evil': 42.0,
+}
+
+# Where the faction's colour fades into pale highlights and fringes that were left their own
+# colour (below TEAM_MIN_SAT): how pale a pixel of it may be.  The renderer keeps such a pixel's
+# brightness, a highlight still (render.js, teamed).
+ACCENT_MIN_SAT = {
+    'BK_evil': 0.10,
+    'BE_good': 0.08,
+    'UG_evil': 0.06,
 }
 
 # Where each faction's accent may lie: window centres, in degrees ('wheel': anywhere).
@@ -185,6 +200,8 @@ def main():
         if hue is None:
             return
         entry = [hue, native] if name not in ACCENT_BAND else [hue, native, [], ACCENT_BAND[name]]
+        if name in ACCENT_MIN_SAT:
+            entry = [hue, native, [], ACCENT_BAND.get(name, 22.0), {'minSat': ACCENT_MIN_SAT[name]}]
         for bid in ids:
             out.setdefault(str(bid), entry)
 

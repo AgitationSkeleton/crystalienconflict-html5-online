@@ -365,6 +365,7 @@ export class Renderer {
     e.kids = job.kids;
     e.order = job.order;
     e.grid = job.grid;
+    if (obj.$bleed) this.bleedDown(e);
     if (obj.$stale && !this.mendCache(e, obj)) {
       e.key = '';
       return false;
@@ -455,7 +456,22 @@ export class Renderer {
     } finally {
       this.ipFrame = ip;
     }
+    if (obj.$bleed) this.bleedDown(e);
     return true;
+  }
+
+  // (Online: a picture's bottom edge carried a pixel lower, where nothing is drawn.  Pictures
+  // laid one under another -- the map's bands of tile rows, $bleed -- are each put down at a
+  // whole pixel, and at some sizes the two roundings left a pixel's gap between them, where the
+  // ground under the sea showed through in a line.  The band above now covers it.)
+  bleedDown(e) {
+    const c = e.canvas, g = c.getContext('2d'), H = c.height;
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'destination-over';
+    g.imageSmoothingEnabled = false;
+    for (const y of [H - 3, H - 2]) if (y >= 0) g.drawImage(c, 0, y, c.width, 1, 0, y + 1, c.width, 1);
+    g.restore();
   }
 
   blitCache(ctx, e, m, cx) {

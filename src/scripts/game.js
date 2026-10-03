@@ -2342,6 +2342,12 @@
             {
                band = this.tileMC?.createEmptyMovieClip?.("band" + index, index);
                __as.set(band, "cacheAsBitmap", true);
+               // (its picture's bottom edge carried a pixel down, under the next band: no line
+               // between them at any zoom -- the renderer's bleedDown)
+               if(band)
+               {
+                  band.$bleed = true;
+               }
                this.tileBands[index] = band;
             }
             return band;
@@ -2445,6 +2451,11 @@
             }
             __as.set(this.MC, "_x", Math.round(_loc5_ * this.MC?._x + _loc4_ * this.posX * this.zoom));
             __as.set(this.MC, "_y", Math.round(_loc5_ * this.MC?._y + _loc4_ * this.posY * this.zoom));
+            // (Online: what is drawn kept inside the world, as the camera keeps itself: easing
+            // after the camera, the view lagged outside the world's edges for a while after a zoom
+            // out near them, all the more zoomed right out)
+            __as.set(this.MC, "_x", Math.round(limit?.(this.MC?._x, Math.min(0, this.viewWidthPx - this.width * this.zoom), 0)));
+            __as.set(this.MC, "_y", Math.round(limit?.(this.MC?._y, Math.min(0, this.viewHeightPx - this.height * this.zoom), 0)));
             var _loc2_;
             for(var _loc3_ of __as.keys(this.baitList))
             {
@@ -3887,23 +3898,22 @@
                   __as.set(this.shortcuts?.UK_evil, "active", true);
                }
             }
-            // Online: Special Ops in the story's levels, if the player's settings allow them
-            // ("Special Ops in the Story", off by default; the story's Conflict is a skirmish,
-            // which has them): as a skirmish has them -- the Ops Ship or the Hive bought with a
-            // headquarters, and from it (above) its Driller, Switch Fighter and Reaper, and the
-            // Hive's Commander.  (Not in the tutorials' levels.)
-            if(!this.parent?.skirmish && !this.parent?.training && Online?.prefs?.storySpecOps)
-            {
-               var own = this.parent?.parent?.team;
-               if(this.parent?.findBuilding?.("BA_" + own, this.parent?.localPlayer))
-               {
-                  __as.set(this.shortcuts?.["BK_" + own], "active", true);
-               }
-               if(own == "evil" && this.parent?.findBuilding?.("BK_evil", this.parent?.localPlayer))
-               {
-                  __as.set(this.shortcuts?.UQ_evil, "active", true);
-               }
-            }
+            // Online: "Special Ops in the Story" -- the Ops Ship or the Hive bought with a headquarters
+            // in the story's levels, and from it its Driller, Switch Fighter, Reaper and Commander --
+            // is turned off: the story plays as the original's, and its Conflict times go on the
+            // high-score table, which Special Ops would skew.  (Kept here, out of use.)
+            // if(!this.parent?.skirmish && !this.parent?.training && Online?.prefs?.storySpecOps)
+            // {
+            //    var own = this.parent?.parent?.team;
+            //    if(this.parent?.findBuilding?.("BA_" + own, this.parent?.localPlayer))
+            //    {
+            //       __as.set(this.shortcuts?.["BK_" + own], "active", true);
+            //    }
+            //    if(own == "evil" && this.parent?.findBuilding?.("BK_evil", this.parent?.localPlayer))
+            //    {
+            //       __as.set(this.shortcuts?.UQ_evil, "active", true);
+            //    }
+            // }
             if(this.buildingSite && !this.shortcuts?.[this.buildingSite?.type]?.active)
             {
                this.buildingSite?.destroy?.();
@@ -5917,10 +5927,19 @@
             var _loc5_;
             var _loc7_;
             var _loc3_;
+            // Online: the line to where it is going, its own (kept, not made again every frame on
+            // the control's drawing layer), so that it moves as smoothly as the unit does and starts
+            // where the unit is drawn; and turned to the line's angle and scaled alike both ways --
+            // the art is a diagonal, faded along its width, and stretched to an upright line that
+            // fade squeezed to nothing and the line went wrong.
             if(this.selected && (this.target || this.nav?.path?.length > 1))
             {
-               _loc7_ = this.parent?.control?.drawMC?.getNextHighestDepth?.();
-               _loc3_ = this.parent?.control?.drawMC?.attachMovie?.("dashedline", "dashedline" + _loc7_, _loc7_);
+               _loc3_ = this.tetherMC;
+               if(!_loc3_)
+               {
+                  _loc7_ = this.parent?.control?.tetherLayer?.();
+                  _loc3_ = this.tetherMC = _loc7_?.attachMovie?.("dashedline", "tether" + this.id, _loc7_?.getNextHighestDepth?.());
+               }
                if(this.target)
                {
                   _loc6_ = this.target?.MC?._x;
@@ -5939,10 +5958,18 @@
                      _loc5_ = (this.nav?.path?.[this.nav?.path?.length - 1]?.y - 1 + this.nav?.offsetY) * this.parent?.arena?.tileSize * 0.5;
                   }
                }
+               var tdx = _loc6_ - this.MC?._x;
+               var tdy = _loc5_ - this.MC?._y + _loc2_;
                __as.set(_loc3_, "_x", this.MC?._x);
                __as.set(_loc3_, "_y", this.MC?._y - _loc2_);
-               __as.set(_loc3_, "_xscale", _loc6_ - this.MC?._x);
-               __as.set(_loc3_, "_yscale", _loc5_ - this.MC?._y + _loc2_);
+               __as.set(_loc3_, "_rotation", Math.atan2(tdy, tdx) * 180 / Math.PI - 45);
+               __as.set(_loc3_, "_xscale", Math.hypot(tdx, tdy) / Math.SQRT2);
+               __as.set(_loc3_, "_yscale", Math.hypot(tdx, tdy) / Math.SQRT2);
+               __as.set(_loc3_, "_visible", true);
+            }
+            else if(this.tetherMC)
+            {
+               __as.set(this.tetherMC, "_visible", false);
             }
          };
          this.checkForHit = function (x1, y1, x2, y2)
@@ -6114,6 +6141,8 @@
             }
             this.active = false;
             this.MC?.removeMovieClip?.();
+            this.tetherMC?.removeMovieClip?.();
+            this.tetherMC = null;
             if(!accomplished)
             {
                this.makeNoise?.(this.type + "_die");
@@ -6946,6 +6975,13 @@
             {
                this.buildings?.push?.(_loc2_ = new Building(this, "BA_evil", 28, 12, undefined, 0.25));
                this.friendlyTarget = _loc2_;
+               // (Online: units go for their owner's target -- the opponent's, here -- so it is the
+               // opponent's too, as in the original: the saboteurs make for the player's headquarters
+               // from the start, not standing about until the first new target, 320 frames in)
+               if(this.players?.[1])
+               {
+                  this.players[1].friendlyTarget = _loc2_;
+               }
                this.buildings?.push?.(_loc2_ = new Building(this, "BA_good", -10, -10));
                __as.set(_loc2_?.stats, "isThreat", false);
                this.buildings?.push?.(new Building(this, "BC_good", 6, 10));
@@ -8367,7 +8403,16 @@
             {
                startLine += "_" + this.skirmish.mode;
             }
-            this.parent?.hud?.showMessage?.(dialogue?.(startLine));
+            // (and then, a skirmish's, what it takes to win: the mode's name read first)
+            if(this.skirmish)
+            {
+               this.parent?.hud?.showMessage?.(String(dialogue?.(startLine))?.toUpperCase?.(), true);
+               this.parent?.hud?.showMessage?.(String(this.goalLine?.())?.toUpperCase?.(), true);
+            }
+            else
+            {
+               this.parent?.hud?.showMessage?.(dialogue?.(startLine));
+            }
             this.parent?.flash?.();
             this.parent?.sfx?.play?.("INT_windscape_start");
             this.parent?.sfx?.play?.("music_ingame_" + this.jukebox + "_start");
@@ -9429,6 +9474,29 @@
          // beat of their own.
          this.pizzaStipend = function ()
          {
+            // (Online: everyone is told when a player has three quarters of a pizza's price -- once,
+            // until they are down to half of it again -- each second)
+            if(this.active && this.skirmish?.mode == "pizza" && !(this.count % 23))
+            {
+               var cost = Number(this.skirmish?.pizzaCost) || 50000;
+               for(var who of __as.keys(this.players))
+               {
+                  var near = this.players[who];
+                  if(!near || near.defeated || near.spectator)
+                  {
+                     continue;
+                  }
+                  if(!near.pizzaNear && near.cash >= cost * 0.75 && near.cash < cost)
+                  {
+                     near.pizzaNear = true;
+                     this.announce?.("int_pizza_close", near);
+                  }
+                  else if(near.pizzaNear && near.cash < cost * 0.5)
+                  {
+                     near.pizzaNear = false;
+                  }
+               }
+            }
             var index = 0;
             while(this.active && this.skirmish?.mode == "pizza" && index < this.players?.length)
             {
@@ -9453,6 +9521,32 @@
             if(this.skirmish?.mode != "hero" || this.count % 10)
             {
                return undefined;
+            }
+            // (Online: a hero's team told it is under attack -- not more than every half minute --
+            // and everyone when it is badly hurt, once until it is mended again)
+            for(var hi of __as.keys(this.units))
+            {
+               var hero = this.units[hi];
+               if(!hero?.active || !hero.hero || !hero.owner)
+               {
+                  continue;
+               }
+               if(this.allied?.(hero.owner) && this.count - hero.hurtAt < 23 && !(this.count - (hero.toldHurt || -1e9) < 23 * 30))
+               {
+                  hero.toldHurt = this.count;
+                  this.parent?.sfx?.play?.("INT_powerwarning");
+                  this.parent?.hud?.showMessage?.(dialogue?.("int_hero_attacked"));
+               }
+               var well = hero.health / hero.stats?.maxHealth;
+               if(!hero.toldWounded && well < 0.3)
+               {
+                  hero.toldWounded = true;
+                  this.announce?.("int_hero_wounded", hero.owner);
+               }
+               else if(hero.toldWounded && well > 0.6)
+               {
+                  hero.toldWounded = false;
+               }
             }
             var heroes = new Array();
             var unit;
@@ -9760,6 +9854,20 @@
          {
             var index;
             var unit;
+            // Online: a flag lying away from home, touched by one of its own team on the ground (on
+            // foot or on wheels, not in the air), goes back home.
+            if(flag.cell.x != flag.home.x || flag.cell.y != flag.home.y)
+            {
+               for(index of __as.keys(this.units))
+               {
+                  unit = this.units[index];
+                  if(unit?.active && unit.owner && !(unit.posX < 0) && !unit.stats?.flying && !unit.stats?.pickup && unit.tilePos?.x == flag.cell.x && unit.tilePos?.y == flag.cell.y && !this.hostile?.(unit, flag.owner))
+                  {
+                     this.returnFlag?.(flag, unit);
+                     return undefined;
+                  }
+               }
+            }
             for(index of __as.keys(this.units))
             {
                unit = this.units[index];
@@ -9796,6 +9904,11 @@
                this.parent?.sfx?.play?.("INT_collect");
                this.parent?.hud?.showMessage?.(dialogue?.("int_flag_taken"));
             }
+            // (Online: anyone else -- another team, or someone watching -- is told who took whose)
+            else
+            {
+               this.announce?.("int_flag_taken_by", unit.owner, flag.owner);
+            }
          };
          this.carryFlag = function (flag)
          {
@@ -9803,6 +9916,8 @@
             if(!carrier?.active || carrier?.posX < 0 || carrier?.owner?.defeated)
             {
                this.dropFlag?.(flag);
+               // (Online: everyone is told it is down -- and where it lies, its owner can fetch it)
+               this.announce?.("int_flag_dropped", undefined, flag.owner);
                return undefined;
             }
             flag.cell = {x:carrier.tilePos.x,y:carrier.tilePos.y};
@@ -9828,6 +9943,17 @@
             flag.arrow?.removeMovieClip?.();
             flag.arrow = undefined;
             this.showFlag?.(flag);
+         };
+         // Online: a flag fetched back home by its own team, everyone told.
+         this.returnFlag = function (flag, unit)
+         {
+            flag.cell = {x:flag.home.x,y:flag.home.y};
+            this.showFlag?.(flag);
+            if(this.allied?.(flag.owner))
+            {
+               this.parent?.sfx?.play?.("INT_collect");
+            }
+            this.announce?.("int_flag_returned", unit?.owner, flag.owner);
          };
          // Home with an enemy's flag: its owner is out.  (Online: once it has been taken home
          // as many times as the host's Capture limit says; until then the flag goes back to
@@ -9859,6 +9985,44 @@
                return undefined;
             }
             this.knockOut?.(victim);
+         };
+         // Online: what it takes to win a skirmish, as its opening says it -- the pizza's price and
+         // the Capture limit as the host set them.
+         this.goalLine = function ()
+         {
+            var mode = this.skirmish?.mode || "all";
+            var line = String(dialogue?.("int_goal_" + mode) || dialogue?.("int_goal_all") || "");
+            if(mode == "pizza")
+            {
+               line = line.split("%s").join("$" + Number(this.skirmish?.pizzaCost || 50000).toLocaleString("en-US"));
+            }
+            var captures = Number(this.skirmish?.captures) || 1;
+            if(mode == "ctf" && captures > 1)
+            {
+               line = String(dialogue?.("int_goal_ctf_many") || line).split("%s").join(String(captures));
+            }
+            return line;
+         };
+         // Online: a message for everyone about what a player (who, the dialogue's %s) or a team
+         // (whose, %t: its colour's name) has done, the names in their colours.
+         this.announce = function (line, who, whose)
+         {
+            var hud = this.parent?.hud;
+            var text = dialogue?.(line)?.toUpperCase?.();
+            if(!text || !hud)
+            {
+               return undefined;
+            }
+            if(who)
+            {
+               text = text.split("%S").join(hud.inColour?.(who.name || "A player", who.colour));
+            }
+            if(whose)
+            {
+               var team = String(whose.colour || "");
+               text = text.split("%T").join(hud.inColour?.(team.charAt(0).toUpperCase() + team.substr(1), whose.colour));
+            }
+            hud.showMessage?.(text, true);
          };
          // A player out of the game at once: everything of theirs goes.
          this.knockOut = function (player, line)
@@ -10094,6 +10258,11 @@
                this.arena?.shroud?.revealAround?.(site.x, site.y, this.pizzaReveal?.());
                this.parent?.hud?.showMessage?.(dialogue?.(owner == this.localPlayer ? "int_level21_good_ind2" : "int_pizza_ally"));
             }
+            // (Online: someone watching is told whose it is)
+            else if(this.spectating)
+            {
+               this.announce?.("int_pizza_bought", owner);
+            }
             else
             {
                this.parent?.sfx?.play?.("INT_powerwarning");
@@ -10113,6 +10282,7 @@
          this.eatPizza = function (pizza, collector)
          {
             var winner = collector?.owner || pizza?.owner;
+            this.announce?.("int_pizza_eaten", winner);
             var index = 0;
             var player;
             while(index < this.players?.length)
@@ -10897,9 +11067,21 @@
          this.active = true;
          this.scrollMargin = 30;
          this.selected = new Array();
+         // Online: the layer of units' lines to where they are going (Unit.draw), kept from frame to
+         // frame, under the drawing layer.
+         this.tetherLayer = function ()
+         {
+            var tiles = this.parent?.arena?.tileMC;
+            if(tiles && (!this.tethers || this.tethers._parent != tiles))
+            {
+               this.tethers = tiles.createEmptyMovieClip?.("tethers", 9999997);
+            }
+            return this.tethers;
+         };
          this.handle = function ()
          {
             this.drawMC = this.parent?.arena?.tileMC?.createEmptyMovieClip?.("draw", 9999998);
+            this.tetherLayer?.();
             __as.set(this.cursorMC, "_visible", this.active);
             if(!this.active)
             {
@@ -12753,7 +12935,12 @@
                   {
                      this.MC?.splash?.side_good?.special_button?.gotoAndStop?.("active");
                   }
-                  this.MC?.splash?.side_good?.conflict_button?.gotoAndStop?.("active");
+                  // (Conflict once it is earned, as the original's: its levels' times are the
+                  // high-score table's)
+                  if(SO?.data?.conflictGoodUnlocked)
+                  {
+                     this.MC?.splash?.side_good?.conflict_button?.gotoAndStop?.("active");
+                  }
                   this.MC?.splash?.side_evil?.start_button?.gotoAndStop?.("active");
                   if(SO?.data?.evilUnlocked)
                   {
@@ -12763,7 +12950,10 @@
                   {
                      this.MC?.splash?.side_evil?.special_button?.gotoAndStop?.("active");
                   }
-                  this.MC?.splash?.side_evil?.conflict_button?.gotoAndStop?.("active");
+                  if(SO?.data?.conflictEvilUnlocked)
+                  {
+                     this.MC?.splash?.side_evil?.conflict_button?.gotoAndStop?.("active");
+                  }
                   if(dialogue?.("int_disableEvil") == "TRUE")
                   {
                      this.MC?.splash?.side_evil?.start_button?.gotoAndStop?.("inactive");
@@ -12869,6 +13059,10 @@
                option = "start";
             }
             this.MC?.splash?.glow?.gotoAndStop?.(option);
+            if(option == "conflict" && !SO?.data?.["conflict" + ucfirst?.(team) + "Unlocked"])
+            {
+               _loc2_ = dialogue?.("int_" + team + "_locked_conflict");
+            }
             if(option == "special" && !SO?.data?.["special" + ucfirst?.(team) + "Unlocked"])
             {
                _loc2_ = dialogue?.("int_" + team + "_locked_special");
@@ -12948,11 +13142,20 @@
             }
             this.startGame?.(team);
          };
-         // Online: Conflict mode is a skirmish against the computer.  (The story's two Conflict
-         // levels are still there, by their codes.)
+         // Conflict mode: the original's -- its two levels, the Astros' 10 and the Aliens' 20, each
+         // side from its own base, whose times go on the high-score table.  (Online: it was a
+         // skirmish against the computer for a while, which the table could not compare.)
          this.pressConflict = function (team)
          {
-            this.startSkirmish?.(skirmishDefaults?.(team));
+            if(team == "good")
+            {
+               this.level = 9;
+            }
+            if(team == "evil")
+            {
+               this.level = 19;
+            }
+            this.startGame?.(team);
          };
          this.pressAgain = function ()
          {

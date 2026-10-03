@@ -24,11 +24,15 @@ export const PALETTES = [['mars', 'Mars'], ['snowy', 'Snowy'], ['hive', 'Hive'],
   ['lb-mars', 'Battles: Mars'], ['lb-castle', 'Battles: Castle'], ['lb-pirate', 'Battles: Pirate'],
   ['lb-mars-fw', 'Battles: Mars (FactionWars)'], ['lb-castle-fw', 'Battles: Castle (FactionWars)'], ['lb-pirate-fw', 'Battles: Pirate (FactionWars)']];
 
+// Random Mars: the Mars-like ones only -- the original's, its snow, the Hive, and FactionWars' Mars
+// (the Screensaver's, too).
+export const MARS_PALETTES = ['mars', 'snowy', 'hive', 'lb-mars-fw'];
+
 export const DEFAULTS = {
   name: 'Player',
   faction: 'good',          // 'good' (Astro), 'evil' (Alien) or 'random'
   colour: 'orange',
-  palette: 'all',           // 'all' (as the host chose), one of PALETTES, or 'random' (each match)
+  palette: 'all',           // 'all' (as the host chose), one of PALETTES, 'random' or 'random-mars' (each match)
   music: 0.8,
   sound: 0.9,
   ui: 0.9,
@@ -61,7 +65,7 @@ export function loadSettings() {
   s.name = s.name.slice(0, 16);
   if (!['good', 'evil', 'random'].includes(s.faction)) s.faction = DEFAULTS.faction;
   if (!COLOURS.includes(s.colour)) s.colour = DEFAULTS.colour;
-  if (!['all', 'random', ...PALETTES.map(([key]) => key)].includes(s.palette)) s.palette = DEFAULTS.palette;
+  if (!['all', 'random', 'random-mars', ...PALETTES.map(([key]) => key)].includes(s.palette)) s.palette = DEFAULTS.palette;
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
   if (!['off', 'units', 'buildings', 'all'].includes(s.healthBars)) s.healthBars = DEFAULTS.healthBars;
   if (!['european', 'american'].includes(s.english)) s.english = DEFAULTS.english;

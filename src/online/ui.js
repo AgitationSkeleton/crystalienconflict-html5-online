@@ -2,7 +2,7 @@
 // play (the list of games, a room's lobby: see net.js for the match itself) and the settings.  The game's own menus are still there for the story (STORY), and the game
 // comes back here when a match or a story game ends (Online.menu, called from game.js).
 
-import { COLOURS, COLOUR_CSS, DEFAULTS, PALETTES, UI_SCALES, loadSettings, saveSettings } from './settings.js';
+import { COLOURS, COLOUR_CSS, DEFAULTS, MARS_PALETTES, PALETTES, UI_SCALES, loadSettings, saveSettings } from './settings.js';
 import { american } from './spelling.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
@@ -41,7 +41,7 @@ const MATCH = [
   { key: 'shareUnits', group: 'Allies', label: 'Allies share units', ready: true, choices: SHARE },
   { key: 'shareBuildings', group: 'Allies', label: 'Allies share buildings', ready: true, choices: SHARE },
   { key: 'regrowth', group: 'Economy', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
-  { key: 'palette', group: 'Map', label: 'Map palette', ready: true, choices: [...PALETTES, ['random', 'Random']] },
+  { key: 'palette', group: 'Map', label: 'Map palette', ready: true, choices: [...PALETTES, ['random', 'Random'], ['random-mars', 'Random Mars']] },
 ];
 
 // The Match panel's parts, in this order, each under a thin line; within one, its settings in
@@ -68,7 +68,7 @@ const MATCH_DEFAULTS = {
 // Random: any of them for the match (the host's the same for everyone, by the match's seed: the
 // palette changes only how the map looks).
 function paletteFor(host, mine, seed) {
-  const pick = (p, n) => (p === 'random' ? PALETTES[n % PALETTES.length][0] : p);
+  const pick = (p, n) => (p === 'random' ? PALETTES[n % PALETTES.length][0] : p === 'random-mars' ? MARS_PALETTES[n % MARS_PALETTES.length] : p);
   if (mine && mine !== 'all') return pick(mine, Math.floor(Math.random() * PALETTES.length));
   return pick(host || 'mars', seed === undefined ? Math.floor(Math.random() * PALETTES.length) : Math.abs(Math.trunc(seed)));
 }
@@ -217,6 +217,7 @@ export class OnlineUI {
   }
 
   show(name) {
+    this.closeColours();
     for (const [k, s] of Object.entries(this.screens)) s.classList.toggle('active', k === name);
     // The address is the room's link while this page is in one (to share, or to come back to),
     // and the site's own again once it leaves.
@@ -446,7 +447,8 @@ export class OnlineUI {
         : el('select', { 'aria-label': 'Difficulty', disabled: slot.kind !== 'bot', onchange: (e) => { slot.difficulty = e.target.value; } },
           ...Object.entries(DIFFICULTIES).map(([k, v]) => el('option', { value: k, text: v, selected: slot.difficulty === k })));
       rows.push(el('div', { class: 'slot' + (out ? ' closed' : '') + (over ? ' over' : '') },
-        el('div', { class: 'num' }, el('span', { class: 'swatch', style: 'background:' + (spectating(slot) ? '#8a8a8a' : COLOUR_CSS[slot.colour]), title: spectating(slot) ? 'spectator' : slot.colour })),
+        el('div', { class: 'num' }, this.colourSquare(spectating(slot) ? null : slot.colour, !out && !spectating(slot),
+          (c) => { slot.colour = c; if (i === 0) this.remember({ colour: c }); this.renderLobby(); })),
         kind, faction, colour, extra));
     }
     this.slotList.replaceChildren(...rows);
@@ -470,6 +472,55 @@ export class OnlineUI {
     for (const m of MATCH) this.match[m.key] = MATCH_DEFAULTS[m.key];
     this.sound('INT_cursor_select');
     this.renderLobby();
+  }
+
+  // A player's colour as a square to click, as well as the list of names beside it (some took the
+  // square for the way to change it): a column of the colours drops from it, one to pick.  Grey
+  // (null) for no colour -- watching, or an open slot.
+  colourSquare(colour, enabled, pick) {
+    const button = el('button', { type: 'button', class: 'swatch pick', style: 'background:' + (colour ? COLOUR_CSS[colour] : '#7a7a7a'),
+      title: colour || '', 'aria-label': colour ? 'Colour: ' + colour + ' (choose another)' : 'No colour', 'aria-haspopup': 'listbox', disabled: !enabled,
+      onclick: (e) => {
+        e.stopPropagation();
+        if (this.colourMenu && this.colourMenuFor === button) return this.closeColours();
+        this.openColours(button, colour, pick);
+      } });
+    return button;
+  }
+
+  // The column of colours, over the page (not inside the panel, which would cut it off), under
+  // the square -- or over it, where there is no room below.
+  openColours(button, current, pick) {
+    this.closeColours();
+    const menu = el('div', { class: 'colourmenu', role: 'listbox', 'aria-label': 'Colour' },
+      ...COLOURS.map((c) => el('button', { type: 'button', class: 'swatch' + (c === current ? ' on' : ''), role: 'option', 'aria-selected': c === current ? 'true' : 'false',
+        title: c, 'aria-label': c, style: 'background:' + COLOUR_CSS[c],
+        onclick: (e) => { e.stopPropagation(); this.closeColours(); this.sound('INT_cursor_select'); pick(c); } })));
+    document.body.append(menu);
+    const r = button.getBoundingClientRect();
+    const h = menu.offsetHeight, w = menu.offsetWidth;
+    const below = r.bottom + 4;
+    const top = below + h > innerHeight - 4 ? Math.max(4, r.top - 4 - h) : below;
+    menu.style.left = Math.round(Math.min(innerWidth - w - 4, Math.max(4, r.left + r.width / 2 - w / 2))) + 'px';
+    menu.style.top = Math.round(top) + 'px';
+    this.colourMenu = menu;
+    this.colourMenuFor = button;
+    if (!this.watchingColours) {
+      this.watchingColours = true;
+      // (a press anywhere else closes it -- but on its own square, which toggles it -- and Esc)
+      document.addEventListener('pointerdown', (e) => {
+        if (this.colourMenu && !this.colourMenu.contains(e.target) && e.target !== this.colourMenuFor) this.closeColours();
+      }, true);
+      addEventListener('keydown', (e) => { if (e.key === 'Escape') this.closeColours(); });
+      addEventListener('resize', () => this.closeColours());
+    }
+    this.sound('INT_cursor_select');
+  }
+
+  closeColours() {
+    if (this.colourMenu) this.colourMenu.remove();
+    this.colourMenu = null;
+    this.colourMenuFor = null;
   }
 
   // Why the match cannot start, if it cannot.
@@ -600,7 +651,7 @@ export class OnlineUI {
     const crates = choice('crates');
     const settings = {
       map: /^\d+$/.test(map.id) ? Number(map.id) : map.id, mode: choice('mode'), cash: choice('cash'), units: choice('units'), prebuilt: choice('prebuilt'),
-      shroud: false, superweapons: choice('superweapons'), palette: paletteFor(pick(['mars', 'snowy', 'hive', 'lb-mars-fw']), this.settings.palette),
+      shroud: false, superweapons: choice('superweapons'), palette: paletteFor(pick(MARS_PALETTES), this.settings.palette),
       // (never a match without crystals growing back: it could stand still for good)
       speed: choice('speed'), regrowth: choice('regrowth', (v) => v > 0), specops: choice('specops'), opsHQ: choice('opsHQ'), balance: choice('balance'),
       crates, christmas: crates && choice('christmas'), crateRate: choice('crateRate'), income: choice('income'), pizzaCost: choice('pizzaCost'),
@@ -987,7 +1038,7 @@ export class OnlineUI {
         extra = el('div');
       }
       rows.push(el('div', { class: 'slot' + (slot.kind === 'closed' ? ' closed' : '') + (over ? ' over' : '') + (mine ? ' mine' : '') },
-        el('div', { class: 'num' }, el('span', { class: 'swatch', style: 'background:' + (inPlay && slot.colour ? COLOUR_CSS[slot.colour] : '#555') })),
+        el('div', { class: 'num' }, this.colourSquare(inPlay && slot.colour ? slot.colour : null, canEdit && inPlay, (c) => net.setSlot(i, { colour: c }))),
         who, faction, colour, extra));
     }
     this.roomSlots.replaceChildren(...rows);
@@ -1145,7 +1196,8 @@ export class OnlineUI {
     const palette = el('select', { 'aria-label': 'Map palette', onchange: (e) => { st.palette = e.target.value; save(); } },
       el('option', { value: 'all', text: 'As the host chooses', selected: st.palette === 'all' }),
       ...PALETTES.map(([key, name]) => el('option', { value: key, text: 'Always ' + name, selected: st.palette === key })),
-      el('option', { value: 'random', text: 'Random each match', selected: st.palette === 'random' }));
+      el('option', { value: 'random', text: 'Random each match', selected: st.palette === 'random' }),
+      el('option', { value: 'random-mars', text: 'Random Mars each match (Mars, Snowy, Hive, FactionWars Mars)', selected: st.palette === 'random-mars' }));
     const SIZE_NAMES = { small: 'Small (see more of the map)', medium: 'Medium', large: 'Large', fill: 'Fill the window' };
     const size = el('select', { 'aria-label': 'In-Game Interface Size', onchange: (e) => { st.size = e.target.value; save(); if (this.hooks.setSize) this.hooks.setSize(st.size); } },
       ...Object.keys(UI_SCALES).map((k) => el('option', { value: k, text: SIZE_NAMES[k], selected: st.size === k })));
@@ -1198,7 +1250,9 @@ export class OnlineUI {
       el('label', { text: 'Allow Multiple Fighters to Return On Click' }), onOff('multiFighterReturn', 'Allow Multiple Fighters to Return On Click'),
       section('Gameplay'),
       el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
-      ...(ingame ? [] : row('Special Ops in the Story', onOff('storySpecOps', 'Special Ops in the Story'))),
+      // ("Special Ops in the Story" is turned off -- the story plays as the original's, for the
+      // high-score table; see the game's doPrerequisites)
+      // ...(ingame ? [] : row('Special Ops in the Story', onOff('storySpecOps', 'Special Ops in the Story'))),
       ...(screensaver ? [section('Screensaver'),
         ...row('Screensaver Auto Director', onOff('screensaverDirector', 'Screensaver Auto Director')),
         ...row('Screensaver Shows HUD', onOff('screensaverHud', 'Screensaver Shows HUD'))] : []),

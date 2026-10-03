@@ -1281,6 +1281,18 @@ export class Bot {
         this.order(u, 'attack', { target: mine.carrier });
       }
     }
+    // (Online) Ours lying away from home, carried by nobody: the nearest unit on the ground goes to
+    // touch it, which sends it home (Level.pickUpFlag), unless one is on its way already.
+    if (mine && !mine.carrier && (mine.cell.x !== mine.home.x || mine.cell.y !== mine.home.y)
+      && !this.own((u) => u.mission && u.mission.kind === 'move' && at(u.mission.dest, mine.cell)).length) {
+      const spot = centreOf(mine.cell);
+      let fetcher = null, near = Infinity;
+      for (const u of this.own((x) => (this.vehicle(x) || this.infantry(x)) && !x.stats.flying && !this.isMiner(x) && !x.flag && x.posX >= 0)) {
+        const d = cells(u.posX, u.posY, spot.x, spot.y);
+        if (d < near) { near = d; fetcher = u; }
+      }
+      if (fetcher) this.order(fetcher, 'move', { dest: spot, fetch: true });
+    }
     // 3. The enemy flag lying nearest our base: the fastest free vehicle goes for it.
     const c = this.baseCentre();
     if (!c) return;
