@@ -1222,6 +1222,8 @@ export class OnlineUI {
     }
     const healthBars = el('select', { 'aria-label': 'Always Show Health Bars', onchange: (e) => { st.healthBars = e.target.value; save(); } },
       ...[['off', 'Off (Vanilla)'], ['units', 'Units'], ['buildings', 'Buildings'], ['all', 'All']].map(([v, t]) => el('option', { value: v, text: t, selected: st.healthBars === v })));
+    const teamIcons = el('select', { 'aria-label': 'Team-Coloured Sidebar Icons', onchange: (e) => { st.teamIcons = e.target.value; save(); } },
+      ...[['off', 'Off'], ['skirmish', 'On (Skirmish)'], ['all', 'On (Skirmish & Story)']].map(([v, t]) => el('option', { value: v, text: t, selected: st.teamIcons === v })));
     const onOff = (key, label) => el('select', { 'aria-label': label, onchange: (e) => { st[key] = e.target.value === 'on'; save(); } },
       el('option', { value: 'on', text: 'On', selected: st[key] }),
       el('option', { value: 'off', text: 'Off', selected: !st[key] }));
@@ -1242,7 +1244,9 @@ export class OnlineUI {
       ...(ingame ? [] : row('Map palette', palette)),
       el('label', { text: 'In-Game Interface Size' }), size, ...(ingame ? [] : [sizeNote]),
       el('label', { text: 'English Spelling' }), english,
-      el('label', { text: 'Team-Coloured Sidebar Icons' }), onOff('teamIcons', 'Team-Coloured Sidebar Icons'),
+      el('label', { text: 'Team-Coloured Sidebar Icons' }), teamIcons,
+      // (the sides' colours are given them as a level starts: not changed in one)
+      ...(ingame ? [] : row('Story Mode Team Colours', onOff('storyColours', 'Story Mode Team Colours'))),
       el('label', { text: 'Show Unit/Building Count' }), onOff('ownedCounts', 'Show Unit/Building Count'),
       el('label', { text: 'Always Show Health Bars' }), healthBars,
       section('Controls'),
@@ -1327,7 +1331,7 @@ export class OnlineUI {
 
   // What the game reads of the settings while it plays.
   applyPrefs() {
-    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons !== false, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off',
+    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons || 'skirmish', storyColours: !!this.settings.storyColours, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off',
       ignoreMinersDrag: !!this.settings.ignoreMinersDrag, ignoreEngineersDrag: !!this.settings.ignoreEngineersDrag,
       multiMinerReturn: !!this.settings.multiMinerReturn, multiFighterReturn: !!this.settings.multiFighterReturn,
       english: this.settings.english === 'american' ? 'american' : 'european',

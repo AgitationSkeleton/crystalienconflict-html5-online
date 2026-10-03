@@ -3180,10 +3180,12 @@
          // many of a thing this player has (a setting of theirs, "Show Unit/Building Count").
          // And the pictures in this player's colour -- drawn again from their sources' layers
          // (buildMenus) -- or as the game drew them (another setting, "Team-Coloured Sidebar
-         // Icons"; in the story, the colour of the player's side there: Game.iconColour).
+         // Icons": off, in a skirmish, or in the story as well, in the colour of the player's side
+         // there: Game.iconColour).
          this.showCounts = function ()
          {
-            var teamIcons = Online?.prefs?.teamIcons !== false && !!this.parent?.parent?.iconColour;
+            var iconsIn = Online?.prefs?.teamIcons || "skirmish";
+            var teamIcons = !!this.parent?.parent?.iconColour && (iconsIn == "all" || iconsIn == "skirmish" && !!this.parent?.skirmish);
             var tint = teamIcons ? this.parent?.parent?.iconColour : "none";
             var production = this.production?.();
             var queuing = !!production?.queuing;
@@ -10791,10 +10793,11 @@
             var options = this.skirmish?.players;
             if(!options)
             {
-               // (each in its side's colour -- the Astros' orange, the Aliens' green, the colours the
-               // game drew them in -- so that what a side builds or takes of the other's is drawn in
-               // its colour, as in a skirmish: only the look; the sides are as they were)
-               var storyColour = {good:"orange",evil:"green"};
+               // (each in its side's colour, if the player's settings say so -- "Story Mode Team
+               // Colours", off by default -- the Astros' orange, the Aliens' green, the colours the game
+               // drew them in: what a side builds or takes of the other's is drawn in its colour, as in
+               // a skirmish.  Only the look; the sides are as they were.)
+               var storyColour = Online?.prefs?.storyColours ? {good:"orange",evil:"green"} : {};
                options = new Array({faction:this.parent?.team,team:this.parent?.team,colour:storyColour[this.parent?.team],control:"local"}, {faction:this.parent?.oppo,team:this.parent?.oppo,colour:storyColour[this.parent?.oppo],control:"script"});
             }
             var index = 0;
@@ -12704,9 +12707,9 @@
          {
             this.localColour = "gray";
          }
-         // (The sidebar's pictures may be in it as well, a setting of the player's; in the story,
-         // in the colour of the player's side there, which the HUD's frame is not: it stays the
-         // original's.)
+         // (The sidebar's pictures may be in it as well, a setting of the player's; in the story --
+         // if the setting takes them in, whatever the sides are drawn in -- the colour of the
+         // player's side there, which the HUD's frame is not: it stays the original's.)
          this.iconColour = this.localColour || (this.parent?.skirmish ? undefined : this.team == "evil" ? "green" : "orange");
          this.hud = new Hud(this);
          // Online: the mask and the flash follow the stage's size, paused or not.

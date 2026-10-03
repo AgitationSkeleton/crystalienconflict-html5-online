@@ -40,7 +40,8 @@ export const DEFAULTS = {
   edgeScroll: true,         // the view scrolls when the pointer is at its edge
   autoMine: true,           // a new miner of yours goes to the nearest crystals
   ownedCounts: false,       // the sidebar shows how many of each thing you have
-  teamIcons: true,          // the sidebar's pictures in your colour
+  teamIcons: 'skirmish',    // the sidebar's pictures in your colour: 'off', 'skirmish' or 'all' (in the story as well)
+  storyColours: false,      // the story's sides in their colours: what one builds or takes of the other's, in its own
   storySpecOps: false,      // Special Ops (the Ops Ship, the Hive) in the story's levels too
   healthBars: 'off',        // health bars always shown: 'off' (as the original), 'units', 'buildings' or 'all'
   ignoreMinersDrag: false,  // a dragged box leaves out miners, unless they are all it holds
@@ -69,7 +70,11 @@ export function loadSettings() {
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
   if (!['off', 'units', 'buildings', 'all'].includes(s.healthBars)) s.healthBars = DEFAULTS.healthBars;
   if (!['european', 'american'].includes(s.english)) s.english = DEFAULTS.english;
-  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'teamIcons', 'storySpecOps', 'ignoreMinersDrag', 'ignoreEngineersDrag', 'multiMinerReturn', 'multiFighterReturn',
+  // (once on or off: on was in a skirmish only)
+  if (s.teamIcons === true) s.teamIcons = 'skirmish';
+  if (s.teamIcons === false) s.teamIcons = 'off';
+  if (!['off', 'skirmish', 'all'].includes(s.teamIcons)) s.teamIcons = DEFAULTS.teamIcons;
+  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'storyColours', 'storySpecOps', 'ignoreMinersDrag', 'ignoreEngineersDrag', 'multiMinerReturn', 'multiFighterReturn',
     'screensaverDirector', 'screensaverHud']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);
