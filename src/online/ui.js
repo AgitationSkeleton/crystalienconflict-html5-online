@@ -40,6 +40,8 @@ const MATCH = [
   { key: 'sharePower', group: 'Allies', label: 'Allies share energy (and radar)', ready: true, choices: SHARE },
   { key: 'shareUnits', group: 'Allies', label: 'Allies share units', ready: true, choices: SHARE },
   { key: 'shareBuildings', group: 'Allies', label: 'Allies share buildings', ready: true, choices: SHARE },
+  // (Capture the Flag: a team's one flag, at one of its bases -- Level.plantFlags)
+  { key: 'shareFlags', group: 'Allies', label: 'Allies share flags', ready: true, when: (m) => m.mode === 'ctf', choices: [[false, 'Off: a flag each'], [true, 'On: one flag a team']] },
   { key: 'regrowth', group: 'Economy', label: 'Crystal regrowth', ready: true, choices: [[0, 'None'], [0.5, 'Slow'], [1, 'Normal'], [2, 'Fast']] },
   { key: 'palette', group: 'Map', label: 'Map palette', ready: true, choices: [...PALETTES, ['random', 'Random'], ['random-mars', 'Random Mars']] },
 ];
@@ -61,7 +63,7 @@ const MATCH_DEFAULTS = {
   map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true, balance: 'vanilla',
   christmas: false, crateRate: 'normal', income: 0, pizzaCost: 50000, speed: 1, shroud: true,
   superweapons: true, factions: 'all', regrowth: 1, palette: 'mars', build: 1, queue: false, shields: false, captures: 1,
-  shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off',
+  shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off', shareFlags: false,
 };
 
 // The palette a match is seen in: the host's, unless this player prefers one; either may be
@@ -612,7 +614,7 @@ export class OnlineUI {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false, balance: m.balance || 'vanilla',
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
-      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, shareFlags: !!m.shareFlags,
       shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings,
       players,
     };
@@ -655,7 +657,7 @@ export class OnlineUI {
       // (never a match without crystals growing back: it could stand still for good)
       speed: choice('speed'), regrowth: choice('regrowth', (v) => v > 0), specops: choice('specops'), opsHQ: choice('opsHQ'), balance: choice('balance'),
       crates, christmas: crates && choice('christmas'), crateRate: choice('crateRate'), income: choice('income'), pizzaCost: choice('pizzaCost'),
-      build: choice('build'), queue: choice('queue'), shields: choice('shields'), captures: choice('captures', (n) => n <= 5),
+      build: choice('build'), queue: choice('queue'), shields: choice('shields'), captures: choice('captures', (n) => n <= 5), shareFlags: choice('shareFlags'),
       shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off',
       players, spectator: { name: this.settings.name, faction: 'good' }, screensaver: true,
     };
@@ -1113,7 +1115,7 @@ export class OnlineUI {
       map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette: m.palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false, balance: m.balance || 'vanilla',
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
-      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, shareFlags: !!m.shareFlags,
       shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings, players,
       // (the map by its name, for the server's log: the game goes by map)
       mapName: map.name,

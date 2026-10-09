@@ -1,19 +1,34 @@
-# The offline client (client/): on a version tag (v1.2.3, the same as client/package.json's
-# version), build it for Windows, macOS and Linux and publish them as a GitHub release, which is
-# where the app looks for updates.
+# The offline client (client/): built for Windows, macOS and Linux and published as a GitHub
+# release, which is where the app looks for updates.  The app carries its own copy of the game, so
+# it is built again whenever the game changes -- every push to main that touches the game or the
+# app, as version 1.1.<this workflow's run number> -- and on a version tag (v1.2.3), as that
+# version.  An installed app finds the new one and installs it on quitting.
 name: App
 on:
   push:
+    branches: [main]
     tags: ['v*']
+    paths: ['index.html', 'src/**', 'data/**', 'assets/**', 'client/**', '.github/workflows/app.yml']
 permissions:
   contents: write
+# (one release at a time, in order)
+concurrency:
+  group: app-release
+  cancel-in-progress: false
 jobs:
   draft:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      - name: The version
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="1.1.${GITHUB_RUN_NUMBER}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: A draft release for the builds to go in
-        run: gh release create "$GITHUB_REF_NAME" --draft --title "CrystAlien Conflict Online $GITHUB_REF_NAME" --notes "The game as an app, for Windows, macOS and Linux. Download the one for your computer below; it keeps itself up to date. (Windows may warn that it doesn't know the publisher; macOS wants a right-click and Open the first time.)" || true
+        run: gh release create "v${{ steps.version.outputs.version }}" --target "$GITHUB_SHA" --draft --title "CrystAlien Conflict Online v${{ steps.version.outputs.version }}" --notes "The game as an app, for Windows, macOS and Linux, the same as the website at this version. Download the one for your computer below; it keeps itself up to date. (Windows may warn that it doesn't know the publisher; macOS wants a right-click and Open the first time.)" || true
         env:
           GH_TOKEN: ${{ github.token }}
   build:
@@ -30,16 +45,18 @@ jobs:
           node-version: 22
       - run: npm ci
         working-directory: client
+      - run: npm version "${{ needs.draft.outputs.version }}" --no-git-tag-version --allow-same-version
+        working-directory: client
       - run: npx electron-builder --publish always
         working-directory: client
         env:
           GH_TOKEN: ${{ github.token }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
   publish:
-    needs: build
+    needs: [draft, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+      - run: gh release edit "v${{ needs.draft.outputs.version }}" --draft=false --latest
         env:
           GH_TOKEN: ${{ github.token }}

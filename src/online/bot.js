@@ -1264,15 +1264,18 @@ export class Bot {
   // ---- §5.2 CAC_AI_Flag: carry flags home, chase a thief, send a runner ----------------------
   flagRun() {
     const flags = this.level.flags || [];
-    const mine = flags.find((f) => f.owner === this.player);
+    // (ours: the team's, with the host's "Allies share flags"; and where a carrier scores, by our
+    // own headquarters, wherever the team's flag stands)
+    const mine = this.level.flagOf ? this.level.flagOf(this.player) : flags.find((f) => f.owner === this.player);
+    const score = this.player.flagHome || (mine && mine.home);
     const centreOf = (cell) => ({ x: (cell.x - 0.5) * CELL, y: (cell.y - 0.5) * CELL });
     const at = (spot, cell) => spot && cells(spot.x, spot.y, (cell.x - 0.5) * CELL, (cell.y - 0.5) * CELL) < 1;
     // 1. Carriers go home, unless there already or on the way.
-    if (mine) {
+    if (mine && score) {
       for (const u of this.own((x) => x.flag)) {
-        if (u.tilePos.x === mine.home.x && u.tilePos.y === mine.home.y) continue;
-        if (u.mission && u.mission.kind === 'move' && at(u.mission.dest, mine.home)) continue;
-        this.order(u, 'move', { dest: centreOf(mine.home), carry: true });
+        if (u.tilePos.x === score.x && u.tilePos.y === score.y) continue;
+        if (u.mission && u.mission.kind === 'move' && at(u.mission.dest, score)) continue;
+        this.order(u, 'move', { dest: centreOf(score), carry: true });
       }
     }
     // 2. Armed vehicles after whoever has our flag.
@@ -1313,7 +1316,7 @@ export class Bot {
 
   // ---- §5.2 CAC_AI_Flag_Guard: guards on our flag --------------------------------------------
   flagGuard() {
-    const mine = (this.level.flags || []).find((f) => f.owner === this.player);
+    const mine = this.level.flagOf ? this.level.flagOf(this.player) : (this.level.flags || []).find((f) => f.owner === this.player);
     if (!mine || mine.carrier) return;
     const spot = { x: (mine.cell.x - 0.5) * CELL, y: (mine.cell.y - 0.5) * CELL };
     // The fastest vehicle is never posted: it stays free to go for flags.

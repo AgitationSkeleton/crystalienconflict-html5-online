@@ -2509,7 +2509,9 @@
                   y += _loc4_?.stats?.altitude;
                }
             }
-            var _loc2_ = Math.ceil((x + y * 2880) / 10);
+            // (Online: never below 0 -- a shot gone past the top of the map was put at a depth from
+            // which, as in Flash, a clip cannot be removed, and stayed there, drawn, for good)
+            var _loc2_ = Math.max(0, Math.ceil((x + y * 2880) / 10));
             var _loc3_;
             while((_loc3_ = this.MC?.getInstanceAtDepth?.(_loc2_)) && _loc3_ != _loc4_?.MC)
             {
@@ -8620,43 +8622,20 @@
                this.weapons?.push?.(new Weapon(this, shooter, type, x - 1, y - 1, tx, ty, target));
             }
          };
-         // Online: the Balance "Conquerer" -- combat as the C&C mod's turns out, which is not as
-         // the original's.  The mod gives every CrystAlien shot, laser or rocket, one warhead meant
-         // to hit only its target (tools/gen_dll_types.py, CONST.CPP Warheads[WARHEAD_LASER]); but
-         // its SpreadFactor of 255 is the widest there is, not the tightest -- C&C takes damage off
-         // with distance by shifting it right by the spread factor, and a shift that far leaves
-         // nothing -- so every shot lands its full 25 on everything within a cell and a half of
-         // where it strikes (COMBAT.CPP Explosion_Damage), friend or foe, all but the one who
-         // fired it; an aircraft in the air only as the target (only what is down is caught).
-         // And its rockets, going off near where they were aimed, do not miss.
+         // Online: the Balance "Conquerer" -- a shot going off where it strikes (a rocket near
+         // where it was aimed, so that it does not miss).  It hurts only what it was fired at, as
+         // every shot of the original's does.  (It once caught everything within a cell and a
+         // half, friend or foe, as the C&C mod's widest spread factor was read to do: a player's
+         // own turret killed their engineer beside its target, and shots at a miner hurt the
+         // headquarters it was passing.)
          this.blast = function (x, y, weapon)
          {
-            if(x === undefined || y === undefined)
+            var target = weapon?.target;
+            if(x === undefined || y === undefined || !target?.active || target.stats?.pickup)
             {
                return undefined;
             }
-            var hurt = (thing) => {
-               if(!thing?.active || thing == weapon?.shooter || thing.stats?.pickup)
-               {
-                  return undefined;
-               }
-               if(thing.stats?.flying && thing != weapon?.target)
-               {
-                  return undefined;
-               }
-               if(thing == weapon?.target || distance?.(x, y, thing.posX, thing.posY) < 144)
-               {
-                  thing.pain?.(weapon);
-               }
-            };
-            for(var unit of this.units.slice())
-            {
-               hurt(unit);
-            }
-            for(var building of this.buildings.slice())
-            {
-               hurt(building);
-            }
+            target.pain?.(weapon);
          };
          this.cleanup = function ()
          {
@@ -9704,19 +9683,30 @@
          // and carries it, the flag over it without its shadow and an arrow in the flag's colour
          // over that; a carrier that reaches its own home puts the flag's owner out of the game.
          // A carrier lost drops the flag where it was.
+         // (Online: with the host's "Allies share flags", a team -- players of one colour, or of
+         // one team -- has one flag between them, at one of their bases, chosen by chance, in the
+         // colour of the player whose base it is: its owner.  Each of them still scores at the
+         // place by their own headquarters where a flag of theirs would be (their flagHome); the
+         // flag fetched home, or taken but not for the last time, goes back to one of the team's
+         // headquarters still standing, by chance; and taken for the last time, all of them are
+         // out.  Without it, as the C&C mod has it: a flag each.)
          this.flags = new Array();
          this.flagOf = function (player)
          {
             var index = 0;
             while(index < this.flags?.length)
             {
-               if(this.flags[index].owner == player)
+               if(this.flags[index].owner == player || this.flags[index].members?.indexOf?.(player) >= 0)
                {
                   return this.flags[index];
                }
                index++;
             }
             return undefined;
+         };
+         this.sharedFlags = function ()
+         {
+            return !!this.skirmish?.shareFlags;
          };
          this.plantFlags = function ()
          {
@@ -9725,19 +9715,86 @@
             var hq;
             var site;
             var flag;
+            // (each player's place by their headquarters first, every one kept free of the others)
+            this.flagSpots = new Array();
             while(index < this.players?.length)
             {
                player = this.players[index];
                index++;
                hq = this.findBuilding?.("BA_" + player?.faction, player) || this.findBuilding?.("BK_" + player?.faction, player);
                site = hq ? this.flagSite?.(hq.tilePos) : undefined;
+               player.flagHome = site ? {x:site.x,y:site.y} : undefined;
                if(site)
                {
-                  flag = {owner:player,home:{x:site.x,y:site.y},cell:{x:site.x,y:site.y},carrier:undefined};
-                  this.flags.push(flag);
-                  this.showFlag?.(flag);
+                  this.flagSpots.push(player.flagHome);
                }
             }
+            var teams = new Array();
+            var team;
+            index = 0;
+            while(index < this.players?.length)
+            {
+               player = this.players[index];
+               index++;
+               if(!player?.flagHome)
+               {
+                  continue;
+               }
+               if(!this.sharedFlags?.())
+               {
+                  flag = {owner:player,home:{x:player.flagHome.x,y:player.flagHome.y},cell:{x:player.flagHome.x,y:player.flagHome.y},carrier:undefined};
+                  this.flags.push(flag);
+                  this.showFlag?.(flag);
+                  continue;
+               }
+               team = teams.find((t) => t.name == player.team);
+               if(!team)
+               {
+                  teams.push(team = {name:player.team,members:new Array()});
+               }
+               team.members.push(player);
+            }
+            for(team of teams)
+            {
+               flag = {owner:team.members[0],members:team.members,home:{x:0,y:0},cell:{x:0,y:0},carrier:undefined,shared:true,lost:0};
+               this.flags.push(flag);
+               this.rehomeFlag?.(flag, true);
+            }
+         };
+         // Online: a team's flag to one of its bases, by chance: one whose headquarters stands, of a
+         // player still in the game (any of theirs, if no headquarters stands).  At the start, any.
+         this.rehomeFlag = function (flag, start)
+         {
+            var all = (flag.members || new Array(flag.owner)).filter((p) => p?.flagHome && !p.defeated);
+            var standing = all.filter((p) => start || this.findBuilding?.("BA_" + p.faction, p) || this.findBuilding?.("BK_" + p.faction, p));
+            var choices = standing.length ? standing : all;
+            if(!choices.length)
+            {
+               return undefined;
+            }
+            var pick = choices.length > 1 ? choices[random?.(choices.length)] : choices[0];
+            flag.owner = pick;
+            flag.home = {x:pick.flagHome.x,y:pick.flagHome.y};
+            flag.cell = {x:pick.flagHome.x,y:pick.flagHome.y};
+            this.showFlag?.(flag);
+         };
+         // Online: a flag's name for the messages: its player's, in their colour; a team's, by its
+         // colour if its players share one, else by their names.
+         this.flagTitle = function (flag)
+         {
+            var hud = this.parent?.hud;
+            var members = flag?.members || new Array(flag?.owner);
+            if(members.length > 1)
+            {
+               var colour = members[0]?.colour;
+               if(members.every((p) => p?.colour == colour))
+               {
+                  var name = String(colour || "");
+                  return hud?.inColour?.(name.charAt(0).toUpperCase() + name.substr(1) + " team", colour);
+               }
+               return members.map((p) => hud?.inColour?.(p?.name || "A player", p?.colour)).join(" &amp; ");
+            }
+            return hud?.inColour?.(flag?.owner?.name || "A player", flag?.owner?.colour);
          };
          // The nearest free cell to a headquarters, a ring at a time, six at most.
          this.flagSite = function (centre)
@@ -9794,6 +9851,13 @@
             {
                it = this.flags[index];
                if(it.home.x == x && it.home.y == y || it.cell.x == x && it.cell.y == y)
+               {
+                  return false;
+               }
+            }
+            for(it of this.flagSpots || new Array())
+            {
+               if(it.x == x && it.y == y)
                {
                   return false;
                }
@@ -9913,7 +9977,7 @@
             // (Online: anyone else -- another team, or someone watching -- is told who took whose)
             else
             {
-               this.announce?.("int_flag_taken_by", unit.owner, flag.owner);
+               this.announce?.("int_flag_taken_by", unit.owner, this.flagTitle?.(flag));
             }
          };
          this.carryFlag = function (flag)
@@ -9923,12 +9987,13 @@
             {
                this.dropFlag?.(flag);
                // (Online: everyone is told it is down -- and where it lies, its owner can fetch it)
-               this.announce?.("int_flag_dropped", undefined, flag.owner);
+               this.announce?.("int_flag_dropped", undefined, this.flagTitle?.(flag));
                return undefined;
             }
             flag.cell = {x:carrier.tilePos.x,y:carrier.tilePos.y};
             var own = this.flagOf?.(carrier.owner);
-            if(own && carrier.tilePos.x == own.home.x && carrier.tilePos.y == own.home.y)
+            var spot = carrier.owner?.flagHome || own?.home;
+            if(own && spot && carrier.tilePos.x == spot.x && carrier.tilePos.y == spot.y)
             {
                this.captureFlag?.(flag, carrier);
                return undefined;
@@ -9953,13 +10018,21 @@
          // Online: a flag fetched back home by its own team, everyone told.
          this.returnFlag = function (flag, unit)
          {
-            flag.cell = {x:flag.home.x,y:flag.home.y};
-            this.showFlag?.(flag);
+            var title = this.flagTitle?.(flag);
+            if(flag.shared)
+            {
+               this.rehomeFlag?.(flag);
+            }
+            else
+            {
+               flag.cell = {x:flag.home.x,y:flag.home.y};
+               this.showFlag?.(flag);
+            }
             if(this.allied?.(flag.owner))
             {
                this.parent?.sfx?.play?.("INT_collect");
             }
-            this.announce?.("int_flag_returned", unit?.owner, flag.owner);
+            this.announce?.("int_flag_returned", unit?.owner, title);
          };
          // Home with an enemy's flag: its owner is out.  (Online: once it has been taken home
          // as many times as the host's Capture limit says; until then the flag goes back to
@@ -9976,21 +10049,31 @@
             {
                this.parent?.sfx?.play?.("INT_powerwarning");
             }
-            victim.flagsLost = (victim.flagsLost || 0) + 1;
+            // (a team's flag counts for the team)
+            var lost = flag.shared ? ++flag.lost : (victim.flagsLost = (victim.flagsLost || 0) + 1);
             // Online: everyone is told who took whose, the names in their colours, and (with a
-            // Capture limit) how many times that team's flag has gone of how many.
+            // Capture limit) how many times that flag has gone of how many.
             var limit = Number(this.skirmish?.captures) || 1;
             var hud = this.parent?.hud;
-            var team = String(victim.colour || "");
-            var said = dialogue?.("int_flag_captured_by")?.toUpperCase?.()?.split?.("%S")?.join?.(hud?.inColour?.(carrier.owner?.name || "A player", carrier.owner?.colour))?.split?.("%T")?.join?.(hud?.inColour?.(team.charAt(0).toUpperCase() + team.substr(1), victim.colour));
-            hud?.showMessage?.(limit > 1 ? said + " " + victim.flagsLost + "/" + limit : said, true);
-            if(victim.flagsLost < limit)
+            var said = dialogue?.("int_flag_captured_by")?.toUpperCase?.()?.split?.("%S")?.join?.(hud?.inColour?.(carrier.owner?.name || "A player", carrier.owner?.colour))?.split?.("%T")?.join?.(this.flagTitle?.(flag));
+            hud?.showMessage?.(limit > 1 ? said + " " + lost + "/" + limit : said, true);
+            if(lost < limit)
             {
-               flag.cell = {x:flag.home.x,y:flag.home.y};
-               this.showFlag?.(flag);
+               if(flag.shared)
+               {
+                  this.rehomeFlag?.(flag);
+               }
+               else
+               {
+                  flag.cell = {x:flag.home.x,y:flag.home.y};
+                  this.showFlag?.(flag);
+               }
                return undefined;
             }
-            this.knockOut?.(victim);
+            for(var out of (flag.members || new Array(victim)).slice())
+            {
+               this.knockOut?.(out);
+            }
          };
          // Online: what it takes to win a skirmish, as its opening says it -- the pizza's price and
          // the Capture limit as the host set them.
@@ -10023,10 +10106,10 @@
             {
                text = text.split("%S").join(hud.inColour?.(who.name || "A player", who.colour));
             }
+            // (%T: a flag's name -- flagTitle -- or a player's)
             if(whose)
             {
-               var team = String(whose.colour || "");
-               text = text.split("%T").join(hud.inColour?.(team.charAt(0).toUpperCase() + team.substr(1), whose.colour));
+               text = text.split("%T").join(typeof whose == "string" ? whose : hud.inColour?.(whose.name || "A player", whose.colour));
             }
             hud.showMessage?.(text, true);
          };
@@ -10053,7 +10136,27 @@
             while(index < this.flags?.length)
             {
                flag = this.flags[index];
-               if(flag.owner == player)
+               // (a team's, while any of the team is still in: theirs, at one of their bases if it
+               // stood at this player's)
+               var left = flag.shared ? flag.members.filter((p) => p != player && !p.defeated) : new Array();
+               if(flag.shared && left.length)
+               {
+                  if(flag.owner == player)
+                  {
+                     flag.owner = left[0];
+                     if(!flag.carrier && flag.cell.x == flag.home.x && flag.cell.y == flag.home.y)
+                     {
+                        this.rehomeFlag?.(flag);
+                     }
+                     else if(!flag.carrier)
+                     {
+                        this.showFlag?.(flag);
+                     }
+                  }
+                  index++;
+                  continue;
+               }
+               if(flag.owner == player || flag.shared && flag.members.indexOf(player) >= 0)
                {
                   flag.carrier?.MC?.flagHeld?.removeMovieClip?.();
                   __as.set(flag.carrier, "flag", undefined);
@@ -10076,9 +10179,11 @@
             var step;
             var x;
             var y;
-            while(index < this.flags?.length)
+            // (and, a team's flag shared, every player's place, where they score)
+            var homes = this.flags.map((f) => f.home).concat(this.sharedFlags?.() ? this.flagSpots || new Array() : new Array());
+            while(index < homes.length)
             {
-               home = this.flags[index].home;
+               home = homes[index];
                index++;
                for(var at of __as.keys(this.units))
                {
