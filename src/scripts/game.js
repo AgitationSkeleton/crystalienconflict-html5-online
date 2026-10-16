@@ -5115,6 +5115,14 @@
                this.max = 1;
                this.home = this.parent?.parent?.findBuilding?.("BK_" + this.team, this.parent?.owner);
             }
+            // (and in the story with Special Ops -- the player's setting -- one at a time, as in a
+            // skirmish, bought from the Hive and coming out of it: with no home, it had nowhere to
+            // come from)
+            else if(Online?.prefs?.storySpecOps)
+            {
+               this.max = 1;
+               this.home = this.parent?.parent?.findBuilding?.("BK_" + this.team, this.parent?.owner);
+            }
          }
          if(this.type == "UR_good")
          {

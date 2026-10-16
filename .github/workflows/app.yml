@@ -1,14 +1,15 @@
 # The offline client (client/): built for Windows, macOS and Linux and published as a GitHub
-# release, which is where the app looks for updates.  The app carries its own copy of the game, so
-# it is built again whenever the game changes -- every push to main that touches the game or the
-# app, as version 1.1.<this workflow's run number> -- and on a version tag (v1.2.3), as that
-# version.  An installed app finds the new one and installs it on quitting.
+# release, which is where the app looks for updates; and the Android app (mobile/), its .apk in
+# the same release.  The apps carry their own copy of the game, so they are built again whenever
+# the game changes -- every push to main that touches the game or an app, as version
+# 1.1.<this workflow's run number> -- and on a version tag (v1.2.3), as that version.  An
+# installed desktop app finds the new one and installs it on quitting; the Android app says so.
 name: App
 on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['index.html', 'src/**', 'data/**', 'assets/**', 'client/**', '.github/workflows/app.yml']
+    paths: ['index.html', 'src/**', 'data/**', 'assets/**', 'client/**', 'mobile/**', '.github/workflows/app.yml']
 permissions:
   contents: write
 # (one release at a time, in order)
@@ -28,7 +29,8 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="1.1.${GITHUB_RUN_NUMBER}"; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: A draft release for the builds to go in
-        run: gh release create "v${{ steps.version.outputs.version }}" --target "$GITHUB_SHA" --draft --title "CrystAlien Conflict Online v${{ steps.version.outputs.version }}" --notes "The game as an app, for Windows, macOS and Linux, the same as the website at this version. Download the one for your computer below; it keeps itself up to date. (Windows may warn that it doesn't know the publisher; macOS wants a right-click and Open the first time.)" || true
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" --target "$GITHUB_SHA" --draft --title "CrystAlien Conflict Online v${{ steps.version.outputs.version }}" --notes "The game as an app, for Windows, macOS, Linux and Android, the same as the website (caconline.viosarcade.xyz) at this version, playing online with it. Download the one for your device below. The computer apps keep themselves up to date; the Android app (the .apk: open it on the phone to install it, letting your browser install apps if asked) says when a new one is out, to download over it. (Windows may warn that it doesn't know the publisher: More info, Run anyway. macOS wants a right-click and Open the first time.) On an iPhone or iPad, install the website from Safari: Share, Add to Home Screen." || true
         env:
           GH_TOKEN: ${{ github.token }}
   build:
@@ -52,8 +54,45 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
+  # The Android app: signed with the release key (the CAC_KEYSTORE_* secrets; mobile/README.md),
+  # its version the release's and its version code this run's number.
+  android:
+    needs: draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+        working-directory: mobile
+      - run: npm run sync
+        working-directory: mobile
+      - name: The release key
+        run: echo "$CAC_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+        env:
+          CAC_KEYSTORE_BASE64: ${{ secrets.CAC_KEYSTORE_BASE64 }}
+      - name: The APK
+        working-directory: mobile/android
+        run: chmod +x gradlew && ./gradlew assembleRelease "-PversionCode=${{ github.run_number }}" "-PversionName=${{ needs.draft.outputs.version }}" --no-daemon
+        env:
+          CAC_KEYSTORE: ${{ runner.temp }}/release.jks
+          CAC_KEYSTORE_PASSWORD: ${{ secrets.CAC_KEYSTORE_PASSWORD }}
+          CAC_KEY_ALIAS: ${{ secrets.CAC_KEY_ALIAS }}
+          CAC_KEY_PASSWORD: ${{ secrets.CAC_KEY_PASSWORD }}
+      - name: Into the release
+        run: |
+          f="CrystAlien-Conflict-Online-${{ needs.draft.outputs.version }}-android.apk"
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk "$f"
+          gh release upload "v${{ needs.draft.outputs.version }}" "$f" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
   publish:
-    needs: [draft, build]
+    needs: [draft, build, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
