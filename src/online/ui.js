@@ -4,6 +4,8 @@
 
 import { COLOURS, COLOUR_CSS, DEFAULTS, MARS_PALETTES, PALETTES, UI_SCALES, loadSettings, saveSettings } from './settings.js';
 import { american } from './spelling.js';
+import { offline, ios } from './offline.js';
+import { android, isAndroidApp, openOutside, RELEASES } from './android.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
@@ -938,7 +940,7 @@ export class OnlineUI {
   }
 
   showAddress(code) {
-    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;   // (the app shows none)
+    if (location.protocol !== 'http:' && location.protocol !== 'https:' || isAndroidApp()) return;   // (the apps show none)
     const params = new URLSearchParams(location.search);
     if (code) params.set('join', code);
     else params.delete('join');
@@ -948,8 +950,8 @@ export class OnlineUI {
   }
 
   copyInvite() {
-    // (from the app, a link to the website's game)
-    const site = location.protocol === 'app:' ? 'https://caconline.viosarcade.xyz/' : location.origin + location.pathname;
+    // (from an app, a link to the website's game)
+    const site = location.protocol === 'app:' || isAndroidApp() ? 'https://caconline.viosarcade.xyz/' : location.origin + location.pathname;
     const link = site + '?join=' + this.net.code;
     navigator.clipboard.writeText(link).then(() => { this.roomNotice.textContent = 'The link is copied: ' + link; },
       () => { this.roomNotice.textContent = 'The link: ' + link; });
@@ -1259,9 +1261,10 @@ export class OnlineUI {
       el('label', { text: 'Allow Multiple Fighters to Return On Click' }), onOff('multiFighterReturn', 'Allow Multiple Fighters to Return On Click'),
       section('Gameplay'),
       el('label', { text: 'New miners to crystals' }), onOff('autoMine', 'New miners to crystals'),
-      // ("Special Ops in the Story" is turned off -- the story plays as the original's, for the
-      // high-score table; see the game's doPrerequisites)
-      // ...(ingame ? [] : row('Special Ops in the Story', onOff('storySpecOps', 'Special Ops in the Story'))),
+      // (not in a match: it is for a story level as it starts; and with it on, a Conflict's score
+      // is not saved -- the game's Panel.specOpsUsed)
+      ...(ingame ? [] : [...row('Special Ops in the Story', onOff('storySpecOps', 'Special Ops in the Story')),
+        el('div', { class: 'wide note warn', text: 'Your Conflict Mode score will not be saved while this is on!' })]),
       ...(screensaver ? [section('Screensaver'),
         ...row('Screensaver Auto Director', onOff('screensaverDirector', 'Screensaver Auto Director')),
         ...row('Screensaver Shows HUD', onOff('screensaverHud', 'Screensaver Shows HUD'))] : []),
@@ -1323,12 +1326,47 @@ export class OnlineUI {
   }
 
   // The app (client/): its version, or, in a browser, where to get it.
+  // The game installed: the desktop app's version; the Android app's, and a newer one's link
+  // (src/online/android.js); or in a browser, how to install it (src/online/offline.js).  Drawn
+  // again when any of that changes.
   appNote() {
-    const app = window.crystalienApp;
-    if (app) return el('label', { class: 'wide', text: 'The app, version ' + app.version + '. It keeps itself up to date.' });
-    return el('div', { class: 'wide note' }, 'Play without a browser: ',
-      el('a', { href: 'https://github.com/AgitationSkeleton/crystalienconflict-html5-online/releases/latest', target: '_blank', rel: 'noopener', text: 'the app, for Windows, Mac and Linux' }),
-      '. It keeps itself up to date.');
+    this.appBox = el('div', { class: 'wide appbox' });
+    if (!this.watchingApp) {
+      this.watchingApp = true;
+      offline.listeners.push(() => this.renderApp());
+      android.listeners.push(() => this.renderApp());
+    }
+    this.renderApp();
+    return this.appBox;
+  }
+
+  renderApp() {
+    const box = this.appBox;
+    if (!box) return;
+    const p = (...kids) => el('div', { class: 'note' }, ...kids);
+    const desktop = el('a', { href: RELEASES, target: '_blank', rel: 'noopener', text: 'the app, for Windows, Mac, Linux and Android' });
+    const rows = [];
+    if (window.crystalienApp) rows.push(p('The app, version ' + window.crystalienApp.version + '. It keeps itself up to date.'));
+    else if (isAndroidApp()) {
+      rows.push(p('The Android app' + (android.version ? ', version ' + android.version : '') + '.'));
+      if (android.update) {
+        const u = android.update;
+        rows.push(p('Version ' + u.version + ' is out: ', el('a', { href: u.url, text: 'download it', onclick: (e) => { e.preventDefault(); openOutside(u.url); } }), ', then open it to install it.'));
+      } else rows.push(p('New versions are listed on ', el('a', { href: RELEASES, text: 'its releases page', onclick: (e) => { e.preventDefault(); openOutside(RELEASES); } }), '.'));
+    } else {
+      if (offline.updated) {
+        rows.push(p('A new version is ready.'));
+        rows.push(el('div', { class: 'actions' }, el('button', { class: 'btn small', onclick: () => location.reload() }, 'Load it')));
+      }
+      if (offline.installed) rows.push(p('Installed on this device: it plays offline, and keeps itself up to date.'));
+      else if (offline.prompt) {
+        rows.push(el('div', { class: 'actions' }, el('button', { class: 'btn small', onclick: () => offline.install() }, 'Install on this device')));
+        rows.push(p('It then has an icon of its own, plays offline (all but online play), and keeps itself up to date.'));
+      } else if (ios) rows.push(p("To install it on this iPhone or iPad: Safari's Share button, then Add to Home Screen. It then plays offline, and keeps itself up to date."));
+      else rows.push(p('Your browser can install it (its menu: Install, or Add to Home Screen): it then plays offline, and keeps itself up to date.'));
+      rows.push(p('Or play without a browser: ', desktop, '.'));
+    }
+    box.replaceChildren(...rows);
   }
 
   // What the game reads of the settings while it plays.

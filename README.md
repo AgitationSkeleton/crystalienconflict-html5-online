@@ -51,9 +51,17 @@ On a phone or tablet, upright or on its side:
 | Pinch, two-finger drag | zoom, move the view |
 | ✕ ⌂ ≡ buttons | deselect, jump to your headquarters, menu |
 
+**Installing it.** The website installs as an app on phones, tablets and computers, and then
+plays offline (all but online play) and keeps itself up to date: on Android or a computer, the
+browser's menu (Install, or Add to Home Screen; the settings page has a button when the browser
+offers it); on an iPhone or iPad, Safari's Share button, then Add to Home Screen. (`sw.js` keeps
+a version's files; `tools/stamp_offline.py`, run by the pre-commit hook, lists them.)
+
 There is also **an app** for Windows, macOS and Linux (the settings page links to it, and so
 does the repository's Releases page): the same game without a browser, which keeps itself up to
-date. `client/` has it.
+date. `client/` has it. And **an Android app** (the `.apk` in each release; `mobile/` has it),
+which plays online with everyone else and says when a new one is out. There is no store version
+(the game is LEGO's) and no iOS app: on an iPhone or iPad, install the website from Safari.
 
 ## Running it locally
 
@@ -64,6 +72,9 @@ python -m http.server 8000
 ```
 
 then open <http://localhost:8000/>.
+
+To work on it, have git run the repository's hooks (`git config core.hooksPath tools/hooks`):
+the pre-commit hook writes the installed game's file list into `sw.js`.
 
 ## How the port works
 

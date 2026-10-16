@@ -3899,22 +3899,23 @@
                   __as.set(this.shortcuts?.UK_evil, "active", true);
                }
             }
-            // Online: "Special Ops in the Story" -- the Ops Ship or the Hive bought with a headquarters
-            // in the story's levels, and from it its Driller, Switch Fighter, Reaper and Commander --
-            // is turned off: the story plays as the original's, and its Conflict times go on the
-            // high-score table, which Special Ops would skew.  (Kept here, out of use.)
-            // if(!this.parent?.skirmish && !this.parent?.training && Online?.prefs?.storySpecOps)
-            // {
-            //    var own = this.parent?.parent?.team;
-            //    if(this.parent?.findBuilding?.("BA_" + own, this.parent?.localPlayer))
-            //    {
-            //       __as.set(this.shortcuts?.["BK_" + own], "active", true);
-            //    }
-            //    if(own == "evil" && this.parent?.findBuilding?.("BK_evil", this.parent?.localPlayer))
-            //    {
-            //       __as.set(this.shortcuts?.UQ_evil, "active", true);
-            //    }
-            // }
+            // Online: Special Ops in the story's levels, if the player's settings allow them
+            // ("Special Ops in the Story", off by default): the Ops Ship or the Hive bought with a
+            // headquarters, and from it its Driller, Switch Fighter, Reaper and Commander.  (Not in
+            // the tutorials' levels.)  A Conflict won with them on does not go on the high-score
+            // table: Panel.specOpsUsed.
+            if(!this.parent?.skirmish && !this.parent?.training && Online?.prefs?.storySpecOps)
+            {
+               var own = this.parent?.parent?.team;
+               if(this.parent?.findBuilding?.("BA_" + own, this.parent?.localPlayer))
+               {
+                  __as.set(this.shortcuts?.["BK_" + own], "active", true);
+               }
+               if(own == "evil" && this.parent?.findBuilding?.("BK_evil", this.parent?.localPlayer))
+               {
+                  __as.set(this.shortcuts?.UQ_evil, "active", true);
+               }
+            }
             if(this.buildingSite && !this.shortcuts?.[this.buildingSite?.type]?.active)
             {
                this.buildingSite?.destroy?.();
@@ -13219,6 +13220,9 @@
                return undefined;
             }
             this.state = "hidden";
+            // (Online: whether this story level is played with Special Ops -- a setting, not
+            // changed in a level -- for the high-score table, which it would skew)
+            this.specOpsUsed = !this.skirmish && !!Online?.prefs?.storySpecOps;
             this.game = new Game(this, this.team, this.level);
          };
          // Online: a skirmish over: back to its lobby (the page's), or else the menus.
@@ -13385,6 +13389,11 @@
                            if(this.cheatsEnabled?.())
                            {
                               __as.op(this.MC, "title", "+", "<BR><BR>" + dialogue?.("int_gameComplete4")?.toUpperCase?.());
+                           }
+                           // (Online: nor with Special Ops in the story)
+                           else if(this.specOpsUsed)
+                           {
+                              __as.op(this.MC, "title", "+", "<BR><BR>" + dialogue?.("int_gameComplete5")?.toUpperCase?.());
                            }
                            else
                            {

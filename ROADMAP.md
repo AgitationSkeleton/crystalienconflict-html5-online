@@ -171,6 +171,9 @@ As listed, plus later additions:
   updates itself from GitHub Releases. Pushing a version tag builds all three and publishes
   them (`.github/workflows/app.yml`); the settings page links to the latest for browser
   players. Unsigned for now (macOS then updates only by hand); `client/README.md` says more.
+  Every push that changes the game builds a release too (1.1.N). The website itself installs as
+  an app and plays offline (`sw.js`, `manifest.webmanifest`, `src/online/offline.js`;
+  `tools/verify/offline.py` checks it).
 - **4. Bots: done.** Computer players (`src/online/bot.js`) think the way the C&C mod's
   opponent does, as set out in `docs/cnc-ai-spec.md`: a build plan by urgency, the four
   wants, the missions (guard, hunt, attack, harvest and so on), raids on the weakest or

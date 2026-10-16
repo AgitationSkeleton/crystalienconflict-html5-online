@@ -1,0 +1,5 @@
+#!/bin/sh
+# The installed game's list of files and its version, as they are about to be committed, in
+# sw.js, which is committed too (tools/stamp_offline.py says why).
+py -3.13 tools/stamp_offline.py || python tools/stamp_offline.py || exit 1
+git add sw.js

@@ -13,6 +13,8 @@ import { Net, serverRoot } from './online/net.js';
 import { installTouch } from './online/touch.js';
 import { scoreServer, askScoreName } from './hiscore.js';
 import { american } from './online/spelling.js';
+import { installOffline } from './online/offline.js';
+import { checkAndroid } from './online/android.js';
 
 // serviceurl: the high-score server (src/hiscore.js), shared with the 1:1 port.  username: the
 // game sends a finished Conflict run's score only for someone logged in to LEGO's site; here
@@ -393,6 +395,9 @@ async function loadMaps() {
 }
 
 async function start() {
+  // (installed as a web app, it plays offline; the Android app looks for a newer version)
+  installOffline(params);
+  checkAndroid();
   sizes = await fetch('data/sizes.json').then((r) => r.json());
   await loadMaps();
   const loader = openMovie('loader');

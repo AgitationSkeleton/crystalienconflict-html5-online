@@ -1,0 +1,8 @@
+{
+  "appId": "xyz.viosarcade.crystalienconflict",
+  "appName": "CrystAlien Conflict",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#000000"
+  }
+}

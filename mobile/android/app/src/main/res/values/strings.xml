@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CrystAlien Conflict</string>
+    <string name="title_activity_main">CrystAlien Conflict</string>
+    <string name="package_name">xyz.viosarcade.crystalienconflict</string>
+    <string name="custom_url_scheme">xyz.viosarcade.crystalienconflict</string>
+</resources>

@@ -360,3 +360,4 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 }
 .touchbar button:active { background: rgba(255, 138, 0, 0.7); }
 .note a { color: var(--orange-hi); } .form .note { font-size: 13px; color: var(--ink-dim); text-transform: none; letter-spacing: 0; }
+.form .note.warn { color: #ff4a3d; font-weight: 700; margin-top: -4px; }
