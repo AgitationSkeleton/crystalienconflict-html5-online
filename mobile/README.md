@@ -2,9 +2,10 @@
 
 The website's game as an Android app (Capacitor), from GitHub Releases. It carries the game's
 files (the repository's `index.html`, `src/`, `data/` and `assets/`), so it plays with no
-connection (all but online play), on the whole screen. Its page is `https://localhost/`, which
-the game's server's `ALLOWED_ORIGINS` lets in: online play, the lobby and the high-score table
-are the website's, and links to share (a room's invitation) are the website's.
+connection (all but online play), on the whole screen, held sideways (landscape, either way
+up: `AndroidManifest.xml`). Its page is `https://localhost/`, which the game's server's
+`ALLOWED_ORIGINS` lets in: online play, the lobby and the high-score table are the website's,
+and links to share (a room's invitation) are the website's.
 
 An app from outside a store cannot update itself. On starting, it asks GitHub for the latest
 release: when that is newer than itself, the settings' App part says so and links its `.apk`,
