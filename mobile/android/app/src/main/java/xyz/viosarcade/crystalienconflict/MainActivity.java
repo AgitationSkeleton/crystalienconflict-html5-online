@@ -9,10 +9,13 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 // The game on the whole screen: the status and navigation bars hidden, back for a moment with a
-// swipe from the edge (as the website's full screen is, in a browser).
+// swipe from the edge (as the website's full screen is, in a browser); and the way round the
+// player chose in the settings (OrientationPlugin), from the start.
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(OrientationPlugin.class);
+        OrientationPlugin.apply(this);
         super.onCreate(savedInstanceState);
         immersive();
     }

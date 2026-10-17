@@ -28,6 +28,19 @@ export function newer(a, b) {
   return false;
 }
 
+// The screen's way round, the player's setting: held sideways ('landscape', the first time),
+// upright ('portrait') -- either way up -- or turning with the phone ('auto').  The app keeps it,
+// and opens that way round (mobile/android: OrientationPlugin).
+export function applyOrientation(mode) {
+  if (!isAndroidApp()) return;
+  try {
+    const plugin = window.Capacitor.registerPlugin ? window.Capacitor.registerPlugin('Orientation') : window.Capacitor.Plugins.Orientation;
+    plugin.set({ mode }).catch(() => {});
+  } catch (e) {
+    // (an app from before the setting: it stays sideways)
+  }
+}
+
 // A page outside the game, in the phone's browser (the app's own window keeps to the game).
 export function openOutside(url) {
   location.href = url;

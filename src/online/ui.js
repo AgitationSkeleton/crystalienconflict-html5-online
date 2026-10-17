@@ -5,7 +5,7 @@
 import { COLOURS, COLOUR_CSS, DEFAULTS, MARS_PALETTES, PALETTES, UI_SCALES, loadSettings, saveSettings } from './settings.js';
 import { american } from './spelling.js';
 import { offline, ios } from './offline.js';
-import { android, isAndroidApp, openOutside, RELEASES } from './android.js';
+import { android, isAndroidApp, openOutside, applyOrientation, RELEASES } from './android.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
@@ -1248,6 +1248,9 @@ export class OnlineUI {
       ...(ingame ? [] : row('Map palette', palette)),
       el('label', { text: 'In-Game Interface Size' }), size, ...(ingame ? [] : [sizeNote]),
       el('label', { text: 'English Spelling' }), english,
+      // (the Android app's: the screen's way round)
+      ...(isAndroidApp() ? row('Screen Orientation', el('select', { 'aria-label': 'Screen Orientation', onchange: (e) => { st.orientation = e.target.value; save(); applyOrientation(st.orientation); } },
+        ...[['landscape', 'Landscape (sideways)'], ['portrait', 'Portrait (upright)'], ['auto', 'Turn with the phone']].map(([v, t]) => el('option', { value: v, text: t, selected: st.orientation === v })))) : []),
       el('label', { text: 'Team-Coloured Sidebar Icons' }), teamIcons,
       // (the sides' colours are given them as a level starts: not changed in one)
       ...(ingame ? [] : row('Story Mode Team Colours', onOff('storyColours', 'Story Mode Team Colours'))),
@@ -1282,6 +1285,7 @@ export class OnlineUI {
   resetSettings() {
     const st = this.settings;
     for (const key of Object.keys(DEFAULTS)) if (key !== 'name' && key !== 'lobby') st[key] = DEFAULTS[key];
+    applyOrientation(st.orientation);
     this.slots[0].faction = st.faction;
     this.slots[0].colour = st.colour;
     saveSettings(st);

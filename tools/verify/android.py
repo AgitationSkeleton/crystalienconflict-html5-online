@@ -168,6 +168,15 @@ if not args.cdp:
     check('The Android app, version' in note, 'the settings show its version: %s' % note[:120])
 else:
     print('     (the settings: %s)' % note[:120])
+if not args.cdp:
+    # the screen's way round, the app's own setting: upright, then sideways again
+    check(page.evaluate("() => !!document.querySelector('select[aria-label=\"Screen Orientation\"]')"), 'the settings offer the screen\'s way round')
+    for mode, tall in (('portrait', True), ('landscape', False)):
+        page.evaluate("async () => { const { applyOrientation } = await import('./src/online/android.js'); applyOrientation('%s'); }" % mode)
+        turned = page.wait('() => (innerHeight > innerWidth) === %s' % ('true' if tall else 'false'), 30)
+        size = page.evaluate('() => [innerWidth, innerHeight]')
+        check(turned, 'the screen turns %s: %s' % (mode, size))
+    page.evaluate("() => onlineUI.open('settings')")
 page.evaluate("() => { onlineUI.open('lobby'); onlineUI.start(); }")
 check(page.wait("() => { const g = player.levels[1].panel.game; return !!(g && g.level && g.level.count > 100); }", 180), 'a skirmish plays')
 time.sleep(3)

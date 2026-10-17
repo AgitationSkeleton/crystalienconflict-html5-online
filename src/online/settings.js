@@ -51,6 +51,7 @@ export const DEFAULTS = {
   english: 'european',      // the game's and the menus' spelling: 'european' (as the game's) or 'american'
   screensaverDirector: true, // Screensaver Mode: the view follows what is going on by itself
   screensaverHud: false,     // Screensaver Mode: the sidebar shown (off: the battlefield across the screen)
+  orientation: 'landscape', // the Android app's way round: 'landscape', 'portrait' or 'auto' (src/online/android.js)
   lobby: null,              // the last skirmish set up, to start from next time
 };
 
@@ -70,6 +71,7 @@ export function loadSettings() {
   if (!(s.size in UI_SCALES)) s.size = DEFAULTS.size;
   if (!['off', 'units', 'buildings', 'all'].includes(s.healthBars)) s.healthBars = DEFAULTS.healthBars;
   if (!['european', 'american'].includes(s.english)) s.english = DEFAULTS.english;
+  if (!['landscape', 'portrait', 'auto'].includes(s.orientation)) s.orientation = DEFAULTS.orientation;
   // (once on or off: on was in a skirmish only)
   if (s.teamIcons === true) s.teamIcons = 'skirmish';
   if (s.teamIcons === false) s.teamIcons = 'off';
