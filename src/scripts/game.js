@@ -4268,6 +4268,7 @@
             this.maxHealth *= 3;
          }
          this.constructionTime = this.cost;
+         this.max = typeof skirmishCap == "function" ? skirmishCap(this.type, this.max) : this.max;
          this.size2 = this.size / 2;
          this.altitude2 = this.altitude / 2;
          this.altitudeT2 = this.altitude * 2;
@@ -4784,6 +4785,23 @@
    {
       with (__scope)
       {
+      // Online: how many of a thing a player may have in a skirmish: the host's own limit for it
+      // ("Unit and building limits", by its two letters, the same for both sides' -- an Eagle
+      // Command and a Mothership are BA), 0 to 99, else the game's.  (Not a Commander's or
+      // Santa's in Hunt the Hero, where they are the heroes; and nothing in the story.)
+      skirmishCap = function skirmishCap(type, max)
+      {
+         var cap = SKIRMISH?.caps?.[String(type).substr(0, 2)];
+         if(cap === undefined || cap === null || cap === "" || isNaN(Number(cap)))
+         {
+            return max;
+         }
+         if(SKIRMISH?.mode == "hero" && (type == "UQ_evil" || type == "UM_evil"))
+         {
+            return max;
+         }
+         return Math.max(0, Math.min(99, Math.round(Number(cap))));
+      };
       UnitStats = function UnitStats(parent)
       {
          this.isUnit = true;
@@ -5148,6 +5166,7 @@
             this.altitude = 20;
          }
          this.constructionTime = this.cost;
+         this.max = typeof skirmishCap == "function" ? skirmishCap(this.type, this.max) : this.max;
          // Online: a skirmish's pizza costs what the settings say, and takes as long to make as
          // the original's (the C&C mod's rule).
          if(this.pickup == "special" && SKIRMISH?.pizzaCost)

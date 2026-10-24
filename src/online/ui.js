@@ -65,8 +65,107 @@ const MATCH_DEFAULTS = {
   map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true, balance: 'vanilla',
   christmas: false, crateRate: 'normal', income: 0, pizzaCost: 50000, speed: 1, shroud: true,
   superweapons: true, factions: 'all', regrowth: 1, palette: 'mars', build: 1, queue: false, shields: false, captures: 1,
-  shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off', shareFlags: false,
+  shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off', shareFlags: false, caps: {},
 };
+
+// Unit and building limits (the Match panel's, below its settings; a skirmish's settings.caps,
+// which the game reads in skirmishCap): by the two letters both sides' share, the game's own
+// limit in a skirmish, the sidebar pictures of each side's (to the left of its slider), and
+// what the match needs for it to be there at all -- greyed out without it.
+const CAPS = [
+  ['Buildings', [
+    ['BA', 'Eagle Command, Mothership', ['BA_good', 'BA_evil'], 1],
+    ['BB', 'Power Plant, Energy Generator', ['BB_good', 'BB_evil'], 8],
+    ['BC', 'Training Camp, Breeding Pit', ['BC_good', 'BC_evil'], 2],
+    ['BD', 'Defence Station, Assault Turret', ['BD_good', 'BD_evil'], 12],
+    ['BE', 'Vehicle Factory, Battle Foundry', ['BE_good', 'BE_evil'], 2],
+    ['BF', 'Radar Station, Sonar Station', ['BF_good', 'BF_evil'], 1],
+    ['BG', 'Technology Centre, Experiment Lab', ['BG_good', 'BG_evil'], 1],
+    ['BH', 'Satellite Uplink, Orbital Uplink', ['BH_good', 'BH_evil'], 5],
+    ['BK', 'MX-81 Ops Ship, Alien Hive', ['BK_good', 'BK_evil'], 1, ['specops']],
+    ['BL', 'MT-201 Driller', ['BL_good'], 4, ['specops']],
+    ['BJ', "Santa's Sleigh", ['BJ_evil'], 1, ['christmas']],
+  ]],
+  ['Units', [
+    ['UA', 'Infantry, Drone', ['UA_good', 'UA_evil'], 5],
+    ['UB', 'Engineer, Saboteur', ['UB_good', 'UB_evil'], 5],
+    ['UC', 'JetPack Explorer, Viper Attack', ['UC_good', 'UC_evil'], 5],
+    ['UD', 'Crystal Miner, Crystal Extractor', ['UD_good', 'UD_evil'], 4],
+    ['UE', 'Trike, Speeder', ['UE_good', 'UE_evil'], 5],
+    ['UF', 'ClawTank Ambush, Dragon Cruiser', ['UF_good', 'UF_evil'], 5],
+    ['UG', 'Astro Fighter, Strike Fighter', ['UG_good', 'UG_evil'], 4],
+    ['UH', 'Recon Dropship, Hyper Carrier', ['UH_good', 'UH_evil'], 2],
+    ['UK', 'EM Pulse Cannon, 4T2 Ion Disrupter', ['UK_good', 'UK_evil'], 1, ['superweapons']],
+    ['UP', 'Switch Fighter, Alien Infiltrator', ['UP_good', 'UP_evil'], 2, ['specops']],
+    ['UR', 'Crystal Reaper', ['UR_good'], 2, ['specops']],
+    ['UQ', 'Commander', ['UQ_evil'], 1, ['specops', 'hero']],
+    ['UM', 'Santa', ['UM_evil'], 1, ['christmas', 'hero']],
+    ['UN', 'Reindeer', ['UN_evil'], 8, ['christmas']],
+  ]],
+];
+// (above this many of one thing, the warning: many more units and buildings than the game was
+// made for, on every player's side, can slow it down until it stops)
+const CAP_RISKY = 30;
+// Why a limit has nothing to limit in this match, if it has not.
+const CAP_NEEDS = {
+  specops: (m) => m.specops === 'off' && 'Special Ops are off',
+  christmas: (m) => !(m.crates && m.christmas) && 'the Christmas crate is off',
+  superweapons: (m) => !m.superweapons && 'superweapons are off',
+  hero: (m) => m.mode === 'hero' && 'it is the hero in Hunt the Hero',
+};
+// A type's sidebar picture as a CSS background: the thing over its side's backdrop, or the
+// C&C mod's whole picture for those the game never had (src/online/ui.css .capicon).
+const CAP_WHOLE = { BJ_evil: 1, BK_evil: 1, UM_evil: 1, UN_evil: 1 };
+function capIcon(type) {
+  const side = type.slice(-4) === 'evil' ? 'evil' : 'good';
+  const art = CAP_WHOLE[type] ? 'url(assets/online/icons/' + type + '.png)'
+    : 'url(assets/online/mugshots/' + (type.slice(0, 2) === 'UK' ? 'UK' : type) + '.png), url(assets/online/mugshots/back_' + side + '.png)';
+  return el('span', { class: 'capicon', style: 'background-image:' + art, title: type });
+}
+// The limits a match's settings carry: whole numbers 0 to 99, by the letters CAPS knows.
+function cleanCaps(caps) {
+  const out = {};
+  const known = new Set(CAPS.flatMap(([, rows]) => rows.map((r) => r[0])));
+  for (const [k, v] of Object.entries(caps || {})) if (known.has(k) && Number.isFinite(Number(v))) out[k] = Math.max(0, Math.min(99, Math.round(Number(v))));
+  return out;
+}
+// The limits, folded away under their title: a slider and its number for each, the reset, and
+// the warning when one is high.  `can`: may change them (the host); `set(caps)` keeps a change;
+// `open`/`toggle` remember whether it is unfolded across the panel being drawn again.
+function capsPanel(m, can, open, toggle, set) {
+  const caps = cleanCaps(m.caps);
+  const work = Object.assign({}, caps);
+  const changed = Object.keys(caps).length;
+  const warn = el('div', { class: 'note warn capswarn' });
+  const risky = () => {
+    const high = CAPS.flatMap(([, rows]) => rows).filter((r) => (work[r[0]] === undefined ? r[3] : work[r[0]]) > CAP_RISKY).map((r) => r[1].split(',')[0]);
+    warn.textContent = high.length ? 'High limits (' + high.join(', ') + ') can make the game slow down or crash, all the more with many players and on big maps. You can still play with them.' : '';
+  };
+  const groups = CAPS.map(([title, rows]) => el('div', { class: 'capgroup' }, el('div', { class: 'section', text: title }),
+    ...rows.map(([key, label, types, normal, needs]) => {
+      const why = (needs || []).map((n) => CAP_NEEDS[n](m)).find(Boolean);
+      const now = work[key] === undefined ? normal : work[key];
+      const num = el('span', { class: 'capnum', text: String(now) });
+      const slider = el('input', { type: 'range', min: 0, max: 99, value: now, disabled: !can || !!why, 'aria-label': label,
+        oninput: (e) => { work[key] = Number(e.target.value); num.textContent = e.target.value; risky(); },
+        onchange: (e) => {
+          const next = Object.assign({}, caps);
+          if (Number(e.target.value) === normal) delete next[key];
+          else next[key] = Number(e.target.value);
+          set(next);
+        } });
+      return el('div', { class: 'caprow' + (why ? ' off' : '') + (now !== normal ? ' changed' : ''), title: why ? 'Not in this match: ' + why : 'The game\'s own: ' + normal },
+        el('span', { class: 'capicons' }, ...types.map(capIcon)), el('span', { class: 'caplabel', text: label }), slider, num);
+    })));
+  risky();
+  const box = el('details', { class: 'caps', ontoggle: (e) => toggle(e.target.open) },
+    el('summary', { text: 'Unit and building limits' + (changed ? ' (' + changed + ' changed)' : '') }),
+    el('div', { class: 'capgroups' }, ...groups),
+    warn,
+    el('div', { class: 'actions' }, el('button', { class: 'btn small', disabled: !can || !changed, onclick: () => set({}) }, 'Reset limits')));
+  box.open = !!open;
+  return box;
+}
 
 // The palette a match is seen in: the host's, unless this player prefers one; either may be
 // Random: any of them for the match (the host's the same for everyone, by the match's seed: the
@@ -293,7 +392,28 @@ export class OnlineUI {
   }
 
   mapInfo() {
-    return this.maps().find((m) => m.id === String(this.match.map)) || this.maps()[0];
+    return this.findMap(this.match.map);
+  }
+
+  // A match's map: one of maps(), or Random -- a stand-in with as many bases as the biggest map,
+  // until the match starts and one is picked that has room for its players (pickMap).
+  findMap(id) {
+    const maps = this.maps();
+    if (String(id) === 'random') return { id: 'random', name: 'Random map', bases: Math.max(...maps.map((x) => x.bases)), random: true, info: { bases: [] } };
+    return maps.find((x) => x.id === String(id)) || maps[0];
+  }
+
+  pickMap(map, players) {
+    if (!map.random) return map;
+    const maps = this.maps();
+    const fits = maps.filter((x) => x.bases >= players);
+    const from = fits.length ? fits : maps;
+    return from[Math.floor(Math.random() * from.length)];
+  }
+
+  // The map lists' first choice.
+  randomOption(current) {
+    return el('option', { value: 'random', text: 'Random (one with room for everyone)', selected: String(current) === 'random' });
   }
 
   defaultSlots(saved) {
@@ -364,7 +484,7 @@ export class OnlineUI {
               el('label', { text: 'Password' }), this.lobbyPassword),
             el('div', { class: 'actions' }, this.lobbyHostButton),
             this.lobbyHostNote)),
-        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.matchForm,
+        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.matchForm, this.capsBox = el('div'),
           el('div', { class: 'actions' }, el('button', { class: 'btn small', onclick: () => this.resetMatch() }, 'Reset all to default'))))));
     this.screens.lobby = s;
     this.root.append(s);
@@ -413,13 +533,13 @@ export class OnlineUI {
     const groups = { undefined: 'CrystAlien Conflict', cnc: 'Command & Conquer', lego: 'LEGO Battles' };
     const byGroup = {};
     for (const m of maps) (byGroup[m.source] = byGroup[m.source] || []).push(m);
-    this.mapSelect.replaceChildren(...Object.entries(byGroup).map(([g, list]) => el('optgroup', { label: groups[g] || g },
+    this.mapSelect.replaceChildren(this.randomOption(this.match.map), ...Object.entries(byGroup).map(([g, list]) => el('optgroup', { label: groups[g] || g },
       ...list.map((m) => el('option', { value: m.id, text: m.name + ' (' + m.bases + ')', selected: m.id === String(this.match.map) })))));
     const map = this.mapInfo();
     this.match.map = map.id;
     this.slotCount.value = String(this.match.slots);
     this.mapName.textContent = map.name;
-    this.mapPlayers.textContent = map.bases + ' players';
+    this.mapPlayers.textContent = map.random ? 'Picked as the match starts' : map.bases + ' players';
     this.drawPreview(map);
 
     const me = this.slots[0];
@@ -465,6 +585,8 @@ export class OnlineUI {
       } }, ...m.choices.map(([v, t]) => el('option', { value: String(v), text: t, selected: String(this.match[m.key]) === String(v), disabled: m.only && m.only[v] === false })));
       return [el('label', {}, m.label, m.ready ? null : el('span', { class: 'soon', text: 'soon' })), select];
     }));
+    this.capsBox.replaceChildren(capsPanel(this.match, true, this.capsOpen, (o) => { this.capsOpen = o; },
+      (caps) => { this.match.caps = caps; this.renderLobby(); }));
 
     const problem = this.problem();
     this.lobbyNotice.textContent = problem || '';
@@ -474,6 +596,7 @@ export class OnlineUI {
   // The Match panel's settings as they are at first (the map and the players' slots stay).
   resetMatch() {
     for (const m of MATCH) this.match[m.key] = MATCH_DEFAULTS[m.key];
+    this.match.caps = {};
     this.sound('INT_cursor_select');
     this.renderLobby();
   }
@@ -543,6 +666,19 @@ export class OnlineUI {
   // colours.
   drawPreview(map, canvas, slots, count) {
     const c = canvas || this.mapPreview;
+    if (map.random) {
+      c.width = 120;
+      c.height = 60;
+      const g = c.getContext('2d');
+      g.fillStyle = '#5a2a12';
+      g.fillRect(0, 0, c.width, c.height);
+      g.fillStyle = '#ffb347';
+      g.font = 'bold 40px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('?', c.width / 2, c.height / 2 + 2);
+      return;
+    }
     slots = slots || this.slots;
     count = count === undefined ? this.match.slots : count;
     const game = this.game;
@@ -612,19 +748,21 @@ export class OnlineUI {
     });
     // The palette is the host's choice, unless this player prefers one.
     const palette = paletteFor(m.palette, this.settings.palette);
+    // (Random: a map with room for them all)
+    const map = this.pickMap(this.mapInfo(), players.length);
     const settings = {
-      map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
+      map: /^\d+$/.test(String(map.id)) ? Number(map.id) : map.id, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false, balance: m.balance || 'vanilla',
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, shareFlags: !!m.shareFlags,
       shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings,
-      players,
+      caps: cleanCaps(m.caps), players,
     };
     // Watching: a grey sidebar, with nothing on it to build.
     if (this.slots[0].faction === 'spectate') settings.spectator = { name: this.settings.name, faction: 'good' };
     // Bases: of the map's markers, those that keep enemies furthest apart (allies near each
     // other, all else equal).
-    const bases = (this.mapInfo().info && this.mapInfo().info.bases) || [];
+    const bases = (map.info && map.info.bases) || [];
     const chosen = spreadBases(bases, players.map((pl) => pl.colour));
     players.forEach((pl, i) => { pl.base = chosen ? chosen[i] : bases[pl.slot]; });
     this.settings.lobby = { match: m, slots: this.slots.map(({ kind, faction, colour, difficulty }) => ({ kind, faction, colour, difficulty })) };
@@ -887,6 +1025,7 @@ export class OnlineUI {
     this.roomWatchers = el('div', { class: 'watchers' });
     this.roomNotice = el('div', { class: 'notice' });
     this.roomMatchForm = el('div', { class: 'match-groups' });
+    this.roomCapsBox = el('div');
     this.roomMatchReset = el('button', { class: 'btn small', onclick: () => this.resetRoomMatch() }, 'Reset all to default');
     this.roomStart = el('button', { class: 'btn small primary', onclick: () => this.startOnline() }, 'Start');
     this.roomCode = el('span', { class: 'code', text: '' });
@@ -933,7 +1072,7 @@ export class OnlineUI {
               el('button', { class: 'btn small', onclick: () => this.copyInvite() }, 'Copy link')),
             this.roomAccessRow)),
         el('div', { class: 'panel chatpanel' }, el('h2', { text: 'Chat' }), el('div', { class: 'body chat' }, this.chatLog, this.chatInput)),
-        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.roomMatchForm,
+        el('div', { class: 'panel wide' }, el('h2', { text: 'Match' }), el('div', { class: 'body' }, this.roomMatchForm, this.roomCapsBox,
           el('div', { class: 'actions' }, this.roomMatchReset)))));
     this.screens.room = s;
     this.root.append(s);
@@ -972,6 +1111,7 @@ export class OnlineUI {
   resetRoomMatch() {
     const change = {};
     for (const m of MATCH) change[m.key] = MATCH_DEFAULTS[m.key];
+    change.caps = {};
     this.sound('INT_cursor_select');
     this.setRoomMatch(change);
   }
@@ -996,14 +1136,14 @@ export class OnlineUI {
     const groups = { undefined: 'CrystAlien Conflict', cnc: 'Command & Conquer', lego: 'LEGO Battles' };
     const byGroup = {};
     for (const x of maps) (byGroup[x.source] = byGroup[x.source] || []).push(x);
-    this.roomMapSelect.replaceChildren(...Object.entries(byGroup).map(([g, list]) => el('optgroup', { label: groups[g] || g },
+    this.roomMapSelect.replaceChildren(this.randomOption(m.map), ...Object.entries(byGroup).map(([g, list]) => el('optgroup', { label: groups[g] || g },
       ...list.map((x) => el('option', { value: x.id, text: x.name + ' (' + x.bases + ')', selected: x.id === String(m.map) })))));
     this.roomMapSelect.disabled = !host;
     this.roomSlotCount.disabled = !host;
     this.roomSlotCount.value = String(r.count);
-    const map = maps.find((x) => x.id === String(m.map)) || maps[0];
+    const map = this.findMap(m.map);
     this.roomMapName.textContent = map.name;
-    this.roomMapPlayers.textContent = map.bases + ' players';
+    this.roomMapPlayers.textContent = map.random ? 'Picked as the match starts' : map.bases + ' players';
     this.drawPreview(map, this.roomPreview, r.slots, r.count);
     const factionChoices = m.factions === 'all' ? ['good', 'evil', 'random'] : [m.factions];
     const mySlot = r.slots.findIndex((x) => x.kind === 'member' && x.member === net.you);
@@ -1063,6 +1203,8 @@ export class OnlineUI {
       } }, ...x.choices.map(([v, t]) => el('option', { value: String(v), text: t, selected: String(m[x.key]) === String(v) })));
       return [el('label', {}, x.label), select];
     }));
+    this.roomCapsBox.replaceChildren(capsPanel(m, host && r.phase !== 'playing', this.capsOpen, (o) => { this.capsOpen = o; },
+      (caps) => this.setRoomMatch({ caps })));
     const problem = r.phase === 'playing' ? 'A match is under way.' : this.roomProblem(r, map);
     this.roomNotice.textContent = problem || (host ? '' : 'The host starts the match.');
     this.roomStart.style.display = host ? '' : 'none';
@@ -1095,7 +1237,7 @@ export class OnlineUI {
     const net = this.net;
     const r = net.room;
     const m = this.roomMatch();
-    const map = this.maps().find((x) => x.id === String(m.map)) || this.maps()[0];
+    let map = this.findMap(m.map);
     if (!net.isHost || this.roomProblem(r, map)) return;
     this.sound('INT_construction');
     const members = Object.fromEntries(r.members.map((x) => [x.id, x]));
@@ -1108,17 +1250,19 @@ export class OnlineUI {
       if (x.kind === 'member') players.push({ name: (members[x.member] && members[x.member].name) || 'Player', faction: pick(x.faction), colour: x.colour, control: 'remote', member: x.member, slot: i });
       else if (x.kind === 'bot') players.push({ name: 'Computer ' + (i + 1), faction: pick(x.faction), colour: x.colour, control: 'bot', difficulty: x.difficulty || 'medium', slot: i });
     });
+    // (Random: a map with room for them all, the same for everyone: it goes in the settings)
+    map = this.pickMap(map, players.length);
     const bases = (map.info && map.info.bases) || [];
     const chosen = spreadBases(bases, players.map((pl) => pl.colour));
     players.forEach((pl, i) => { pl.base = chosen ? chosen[i] : bases[pl.slot]; });
     const seated = new Set(players.map((pl) => pl.member).filter(Boolean));
     for (const x of r.members) if (!seated.has(x.id)) players.push({ name: x.name, control: 'spectator', member: x.id, faction: 'good', colour: 'black' });
     const settings = {
-      map: /^\d+$/.test(String(m.map)) ? Number(m.map) : m.map, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
+      map: /^\d+$/.test(String(map.id)) ? Number(map.id) : map.id, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette: m.palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false, balance: m.balance || 'vanilla',
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
       build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, shareFlags: !!m.shareFlags,
-      shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings, players,
+      shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings, caps: cleanCaps(m.caps), players,
       // (the map by its name, for the server's log: the game goes by map)
       mapName: map.name,
     };
