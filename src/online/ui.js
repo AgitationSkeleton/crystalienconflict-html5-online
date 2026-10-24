@@ -95,8 +95,9 @@ const CAPS = [
     ['UF', 'ClawTank Ambush, Dragon Cruiser', ['UF_good', 'UF_evil'], 5],
     ['UG', 'Astro Fighter, Strike Fighter', ['UG_good', 'UG_evil'], 4],
     ['UH', 'Recon Dropship, Hyper Carrier', ['UH_good', 'UH_evil'], 2],
-    // (a superweapon does not stack: on or off, for each side's, as the host likes)
-    ['UK', 'EM Pulse Cannon, 4T2 Ion Disrupter', ['UK_good', 'UK_evil'], 1, ['superweapons'], 1],
+    // (a superweapon does not stack: on or off, each side's on its own, as the host likes)
+    ['UK_good', 'EM Pulse Cannon', ['UK_good'], 1, ['superweapons'], 1],
+    ['UK_evil', '4T2 Ion Disrupter', ['UK_evil'], 1, ['superweapons'], 1],
     ['UP', 'Switch Fighter, Alien Infiltrator', ['UP_good', 'UP_evil'], 2, ['specops']],
     ['UR', 'Crystal Reaper', ['UR_good'], 2, ['specops']],
     ['UQ', 'Commander', ['UQ_evil'], 1, ['specops', 'hero']],

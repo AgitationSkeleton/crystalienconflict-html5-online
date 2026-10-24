@@ -4792,7 +4792,12 @@
       // in the Screensaver, always.  A superweapon, which does not stack, at most one.)
       skirmishCap = function skirmishCap(type, max)
       {
-         var cap = SKIRMISH?.caps?.[String(type).substr(0, 2)];
+         // (a limit for one side's own -- the superweapons' -- before both sides')
+         var cap = SKIRMISH?.caps?.[type];
+         if(cap === undefined)
+         {
+            cap = SKIRMISH?.caps?.[String(type).substr(0, 2)];
+         }
          if(cap === undefined || cap === null || cap === "" || isNaN(Number(cap)) || SKIRMISH?.screensaver)
          {
             return max;
