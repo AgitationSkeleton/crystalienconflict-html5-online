@@ -399,7 +399,7 @@ export class OnlineUI {
   // until the match starts and one is picked that has room for its players (pickMap).
   findMap(id) {
     const maps = this.maps();
-    if (String(id) === 'random') return { id: 'random', name: 'Random map', bases: Math.max(...maps.map((x) => x.bases)), random: true, info: { bases: [] } };
+    if (String(id) === 'random') return { id: 'random', name: 'Random', bases: Math.max(...maps.map((x) => x.bases)), random: true, info: { bases: [] } };
     return maps.find((x) => x.id === String(id)) || maps[0];
   }
 
@@ -413,7 +413,7 @@ export class OnlineUI {
 
   // The map lists' first choice.
   randomOption(current) {
-    return el('option', { value: 'random', text: 'Random (one with room for everyone)', selected: String(current) === 'random' });
+    return el('option', { value: 'random', text: 'Random', selected: String(current) === 'random' });
   }
 
   defaultSlots(saved) {
