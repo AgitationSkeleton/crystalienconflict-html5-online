@@ -74,7 +74,6 @@ const MATCH_DEFAULTS = {
 // what the match needs for it to be there at all -- greyed out without it.
 const CAPS = [
   ['Buildings', [
-    ['BA', 'Eagle Command, Mothership', ['BA_good', 'BA_evil'], 1],
     ['BB', 'Power Plant, Energy Generator', ['BB_good', 'BB_evil'], 8],
     ['BC', 'Training Camp, Breeding Pit', ['BC_good', 'BC_evil'], 2],
     ['BD', 'Defence Station, Assault Turret', ['BD_good', 'BD_evil'], 12],
