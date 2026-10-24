@@ -57,6 +57,11 @@ const INFANTRY = ['UA', 'UB', 'UJ', 'UM', 'UN', 'UQ'];
 const AIRCRAFT = ['UC', 'UG', 'UH', 'UP'];
 const kindOf = (code) => (VEHICLES.includes(code) ? 'vehicle' : INFANTRY.includes(code) ? 'infantry' : AIRCRAFT.includes(code) ? 'aircraft' : 'building');
 
+// The game's own limits in a skirmish of those the bots' plans count (the lobby's CAPS has them
+// all): the host's "Unit and building limits" make the plans bigger or smaller by as much as they
+// are (capScale) -- more miners, a bigger army, more guns -- as well as holding them to the limit.
+const NORMAL_CAPS = { UA: 5, UB: 5, UC: 5, UD: 4, UE: 5, UF: 5, UG: 4, UH: 2, UP: 2, UR: 2, BD: 12, BE: 2 };
+
 // §2.3: ratio targets, in 256ths of the number of buildings.
 const RATIO = { barracks: 40, factory: 25, defence: 102, aa: 36, helipad: 30, airstrip: 30 };
 
@@ -266,10 +271,11 @@ export class Bot {
     if (curBC < roundUp(RATIO.barracks, N) && curBC < 2 && (cash > 300 || income) && this.canBuild(bc) && this.affordable(bc)) offer(bc, curBC > 0 ? LOW : MEDIUM);
     const be = this.slot('BE');
     const curBE = cur('BE');
-    if (curBE < roundUp(RATIO.factory, N) && curBE < 2 && (cash > 2000 || income) && this.canBuild(be) && this.affordable(be)) offer(be, curBE > 0 ? LOW : MEDIUM);
+    if (curBE < roundUp(RATIO.factory, N) && curBE < Math.round(2 * this.capScale(['BE'])) && (cash > 2000 || income) && this.canBuild(be) && this.affordable(be)) offer(be, curBE > 0 ? LOW : MEDIUM);
     const bd = this.slot('BD');
     const curBD = cur('BD');
-    if (curBD < roundUp(RATIO.defence, N) && curBD < this.profile.guns && this.canBuild(bd) && this.canPower(bd) && this.affordable(bd)) offer(bd, MEDIUM);
+    const guns = this.capScale(['BD']);
+    if (curBD < roundUp(RATIO.defence * guns, N) && curBD < this.profile.guns * guns && this.canBuild(bd) && this.canPower(bd) && this.affordable(bd)) offer(bd, MEDIUM);
     if (curBD < roundUp(RATIO.aa, N) && curBD < Math.min(10, this.profile.guns) && this.airThreat()) {
       const bf = this.slot('BF');
       if (cur('BF') === 0 && this.canBuild(bf) && this.affordable(bf)) offer(bf, HIGH);
@@ -434,9 +440,24 @@ export class Bot {
   }
 
   ceiling(kind) {
-    // §3.2: the ceilings come to about ten of each (the mod never finds an enemy to average).
-    if (kind === 'vehicle') return Math.max(this.settings.units || 0, this.profile.army);
-    return this.profile.army;
+    // §3.2: the ceilings come to about ten of each (the mod never finds an enemy to average) --
+    // times the host's limits for them over the game's own.
+    if (kind === 'vehicle') return Math.max(this.settings.units || 0, Math.round(this.profile.army * this.capScale(['UE', 'UF', 'UR'])));
+    if (kind === 'infantry') return Math.round(this.profile.army * this.capScale(['UA', 'UB']));
+    return Math.round(this.profile.army * this.capScale(['UC', 'UG', 'UH', 'UP']));
+  }
+
+  // The host's limits for these, all told, over the game's own (1 without any; the Screensaver
+  // has none).
+  capScale(codes) {
+    const caps = (!this.settings.screensaver && this.settings.caps) || {};
+    let mine = 0, normal = 0;
+    for (const c of codes) {
+      const n = NORMAL_CAPS[c] || 0;
+      normal += n;
+      mine += caps[c] === undefined || !Number.isFinite(Number(caps[c])) ? n : Number(caps[c]);
+    }
+    return normal ? mine / normal : 1;
   }
 
   units() {
@@ -474,7 +495,7 @@ export class Bot {
   chooseVehicle(n) {
     // §3.3: miners first.
     // (none more while the map has no crystals worth the trip, as a mined-out map has not)
-    const want = this.ownBuildings((b) => b.type === this.mine('BA')).length && this.crystalsLeft() ? this.profile.miners : 0;
+    const want = this.ownBuildings((b) => b.type === this.mine('BA')).length && this.crystalsLeft() ? Math.round(this.profile.miners * this.capScale(['UD'])) : 0;
     if (want > this.miners()) {
       const miner = this.buildable('UD')[0];
       if (miner) { this.want.vehicle = miner; return; }
