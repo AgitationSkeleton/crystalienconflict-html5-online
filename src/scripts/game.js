@@ -4788,13 +4788,18 @@
       // Online: how many of a thing a player may have in a skirmish: the host's own limit for it
       // ("Unit and building limits", by its two letters, the same for both sides' -- an Eagle
       // Command and a Mothership are BA), 0 to 99, else the game's.  (Not a Commander's or
-      // Santa's in Hunt the Hero, where they are the heroes; and nothing in the story.)
+      // Santa's in Hunt the Hero, where they are the heroes; nothing in the story; and the game's own
+      // in the Screensaver, always.  A superweapon, which does not stack, at most one.)
       skirmishCap = function skirmishCap(type, max)
       {
          var cap = SKIRMISH?.caps?.[String(type).substr(0, 2)];
-         if(cap === undefined || cap === null || cap === "" || isNaN(Number(cap)))
+         if(cap === undefined || cap === null || cap === "" || isNaN(Number(cap)) || SKIRMISH?.screensaver)
          {
             return max;
+         }
+         if(String(type).substr(0, 2) == "UK")
+         {
+            return Number(cap) >= 1 ? 1 : 0;
          }
          if(SKIRMISH?.mode == "hero" && (type == "UQ_evil" || type == "UM_evil"))
          {

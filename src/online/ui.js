@@ -95,7 +95,8 @@ const CAPS = [
     ['UF', 'ClawTank Ambush, Dragon Cruiser', ['UF_good', 'UF_evil'], 5],
     ['UG', 'Astro Fighter, Strike Fighter', ['UG_good', 'UG_evil'], 4],
     ['UH', 'Recon Dropship, Hyper Carrier', ['UH_good', 'UH_evil'], 2],
-    ['UK', 'EM Pulse Cannon, 4T2 Ion Disrupter', ['UK_good', 'UK_evil'], 1, ['superweapons']],
+    // (a superweapon does not stack: on or off, for each side's, as the host likes)
+    ['UK', 'EM Pulse Cannon, 4T2 Ion Disrupter', ['UK_good', 'UK_evil'], 1, ['superweapons'], 1],
     ['UP', 'Switch Fighter, Alien Infiltrator', ['UP_good', 'UP_evil'], 2, ['specops']],
     ['UR', 'Crystal Reaper', ['UR_good'], 2, ['specops']],
     ['UQ', 'Commander', ['UQ_evil'], 1, ['specops', 'hero']],
@@ -126,7 +127,8 @@ function capIcon(type) {
 function cleanCaps(caps) {
   const out = {};
   const known = new Set(CAPS.flatMap(([, rows]) => rows.map((r) => r[0])));
-  for (const [k, v] of Object.entries(caps || {})) if (known.has(k) && Number.isFinite(Number(v))) out[k] = Math.max(0, Math.min(99, Math.round(Number(v))));
+  const most = Object.fromEntries(CAPS.flatMap(([, rows]) => rows.map((r) => [r[0], r[5] || 99])));
+  for (const [k, v] of Object.entries(caps || {})) if (known.has(k) && Number.isFinite(Number(v))) out[k] = Math.max(0, Math.min(most[k], Math.round(Number(v))));
   return out;
 }
 // The limits, folded away under their title: a slider and its number for each, the reset, and
@@ -142,11 +144,11 @@ function capsPanel(m, can, open, toggle, set) {
     warn.textContent = high.length ? 'High limits (' + high.join(', ') + ') can make the game slow down or crash, all the more with many players and on big maps. You can still play with them.' : '';
   };
   const groups = CAPS.map(([title, rows]) => el('div', { class: 'capgroup' }, el('div', { class: 'section', text: title }),
-    ...rows.map(([key, label, types, normal, needs]) => {
+    ...rows.map(([key, label, types, normal, needs, most]) => {
       const why = (needs || []).map((n) => CAP_NEEDS[n](m)).find(Boolean);
       const now = work[key] === undefined ? normal : work[key];
       const num = el('span', { class: 'capnum', text: String(now) });
-      const slider = el('input', { type: 'range', min: 0, max: 99, value: now, disabled: !can || !!why, 'aria-label': label,
+      const slider = el('input', { type: 'range', min: 0, max: most || 99, value: now, disabled: !can || !!why, 'aria-label': label,
         oninput: (e) => { work[key] = Number(e.target.value); num.textContent = e.target.value; risky(); },
         onchange: (e) => {
           const next = Object.assign({}, caps);
