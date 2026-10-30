@@ -1157,9 +1157,18 @@ export class Bot {
       }
       const explore = this.calm() ? null : this.unscoutedPoint(u);
       if (explore) { this.order(u, 'move', { dest: explore }); continue; }
+      // Nothing to take or look at: back by the base, to wait there.  (Near enough is near enough:
+      // measured to the building's middle, a unit at its dock was never there, and was sent to
+      // the dock again every second, for good, in the miners' way.)
       const home = this.ownBuildings()[0];
-      if (home && cells(u.posX, u.posY, home.posX, home.posY) > 1.5) this.order(u, 'move', { dest: { x: home.stats.dockX, y: home.stats.dockY } });
-      else u.mission = { kind: 'guard' };
+      if (home) {
+        const dock = { x: home.stats.dockX, y: home.stats.dockY };
+        const there = cells(u.posX, u.posY, home.posX, home.posY) <= 6;
+        const going = m.kind === 'move' && m.dest && m.dest.x === dock.x && m.dest.y === dock.y;
+        if (!there && !going) { this.order(u, 'move', { dest: dock }); continue; }
+        if (going && !there) continue;
+      }
+      u.mission = { kind: 'guard' };
     }
   }
 
