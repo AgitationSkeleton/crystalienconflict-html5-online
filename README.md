@@ -25,6 +25,21 @@ $400 a minute. In **Capture the Flag**, drive a vehicle onto an enemy's flag and
 your own flag's home to knock them out. With **crates** on, drive over one for a free unit
 (a crystal box), $10,000 (an Alien capsule) or, at Christmas, a present: Santa's Sleigh.
 
+**Custom Maps** (on the main menu) has two tabs. The **Level editor** makes skirmish maps
+(terrain, acid pools, crystals, and a base for each player: two to six) and singleplayer maps
+(the player's and the enemy's units and buildings, each enemy waiting, wandering or hunting;
+crates, cash, presents and pizzas to pick up; ground uncovered at the start; and the goal:
+destroy everything, the buildings or the headquarters, infiltrate or protect something, pick up
+items, or survive). It starts from a blank map, any skirmish map, or a story level; it has brush
+sizes, line, square, circle and fill, copy, cut and paste, undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+C,
+Ctrl+X, Ctrl+V), test play, and saving to a file. **Share** sends a map to everyone; it appears
+once it has been looked at. The **Browser** lists shared maps (newest, most liked or most
+played, or searched); subscribing keeps one on the device, where a skirmish map is in the
+Skirmish and Online map lists (a room's guests are sent the host's) and a singleplayer map is
+played from the Browser, its quickest wins (then the most money left) on its high-score table.
+Maps are liked, never disliked. (`src/online/cacmap.js` is the format, `custom.js` the screens;
+the server's side is `server/src/maps.js`.)
+
 The game fills the window. How far it is enlarged is the interface size (in the settings);
 past that, a bigger window shows more of the map and a taller sidebar. It runs at the
 original's 23 frames a second and is drawn at every refresh of the screen, with what moves
