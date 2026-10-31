@@ -191,7 +191,7 @@ export class CustomMaps {
       el('div', { class: 'titlebar' }, el('h1', { text: 'Custom Maps' }), el('div', { class: 'spacer' }), this.tabs),
       this.browseBox, this.editBox,
       el('div', { class: 'actions', style: 'width:min(1100px,100%)' },
-        el('button', { class: 'btn', onclick: () => { this.ui.sound('INT_cursor_select'); this.ui.show('main'); } }, 'Back')));
+        el('button', { class: 'btn', onclick: () => { if (this.listening) this.listen(false); this.ui.sound('INT_cursor_select'); this.ui.show('main'); } }, 'Back')));
     this.ui.screens.custom = s;
     this.ui.root.append(s);
     // Map files dropped on the screen: imported.
@@ -416,7 +416,7 @@ export class CustomMaps {
     const v = C.validate(JSON.parse(JSON.stringify(this.draft.map)));
     if (!v.ok) { this.ui.toast('Not yet: ' + v.errors.join('; ') + '.'); return; }
     const name = String(this.ui.settings.name || '').trim();
-    for (const [what, s] of [['map\'s name', v.map.name], ['description', v.map.desc], ['player name (the settings)', name]]) {
+    for (const [what, s] of [['map\'s name', v.map.name], ['description', v.map.desc], ['mission text', (v.map.story && v.map.story.brief) || ''], ['player name (the settings)', name]]) {
       if (!isClean(s)) { this.ui.toast('Please choose another ' + what + '.'); return; }
     }
     const again = this.draft.shared && this.draft.shared.id;
@@ -521,6 +521,7 @@ export class CustomMaps {
   eclipse() { return { name: 'Eclipse', map: this.storyMap(10), bases: [{ x: 5, y: 19 }, { x: 25, y: 11 }] }; }
 
   edit(draft) {
+    if (this.listening) this.listen(false);
     this.draft = draft;
     this.undo = [];
     this.redo = [];
@@ -596,7 +597,7 @@ export class CustomMaps {
     this.editBox.replaceChildren(el('div', { class: 'editor' },
       el('div', { class: 'edit-main' },
         el('div', { class: 'edit-bar' },
-          el('button', { class: 'chip', title: 'Back to your maps (it is kept as it is)', onclick: async () => { await this.save(); this.draft = null; this.renderDrafts(); } }, '\u2039 Your maps'),
+          el('button', { class: 'chip', title: 'Back to your maps (it is kept as it is)', onclick: async () => { if (this.listening) this.listen(false); await this.save(); this.draft = null; this.renderDrafts(); } }, '\u2039 Your maps'),
           el('div', { class: 'seg' },
             el('button', { class: 'tool', title: 'Undo (Ctrl+Z)', onclick: () => this.back(this.undo, this.redo) }, '\u21B6 Undo'),
             el('button', { class: 'tool', title: 'Redo (Ctrl+Y)', onclick: () => this.back(this.redo, this.undo) }, 'Redo \u21B7')),
@@ -701,8 +702,9 @@ export class CustomMaps {
     desc.value = map.desc || '';
     const palette = el('select', { 'aria-label': 'Palette', onchange: (e) => set(() => { map.palette = e.target.value; }) },
       ...PALETTES.map(([k, t]) => el('option', { value: k, text: t, selected: map.palette === k })));
-    const music = el('select', { 'aria-label': 'Music', onchange: (e) => set(() => { map.music = Number(e.target.value); }) },
-      ...C.MUSIC.map((n) => el('option', { value: n, text: 'Track ' + n, selected: map.music === n })));
+    const music = el('select', { 'aria-label': 'Music', onchange: (e) => { this.listen(false); set(() => { map.music = Number(e.target.value); }); } },
+      ...C.MUSIC.map((n) => el('option', { value: n, text: n ? 'Track ' + n : 'Any (as a skirmish picks)', selected: (map.music || 0) === n })));
+    this.listenButton = el('button', { class: 'chip', title: 'Hear the track', onclick: () => this.listen(!this.listening) }, this.listening ? '\u25A0' : '\u266A');
     const w = el('input', { type: 'number', min: C.MIN_SIZE, max: C.MAX_SIZE, value: map.w, 'aria-label': 'Width' });
     const h = el('input', { type: 'number', min: C.MIN_SIZE, max: C.MAX_SIZE, value: map.h, 'aria-label': 'Height' });
     const anchor = el('select', { 'aria-label': 'Keep in place' },
@@ -722,7 +724,7 @@ export class CustomMaps {
       el('div', { class: 'panel' }, el('h2', { text: 'Map' }), el('div', { class: 'body form' },
         el('label', { text: 'Name' }), name, el('label', { text: 'Description' }), desc,
         el('label', { text: 'Kind' }), el('div', { text: KIND_NAMES[map.kind] }),
-        el('label', { text: 'Palette' }), palette, el('label', { text: 'Music' }), music,
+        el('label', { text: 'Palette' }), palette, el('label', { text: 'Music' }), el('div', { class: 'sizes' }, music, this.listenButton),
         el('label', { text: 'Size' }), el('div', { class: 'sizes' }, w, '\u00D7', h), el('label', { text: 'Grow from' }), el('div', { class: 'sizes' }, anchor, resize),
         el('label', { text: 'Symmetry' }), el('div', { class: 'seg' }, mirror('lr'), mirror('tb'), mirror('rot')))),
     ];
@@ -738,6 +740,10 @@ export class CustomMaps {
       ...['good', 'evil'].map((k) => el('option', { value: k, text: NAMES[k], selected: s.side === k })));
     const cash = el('input', { type: 'number', min: 0, max: C.LIMITS.cash, step: 500, value: s.cash, 'aria-label': 'Starting cash',
       onchange: (e) => set(() => { s.cash = Math.max(0, Math.min(C.LIMITS.cash, Math.round(Number(e.target.value) || 0))); }) });
+    // (the mission shown at the start: the maker's words, or what the goal asks -- the placeholder)
+    const brief = el('textarea', { class: 'nospell', maxlength: C.LIMITS.brief, rows: 3, 'aria-label': 'Mission text', placeholder: this.missionText(this.draft.map, true),
+      onchange: (e) => set(() => { if (e.target.value.trim()) s.brief = e.target.value.trim(); else delete s.brief; }) });
+    brief.value = s.brief || '';
     const win = el('select', { 'aria-label': 'To win', onchange: (e) => set(() => { s.win = { k: e.target.value }; this.renderSide(); }) },
       ...C.WINS.map((k) => el('option', { value: k, text: WIN_NAMES[k], selected: s.win.k === k })));
     const extra = [];
@@ -758,7 +764,8 @@ export class CustomMaps {
         onchange: (e) => set(() => { s.win.c = Math.max(1, Math.min(C.LIMITS.collect, Math.round(Number(e.target.value) || 1))); }) }));
     }
     return el('div', { class: 'panel' }, el('h2', { text: 'Singleplayer' }), el('div', { class: 'body form' },
-      el('label', { text: 'The player plays' }), side, el('label', { text: 'Starting cash' }), cash, el('label', { text: 'To win' }), win, ...extra));
+      el('label', { text: 'The player plays' }), side, el('label', { text: 'Starting cash' }), cash, el('label', { text: 'To win' }), win, ...extra,
+      el('label', { text: 'Mission text' }), brief));
   }
 
   // The thing (or base, item, revealed patch) picked with Select: what it is, and its choices.
@@ -1004,6 +1011,30 @@ export class CustomMaps {
         g.fill();
       }
     }
+  }
+
+  // A singleplayer map's mission, as shown at its start: its maker's words, or what its goal asks
+  // (cacmap's summary, the game's names for things).  summaryOnly: the latter.
+  missionText(map, summaryOnly) {
+    const s = map.story || {};
+    if (!summaryOnly && s.brief && s.brief.trim()) return s.brief.trim();
+    return C.summary(s, (type, side) => {
+      let name = type;
+      try { name = this.ui.game.dialogue('int_' + type + '_title') || type; } catch (e) { /* (the game not yet loaded) */ }
+      return (side ? (/_good$/.test(type) ? 'Astro ' : 'Alien ') : '') + name;
+    });
+  }
+
+  // The map's track, heard (or no longer): the menus' own music paused meanwhile.
+  listen(on) {
+    const sfx = this.ui.panel && this.ui.panel.sfx;
+    if (!sfx || !this.draft) return;
+    const track = this.draft.map.music || 1;
+    if (this.listening) sfx.play('music_ingame_' + this.listening + '_stop');
+    this.listening = on ? track : 0;
+    if (on) { sfx.play('music_intro_stop'); sfx.play('music_ingame_' + track + '_start'); }
+    else sfx.play('music_intro_start');
+    if (this.listenButton) this.listenButton.textContent = on ? '\u25A0' : '\u266A';
   }
 
   // A map's picture for its card: the whole map in the game's own art, small (the bases marked);
@@ -1398,6 +1429,7 @@ export class CustomMaps {
   // A map played from here (tried in the editor, or a shared singleplayer map from the Browser:
   // server, version -- its win then sent as a high score), and back here after.
   play(map, { server, version }) {
+    if (this.listening) this.listen(false);
     const id = 'custom-test';
     register(this.player, id, map);
     const p = this.ui.panel;
@@ -1414,7 +1446,7 @@ export class CustomMaps {
         specops: 'on', opsHQ: true, crates: true, christmas: false, crateRate: 'normal', income: 0, build: 1, players };
     } else {
       settings = { map: id, mode: 'custom', story: map.story, cash: map.story.cash, units: 0, prebuilt: false, shroud: true, superweapons: true, palette: map.palette, speed: 1,
-        regrowth: 1, specops: 'on', opsHQ: true, crates: false, music: map.music,
+        regrowth: 1, specops: 'on', opsHQ: true, crates: false, music: map.music, missionName: map.name, missionText: this.missionText(map),
         players: [{ name: me.name, faction: map.story.side, colour: map.story.side === 'evil' ? 'green' : 'orange', control: 'local', team: 'player' },
           { name: 'Enemy', faction: map.story.side === 'evil' ? 'good' : 'evil', colour: map.story.side === 'evil' ? 'orange' : 'green', control: 'script', team: 'enemy' }] };
     }

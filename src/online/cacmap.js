@@ -9,7 +9,9 @@
 //     solid,                    cells drawn open that are rock all the same: runs [start, length]
 //     bases: [{x, y}],          a skirmish's start places, 2 to 6 (as many players as it takes)
 //     story: {                  a singleplayer map's
-//       side: 'good' | 'evil', cash, music,
+//       side: 'good' | 'evil', cash,
+//       brief,                  the mission text shown at the start (up to 280 characters; none:
+//                               the goal's own summary, summary())
 //       units: [{t, x, y, f, own, hp, b, d}],   things on the map at the start: type, cell,
 //                               facing (0 to 1), whose ('player', 'enemy'), health (0.1 to 1),
 //                               behaviour (an enemy's: 'still', 'roam', 'seek'), and a delay
@@ -34,7 +36,7 @@ export const MIN_SIZE = 8;
 export const MAX_SIZE = 128;
 export const TILE_COUNT = 51;            // ids 0 to 50, the story's pieces
 export const PALETTES = ['mars', 'snowy', 'hive', 'lb-mars', 'lb-castle', 'lb-pirate', 'lb-mars-fw', 'lb-castle-fw', 'lb-pirate-fw'];
-export const MUSIC = [1, 2, 3, 4, 5, 6];
+export const MUSIC = [0, 1, 2, 3, 4];        // the game's four tracks; 0, one of them by chance
 export const BEHAVIOURS = ['still', 'roam', 'seek'];
 export const ITEMS = ['crate', 'cash', 'gift', 'pizza'];
 export const WINS = ['all', 'buildings', 'hq', 'infiltrate', 'protect', 'collect', 'survive'];
@@ -44,7 +46,7 @@ export const BUILDINGS = ['BA', 'BB', 'BC', 'BD', 'BE', 'BF', 'BG', 'BH'].flatMa
   .concat(['BK_good', 'BK_evil', 'BL_good', 'BJ_evil']);
 export const UNITS = ['UA', 'UB', 'UC', 'UD', 'UE', 'UF', 'UG', 'UH', 'UP'].flatMap((c) => [c + '_good', c + '_evil'])
   .concat(['UR_good', 'UQ_evil', 'UM_evil', 'UN_evil']);
-export const LIMITS = { name: 32, desc: 280, units: 400, items: 100, reveal: 60, bases: 6, cash: 1000000, delay: 100000, seconds: 3600, collect: 100, bytes: 65536 };
+export const LIMITS = { name: 32, desc: 280, brief: 280, units: 400, items: 100, reveal: 60, bases: 6, cash: 1000000, delay: 100000, seconds: 3600, collect: 100, bytes: 65536 };
 
 // The kinds of cell the editor paints, and the story's pieces for each (tools/convert_maps.py
 // found them: which piece a blocked cell takes by which of its eight neighbours are blocked).
@@ -174,7 +176,7 @@ export function runs(set) {
 
 // A blank map: open ground, edged with rock.
 export function blank(kind, w, h) {
-  const map = { v: VERSION, kind, name: '', desc: '', palette: 'mars', music: 1, w, h, tiles: ASCII[0].repeat(w * h), solid: [], bases: [] };
+  const map = { v: VERSION, kind, name: '', desc: '', palette: 'mars', music: 0, w, h, tiles: ASCII[0].repeat(w * h), solid: [], bases: [] };
   if (kind === 'story') map.story = { side: 'good', cash: 5000, units: [], items: [], reveal: [], win: { k: 'all' } };
   const edge = [];
   for (let x = 1; x <= w; x++) edge.push([x, 1], [x, h]);
@@ -207,7 +209,7 @@ export function resize(map, w, h, ax = 0, ay = 0) {
 // A skirmish map the game has (data/maps/<id>.json, or the story's own Eclipse).
 export function fromGameMap(entry, kind = 'skirmish') {
   const w = ASCII.indexOf(entry.map[0]), h = ASCII.indexOf(entry.map[1]);
-  const map = { v: VERSION, kind, name: entry.name || '', desc: '', palette: 'mars', music: 1, w, h, tiles: entry.map.slice(2, 2 + w * h),
+  const map = { v: VERSION, kind, name: entry.name || '', desc: '', palette: 'mars', music: 0, w, h, tiles: entry.map.slice(2, 2 + w * h),
     solid: (entry.solid || []).map((r) => r.slice()), bases: (entry.bases || []).slice(0, LIMITS.bases).map((b) => ({ x: b.x, y: b.y })) };
   if (kind === 'story') map.story = { side: 'good', cash: 5000, units: [], items: [], reveal: [], win: { k: 'all' } };
   return map;
@@ -216,7 +218,8 @@ export function fromGameMap(entry, kind = 'skirmish') {
 // The map as the game plays it: an entry of Online.maps, encoded as the story's are.
 export function toGameEntry(map, id) {
   return { id, name: map.name, source: 'custom', cols: map.w, rows: map.h, map: ASCII[map.w] + ASCII[map.h] + map.tiles,
-    bases: (map.bases || []).map((b) => ({ x: b.x, y: b.y })), players: (map.bases || []).length, solid: (map.solid || []).map((r) => r.slice()) };
+    bases: (map.bases || []).map((b) => ({ x: b.x, y: b.y })), players: (map.bases || []).length, solid: (map.solid || []).map((r) => r.slice()),
+    music: map.music || 0 };
 }
 
 // ---- checking --------------------------------------------------------------------------------
@@ -234,7 +237,6 @@ export function validate(input) {
   if (!str(input.name, LIMITS.name) || !input.name.trim()) errors.push('a name, of up to ' + LIMITS.name + ' characters');
   if (input.desc !== undefined && !str(input.desc, LIMITS.desc)) errors.push('a description of up to ' + LIMITS.desc + ' characters');
   if (!PALETTES.includes(input.palette)) errors.push('palette');
-  if (!MUSIC.includes(input.music)) errors.push('music');
   if (!int(input.w, MIN_SIZE, MAX_SIZE) || !int(input.h, MIN_SIZE, MAX_SIZE)) return fail('size: ' + MIN_SIZE + ' to ' + MAX_SIZE + ' cells each way');
   const w = input.w, h = input.h;
   if (typeof input.tiles !== 'string' || input.tiles.length !== w * h) return fail('tiles');
@@ -246,7 +248,9 @@ export function validate(input) {
     solid.push([r[0], r[1]]);
   }
   const cell = (p) => p && typeof p === 'object' && int(p.x, 1, w) && int(p.y, 1, h);
-  const map = { v: VERSION, kind: input.kind, name: String(input.name || '').trim(), desc: String(input.desc || ''), palette: input.palette, music: input.music,
+  const map = { v: VERSION, kind: input.kind, name: String(input.name || '').trim(), desc: String(input.desc || ''), palette: input.palette,
+    // (a track the game does not have -- the editor once offered six -- is its own choice)
+    music: MUSIC.includes(input.music) ? input.music : 0,
     w, h, tiles: input.tiles, solid, bases: [] };
   const ss = solidCells(map);
   const open = (x, y) => walkable(map, x, y, ss);
@@ -268,6 +272,8 @@ export function validate(input) {
     if (s.side !== 'good' && s.side !== 'evil') return fail('side');
     if (!int(s.cash, 0, LIMITS.cash)) errors.push('starting cash');
     const story = { side: s.side, cash: s.cash, units: [], items: [], reveal: [], win: { k: 'all' } };
+    if (s.brief !== undefined && (typeof s.brief !== 'string' || s.brief.length > LIMITS.brief)) errors.push('mission text of up to ' + LIMITS.brief + ' characters');
+    else if (s.brief && s.brief.trim()) story.brief = s.brief.trim();
     if (!Array.isArray(s.units) || s.units.length > LIMITS.units) return fail('up to ' + LIMITS.units + ' things');
     for (const u of s.units) {
       if (!cell(u) || !(BUILDINGS.includes(u.t) || UNITS.includes(u.t))) return fail('a thing');
@@ -356,6 +362,7 @@ export function repair(input) {
     const st = map.story;
     if (s.side === 'good' || s.side === 'evil') st.side = s.side;
     if (int(s.cash, 0, LIMITS.cash)) st.cash = s.cash;
+    if (typeof s.brief === 'string' && s.brief.trim()) st.brief = s.brief.trim().slice(0, LIMITS.brief);
     let lost = 0;
     for (const u of Array.isArray(s.units) ? s.units : []) {
       if (!cell(u) || !(BUILDINGS.includes(u.t) || UNITS.includes(u.t)) || (u.own !== 'player' && u.own !== 'enemy') || st.units.length >= LIMITS.units) { lost++; continue; }
@@ -381,6 +388,29 @@ export function repair(input) {
     }
   }
   return { map, dropped };
+}
+
+// What a singleplayer map's goal asks, in a sentence: its mission text when its maker wrote none.
+// nameOf(type, side): what the game calls a unit or building ("Mothership"), with its side's name
+// ("Alien Mothership") when side.
+export function summary(story, nameOf) {
+  const w = (story && story.win) || { k: 'all' };
+  const t = story && story.units ? story.units[w.n] : undefined;
+  const time = (s) => (s % 60 ? (s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : s + ' seconds')
+    : s === 60 ? 'a minute' : s / 60 + ' minutes');
+  switch (w.k) {
+    case 'buildings': return 'Destroy every enemy building.';
+    case 'hq': return 'Destroy the enemy headquarters.';
+    case 'infiltrate': return 'Infiltrate the enemy ' + (t ? nameOf(t.t, false) : 'building') + '.';
+    case 'protect': return 'Protect the ' + (t ? nameOf(t.t, true) : 'base') + (w.s ? ' for ' + time(w.s) : ' until the enemy is beaten') + '.';
+    case 'collect': {
+      const n = w.c || 1;
+      const what = { crate: ['crate', 'crates'], cash: ['cash crate', 'cash crates'], gift: ['present', 'presents'], pizza: ['pizza', 'pizzas'] }[w.k2] || ['item', 'items'];
+      return 'Pick up ' + (n === 1 ? 'a ' + what[0] : n + ' ' + what[1]) + '.';
+    }
+    case 'survive': return 'Survive for ' + time(w.s || 300) + '.';
+    default: return 'Destroy every enemy unit and building.';
+  }
 }
 
 // The cells a ground unit at `from` can walk to (eight ways), as indices.

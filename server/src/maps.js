@@ -31,13 +31,17 @@
 // and for the owner, with ADMIN_KEY (as for the scores; Discord is the usual way, mapbot.js):
 //
 //   GET    /maps/admin/pending
+//   GET    /maps/admin/all                             every map not taken down, with its data
 //   POST   /maps/admin/ID   {action: 'approve' | 'reject' | 'remove' | 'ban'}
+//   POST   /maps/admin/ID   {action: 'thumb', thumb}   its picture, new (drawn by the game:
+//                                                      tools/maps/rethumb.py), on its review
+//                                                      post too
 
 import { json, text, sha1Hex, sha256Hex, clientIp, cleanName, decentName } from './http.js';
 import { censor, isClean } from '../../src/online/profanity.js';
 import { validate, previewPixels } from '../../src/online/cacmap.js';
 import { encodePng } from './png.js';
-import { postForReview } from './mapbot.js';
+import { postForReview, refreshPost } from './mapbot.js';
 import { checkPicture } from './picture.js';
 
 const ID = /^[a-z0-9]{10}$/;
@@ -219,7 +223,7 @@ async function upload(request, env, ctx) {
   const map = v.map;
   const authorName = cleanName(b.author);
   if (!map.name) return json(env, request, { error: 'The map needs a name.' }, 400);
-  for (const [what, s] of [['name', map.name], ['description', map.desc], ['author name', authorName || '']]) {
+  for (const [what, s] of [['name', map.name], ['description', map.desc], ['mission text', (map.story && map.story.brief) || ''], ['author name', authorName || '']]) {
     if (!isClean(s) || !decentName(s)) return json(env, request, { error: 'Please choose another ' + what + '.' }, 400);
   }
   if (!authorName) return json(env, request, { error: 'Your name, please (the settings).' }, 400);
@@ -278,8 +282,21 @@ async function admin(request, env, parts, ctx) {
     const { results } = await env.DB.prepare("SELECT * FROM maps WHERE status = 'pending' ORDER BY updated ASC LIMIT 100").all();
     return json(env, request, { maps: (results || []).map(card) });
   }
+  if (parts[2] === 'all' && request.method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT ${COLS}, thumb IS NOT NULL AS pictured FROM maps WHERE status != 'removed' ORDER BY created ASC LIMIT 1000`).all();
+    return json(env, request, { maps: (results || []).map((r) => Object.assign(card(r), { pictured: !!r.pictured, posted: !!r.message_id })) });
+  }
   if (ID.test(String(parts[2] || '')) && request.method === 'POST') {
     const b = await body(request);
+    if (b && b.action === 'thumb') {
+      const pic = checkPicture(b.thumb);
+      if (!pic) return json(env, request, { error: 'picture' }, 400);
+      const r = await env.DB.prepare('UPDATE maps SET thumb = ?2, thumb_type = ?3 WHERE id = ?1').bind(parts[2], pic.bytes, pic.type).run();
+      if (!(r.meta && r.meta.changes)) return json(env, request, { error: 'not found' }, 404);
+      const row = await env.DB.prepare('SELECT * FROM maps WHERE id = ?1').bind(parts[2]).first();
+      const posted = row.message_id ? await refreshPost(env, row).catch(() => false) : false;
+      return json(env, request, { id: row.id, type: pic.type, w: pic.w, h: pic.h, posted: !!posted });
+    }
     const row = b && await moderate(env, parts[2], b.action);
     return row ? json(env, request, { id: row.id, status: row.status }) : json(env, request, { error: 'action' }, 400);
   }

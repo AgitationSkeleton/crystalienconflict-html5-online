@@ -57,21 +57,33 @@ function describe(row, map, file) {
     image: { url: 'attachment://' + file }, footer: { text: 'React ✅ approve · ❌ reject · \u{1F528} reject and ban the author · !maps help' } };
 }
 
+// A map's picture for its post: as the game drew it, sent with it; or else its plain colours.
+async function pictureOf(row, map) {
+  if (row.thumb && /^image\/(jpeg|png)$/.test(row.thumb_type || '')) {
+    return { picture: new Uint8Array(row.thumb), type: row.thumb_type, file: row.thumb_type === 'image/jpeg' ? 'preview.jpg' : 'preview.png' };
+  }
+  const scale = Math.max(1, Math.min(4, Math.floor(512 / (2 * Math.max(map.w, map.h)))));
+  const [w, h, px] = previewPixels(map, scale);
+  return { picture: await encodePng(w, h, new Uint8Array(px.buffer)), type: 'image/png', file: 'preview.png' };
+}
+
+// A map's post, its picture new (the game's, sent later: maps.js admin): the post's attachment
+// replaced, its text as it was.
+export async function refreshPost(env, row) {
+  if (!ready(env) || !row.message_id) return false;
+  const map = JSON.parse(row.data);
+  const { picture, type, file } = await pictureOf(row, map);
+  const form = new FormData();
+  form.append('payload_json', JSON.stringify({ embeds: [describe(row, map, file)], allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: file }] }));
+  form.append('files[0]', new Blob([picture], { type }), file);
+  return !!(await api(env, 'PATCH', '/channels/' + env.MAPS_CHANNEL + '/messages/' + row.message_id, null, form));
+}
+
 // A map, posted for the owner to look at (or, approved by itself, for them to know of).
 export async function postForReview(env, row) {
   if (!ready(env)) return;
   const map = JSON.parse(row.data);
-  // (its picture as the game drew it, sent with it; or else its plain colours)
-  let picture, type = 'image/png';
-  if (row.thumb && /^image\/(jpeg|png)$/.test(row.thumb_type || '')) {
-    picture = new Uint8Array(row.thumb);
-    type = row.thumb_type;
-  } else {
-    const scale = Math.max(1, Math.min(4, Math.floor(512 / (2 * Math.max(map.w, map.h)))));
-    const [w, h, px] = previewPixels(map, scale);
-    picture = await encodePng(w, h, new Uint8Array(px.buffer));
-  }
-  const file = type === 'image/jpeg' ? 'preview.jpg' : 'preview.png';
+  const { picture, type, file } = await pictureOf(row, map);
   const form = new FormData();
   form.append('payload_json', JSON.stringify({
     content: row.status === 'approved' ? '\u{1F5FA}️ **A map was shared** (approved by itself: autoapprove is on)' : '\u{1F5FA}️ **A map to look at**',

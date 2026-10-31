@@ -6256,10 +6256,14 @@
             {
                return undefined;
             }
-            // Online: a custom singleplayer map's pickup: counted (Level.customPickedUp); a pizza
-            // there is only that.
+            // Online: a custom singleplayer map's pickup: the player's alone to find (the enemy's
+            // units pass over it), counted (Level.customPickedUp); a pizza there is only that.
             if(this.customItem)
             {
+               if(collectee?.owner != this.parent?.localPlayer)
+               {
+                  return undefined;
+               }
                this.parent?.customPickedUp?.(this, collectee);
                if(this.customItem == "pizza")
                {
@@ -8482,8 +8486,15 @@
             {
                startLine += "_" + this.skirmish.mode;
             }
+            // (Online: a custom singleplayer map: its name, then its mission, as its maker wrote it
+            // or what its goal asks -- src/online/custom.js missionText)
+            if(this.skirmish?.mode == "custom")
+            {
+               this.parent?.hud?.showMessage?.(String(this.skirmish.missionName || "")?.toUpperCase?.(), true);
+               this.parent?.hud?.showMessage?.(String(this.skirmish.missionText || "")?.toUpperCase?.(), true);
+            }
             // (and then, a skirmish's, what it takes to win: the mode's name read first)
-            if(this.skirmish)
+            else if(this.skirmish)
             {
                this.parent?.hud?.showMessage?.(String(dialogue?.(startLine))?.toUpperCase?.(), true);
                this.parent?.hud?.showMessage?.(String(this.goalLine?.())?.toUpperCase?.(), true);
@@ -9293,9 +9304,12 @@
                __as.set(this.camera, "focus", this.findBuilding?.("BA_" + this.players?.[0]?.faction, this.players?.[0]));
             }
             this.jukebox = random?.(4) + 1;
-            if(settings?.mode == "custom" && settings?.music)
+            // (Online: a custom map's own track, if its maker chose one: a singleplayer one's, from
+            // its settings, a skirmish's from the map)
+            var track = settings?.music || Online?.maps?.[settings?.map]?.music;
+            if(track >= 1 && track <= 4)
             {
-               this.jukebox = settings.music;
+               this.jukebox = track;
             }
          };
          // Online: a custom singleplayer map's start (src/online/cacmap.js, story): its units and
@@ -9428,6 +9442,28 @@
          // (Online.customEnded, src/online/custom.js); then back to the menus (outtro).
          this.customEnd = function (victory)
          {
+            // (the other side's things gone at once, as the story's win and lose do it -- and again,
+            // for what a destroyed building lets out)
+            var gone = (thing) => thing?.active && (victory ? !this.allied?.(thing?.owner) : thing?.friend);
+            var pass = 0;
+            while(pass < 4 && (this.units?.some?.(gone) || this.buildings?.some?.(gone)))
+            {
+               for(var index of __as.keys(this.units))
+               {
+                  if(gone(this.units[index]))
+                  {
+                     this.units[index]?.destroy?.();
+                  }
+               }
+               for(index of __as.keys(this.buildings))
+               {
+                  if(gone(this.buildings[index]))
+                  {
+                     this.buildings[index]?.destroy?.();
+                  }
+               }
+               pass++;
+            }
             this.active = false;
             this.victory = victory;
             this.levelUpCounterMax = 115;
