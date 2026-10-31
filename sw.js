@@ -13,7 +13,7 @@
 //   network.  Other sites (the game's server, GitHub) are not touched.
 
 // stamp: tools/stamp_offline.py
-const VERSION = '774121fc58b1';
+const VERSION = 'ea2db3e3dbc4';
 const FILES = [
   "assets/fonts/125_NissanD.ttf",
   "assets/fonts/1641_NissanD.ttf",

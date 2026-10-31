@@ -114,8 +114,31 @@ export class CustomMaps {
     this.crateUnit = 'UE_good';
     this.revealR = 4;
     this.selected = null;            // { list: 'units' | 'items' | 'reveal' | 'bases', i }
+    this.playable = {};              // id -> cacmap: the skirmish maps of this device's, in the map lists
     this.build();
+    this.loadAll();
   }
+
+  // The drafts and the maps subscribed to, a skirmish's into the map lists (the Skirmish's and a
+  // room's: register), by 'custom-' and the draft's or the server's id.
+  async loadAll() {
+    for (const d of await store.all('drafts')) this.offer('custom-' + d.id, d.map);
+    for (const m of await store.all('maps')) this.offer('custom-' + m.id, m.map);
+  }
+
+  offer(id, map) {
+    const v = C.validate(JSON.parse(JSON.stringify(map)));
+    if (!v.ok || v.map.kind !== 'skirmish') {
+      delete this.playable[id];
+      if (this.player.online.maps) delete this.player.online.maps[id];
+      return;
+    }
+    this.playable[id] = v.map;
+    register(this.player, id, v.map);
+  }
+
+  // A custom map by its id, to send with a room's match (src/online/ui.js).
+  mapFor(id) { return this.playable[id] || null; }
 
   get player() { return this.ui.player; }
 
@@ -175,7 +198,7 @@ export class CustomMaps {
   async renderBrowse() {
     const subs = await store.all('maps');
     const list = el('div', { class: 'maplist' }, ...subs.map((r) => this.mapCard(r.map, [
-      el('button', { class: 'btn small', onclick: async () => { await store.remove('maps', r.id); this.renderBrowse(); } }, 'Unsubscribe')])));
+      el('button', { class: 'btn small', onclick: async () => { await store.remove('maps', r.id); this.offer('custom-' + r.id, {}); this.renderBrowse(); } }, 'Unsubscribe')])));
     this.browseBox.replaceChildren(el('div', { class: 'panel wide' }, el('h2', { text: 'Subscribed' }),
       el('div', { class: 'body' }, subs.length ? list : el('div', { class: 'note', text: 'Maps you subscribe to are kept on this device, and are in the Skirmish and Online map lists.' }))));
   }
@@ -238,7 +261,7 @@ export class CustomMaps {
         drafts.length ? el('div', { class: 'maplist' }, ...drafts.map((d) => this.mapCard(d.map, [
           el('button', { class: 'btn small', onclick: () => this.edit(d) }, 'Edit'),
           el('button', { class: 'btn small', onclick: () => this.edit({ id: 'd' + Date.now().toString(36), map: JSON.parse(JSON.stringify(Object.assign({}, d.map, { name: (d.map.name + ' copy').slice(0, C.LIMITS.name) }))), updated: Date.now() }) }, 'Copy'),
-          el('button', { class: 'btn small', onclick: async () => { if (confirm('Delete "' + (d.map.name || 'Untitled') + '"?')) { await store.remove('drafts', d.id); this.renderDrafts(); } } }, 'Delete')])))
+          el('button', { class: 'btn small', onclick: async () => { if (confirm('Delete "' + (d.map.name || 'Untitled') + '"?')) { await store.remove('drafts', d.id); this.offer('custom-' + d.id, {}); this.renderDrafts(); } } }, 'Delete')])))
           : el('div', { class: 'note', text: 'Maps you make are kept on this device.' }))));
   }
 
@@ -275,6 +298,7 @@ export class CustomMaps {
     if (!this.draft) return;
     this.draft.updated = Date.now();
     await store.put('drafts', JSON.parse(JSON.stringify(this.draft)));
+    this.offer('custom-' + this.draft.id, this.draft.map);
   }
 
   snapshot() {

@@ -6,7 +6,10 @@ stalls for a few seconds and must not hold the other up, then catches up; the st
 must agree turn for turn; then one quits (surrendering), and the other wins and is back in the
 room.
 
-    python tools/verify/online.py [--server http://127.0.0.1:8787] [--seconds 60] [--map cnc-scm96ea]
+    python tools/verify/online.py [--server http://127.0.0.1:8787] [--seconds 60] [--map cnc-scm96ea] [--custom]
+
+--custom: the host plays a custom map of its own (a copy of the map, a wall drawn across it),
+which the other has not: it goes with the match.
 """
 
 import argparse
@@ -79,6 +82,7 @@ def main():
     ap.add_argument('--seconds', type=float, default=60)
     ap.add_argument('--map', default='cnc-scm96ea')
     ap.add_argument('--port', type=int, default=8799)
+    ap.add_argument('--custom', action='store_true')
     args = ap.parse_args()
     server = http.server.ThreadingHTTPServer(('127.0.0.1', args.port), functools.partial(Quiet, directory=ROOT))
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -104,7 +108,15 @@ def main():
         a.wait_for_function('() => onlineUI.net.room && onlineUI.net.isHost', timeout=20000)
         code = a.evaluate('() => onlineUI.net.code')
         check(bool(code), 'Ann hosts: room ' + str(code))
-        a.evaluate("(map) => onlineUI.setRoomMatch({ map, mode: 'all', cash: 20000, crates: true, units: 3, prebuilt: true })", args.map)
+        if args.custom:
+            # Ann's own map: the map, with a wall of rock drawn across its middle
+            mid = a.evaluate('''async (src) => { const C = await import('./src/online/cacmap.js'); const m = C.fromGameMap(player.online.maps[src]); m.name = 'The Wall';
+              const cells = []; for (let x = 3; x < m.w - 2; x++) if (Math.abs(x - m.w / 2) > 3) cells.push([x, Math.floor(m.h / 2)]); C.paint(m, cells, C.ROCK);
+              onlineUI.custom.draft = { id: 'wall', map: m }; await onlineUI.custom.save(); onlineUI.custom.draft = null; return 'custom-wall'; }''', args.map)
+            a.evaluate("(map) => { const own = onlineUI.custom.mapFor(map); onlineUI.setRoomMatch({ map, customName: own.name, customBases: own.bases.length, mode: 'all', cash: 20000, crates: true, units: 3, prebuilt: true }); }", mid)
+            args.map = mid
+        else:
+            a.evaluate("(map) => onlineUI.setRoomMatch({ map, mode: 'all', cash: 20000, crates: true, units: 3, prebuilt: true })", args.map)
         b.evaluate('(code) => onlineUI.joinRoom(code)', code)
         a.wait_for_function('() => onlineUI.net.room.slots.slice(0, onlineUI.net.room.count).filter((s) => s.kind === "member").length === 2', timeout=20000)
         check(True, 'Bob joins by the code and has a slot')
@@ -115,6 +127,11 @@ def main():
         for page in (a, b):
             page.wait_for_function('() => { const g = player.levels[1].panel.game; return onlineUI.net.active && g && g.level && g.level.count > 5; }', timeout=30000)
         check(True, 'the match starts on both')
+        if args.custom:
+            shape = '''() => { const g = player.levels[1].panel.game; const a = g.level.arena; let t = ''; for (let y = 1; y <= a.rows; y++) for (let x = 1; x <= a.cols; x++) t += a.tiles[x][y] ? 1 : 0;
+              return [g.level.skirmish.map, a.cols, a.rows, t.length, t.split('1').length - 1]; }'''
+            ka, kb = a.evaluate(shape), b.evaluate(shape)
+            check(ka == kb and ka[0] == args.map, "both play Ann's custom map, the same ground: %s %s" % (ka, kb))
         for page in (a, b):
             page.evaluate(ORDERS)
         t0 = time.time()

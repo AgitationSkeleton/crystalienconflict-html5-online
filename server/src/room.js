@@ -35,6 +35,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import { json, allowedOrigin, sha256Hex, cleanName } from './http.js';
+import { validate as validateMap } from '../../src/online/cacmap.js';
 import { censor } from '../../src/online/profanity.js';
 import { discord, plain, modeName, mapName, lasted } from './discord.js';
 
@@ -524,7 +525,13 @@ export class Room extends DurableObject {
   start(settings) {
     const r = this.room;
     if (r.phase !== 'lobby' || !settings || !Array.isArray(settings.players)) return;
-    if (JSON.stringify(settings).length > 20000) return;
+    // (larger with a custom map, which goes with the match: checked as the game checks it)
+    if (settings.customMap !== undefined) {
+      const v = validateMap(settings.customMap);
+      if (!v.ok || v.map.kind !== 'skirmish' || !/^custom-[\w-]{1,40}$/.test(String(settings.map))) return;
+      settings.customMap = v.map;
+    }
+    if (JSON.stringify(settings).length > (settings.customMap ? 100000 : 20000)) return;
     const seats = {};
     const players = [];
     settings.players.forEach((p, i) => {

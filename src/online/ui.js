@@ -6,7 +6,8 @@ import { COLOURS, COLOUR_CSS, DEFAULTS, MARS_PALETTES, PALETTES, UI_SCALES, load
 import { american } from './spelling.js';
 import { offline, ios } from './offline.js';
 import { android, isAndroidApp, openOutside, applyOrientation, RELEASES } from './android.js';
-import { CustomMaps } from './custom.js';
+import { CustomMaps, register as registerMap } from './custom.js';
+import { validate as checkMap } from './cacmap.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
@@ -411,10 +412,17 @@ export class OnlineUI {
 
   // A match's map: one of maps(), or Random -- a stand-in with as many bases as the biggest map,
   // until the match starts and one is picked that has room for its players (pickMap).
-  findMap(id) {
+  findMap(id, match) {
     const maps = this.maps();
     if (String(id) === 'random') return { id: 'random', name: 'Random', bases: Math.max(...maps.map((x) => x.bases)), random: true, info: { bases: [] } };
-    return maps.find((x) => x.id === String(id)) || maps[0];
+    const found = maps.find((x) => x.id === String(id));
+    if (found) return found;
+    // (a custom map the host has and this page has not: as the host's room describes it; it
+    // comes with the match when it starts)
+    if (/^custom-/.test(String(id)) && match && match.customName) {
+      return { id: String(id), name: String(match.customName).slice(0, 32), source: 'custom', bases: Math.max(2, Math.min(6, Number(match.customBases) || 2)), info: { bases: [] }, elsewhere: true };
+    }
+    return maps[0];
   }
 
   pickMap(map, players) {
@@ -1029,7 +1037,11 @@ export class OnlineUI {
   // ---- online: a room --------------------------------------------------------------------------
   buildRoom() {
     this.roomTitle = el('h1', { class: 'nospell', text: 'Game' });
-    this.roomMapSelect = el('select', { 'aria-label': 'Map', onchange: (e) => this.setRoomMatch({ map: e.target.value }) });
+    this.roomMapSelect = el('select', { 'aria-label': 'Map', onchange: (e) => {
+      // (a custom map: its name and size with it, for the guests, who may not have it)
+      const own = this.custom && this.custom.mapFor(e.target.value);
+      this.setRoomMatch(own ? { map: e.target.value, customName: own.name, customBases: own.bases.length } : { map: e.target.value, customName: null, customBases: null });
+    } });
     this.roomSlotCount = el('select', { 'aria-label': 'Slots', onchange: (e) => this.net.setCount(Number(e.target.value)) });
     for (let n = 2; n <= 6; n++) this.roomSlotCount.append(el('option', { value: n, text: n + ' slots' }));
     this.roomPreview = el('canvas', { width: 64, height: 64 });
@@ -1155,7 +1167,7 @@ export class OnlineUI {
     this.roomMapSelect.disabled = !host;
     this.roomSlotCount.disabled = !host;
     this.roomSlotCount.value = String(r.count);
-    const map = this.findMap(m.map);
+    const map = this.findMap(m.map, m);
     this.roomMapName.textContent = map.name;
     this.roomMapPlayers.textContent = map.random ? 'Picked as the match starts' : map.bases + ' players';
     this.drawPreview(map, this.roomPreview, r.slots, r.count);
@@ -1251,7 +1263,7 @@ export class OnlineUI {
     const net = this.net;
     const r = net.room;
     const m = this.roomMatch();
-    let map = this.findMap(m.map);
+    let map = this.findMap(m.map, m);
     if (!net.isHost || this.roomProblem(r, map)) return;
     this.sound('INT_construction');
     const members = Object.fromEntries(r.members.map((x) => [x.id, x]));
@@ -1280,6 +1292,8 @@ export class OnlineUI {
       // (the map by its name, for the server's log: the game goes by map)
       mapName: map.name,
     };
+    // (a custom map goes with the match, for the guests to play it on)
+    if (this.custom && this.custom.mapFor(map.id)) settings.customMap = this.custom.mapFor(map.id);
     net.start(settings);
   }
 
@@ -1297,6 +1311,13 @@ export class OnlineUI {
       status: (text) => { if (this.roomNotice && text) this.roomNotice.textContent = text; },
       // A match: this page's player's palette, the match's seed, and the game.
       start: (settings) => {
+        // A custom map sent with the match: checked, and played under its id.  (Not one: back to
+        // the room, the match not played here.)
+        if (settings.customMap) {
+          const v = checkMap(settings.customMap);
+          if (!v.ok || v.map.kind !== 'skirmish') { this.toast('The host\'s custom map could not be played here.'); return; }
+          registerMap(this.player, String(settings.map), v.map);
+        }
         settings.palette = paletteFor(settings.palette, this.settings.palette, net.match.seed);
         if (this.settings.faction && settings.spectator) settings.spectator = undefined;
         this.player.seedRandom(net.match.seed);
