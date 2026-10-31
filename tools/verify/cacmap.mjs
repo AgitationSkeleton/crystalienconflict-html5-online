@@ -96,5 +96,20 @@ for (const [win, ok] of [[{ k: 'infiltrate', n: 1 }, true], [{ k: 'infiltrate', 
   st.story.win = win;
   check(C.validate(JSON.parse(JSON.stringify(st))).ok === ok, 'story win ' + JSON.stringify(win) + (ok ? ' valid' : ' refused'));
 }
+// 5. files: an unfinished draft opens again (repair), its terrain as it was, what the format
+// cannot keep left out and said; what is not a map does not
+const draft = C.blank('story', 20, 20);
+check(!C.validate(JSON.parse(JSON.stringify(draft))).ok, 'an unfinished draft is not a finished map');
+const back = C.repair(JSON.parse(JSON.stringify(draft)));
+check(back && back.map.tiles === draft.tiles && JSON.stringify(back.map.solid) === JSON.stringify(draft.solid) && !back.dropped.length, 'an unfinished draft opens as it was');
+draft.story.units.push({ t: 'BA_good', x: 5, y: 5, own: 'player' }, { t: 'XX', x: 1, y: 1, own: 'player' }, { t: 'UA_evil', x: 99, y: 1, own: 'enemy' });
+draft.story.items.push({ k: 'pizza', x: 3, y: 3 }, { k: 'eval', x: 3, y: 3 });
+draft.name = 'x'.repeat(50);
+draft.script = 'alert(1)';
+const fixed = C.repair(JSON.parse(JSON.stringify(draft)));
+check(fixed.map.story.units.length === 1 && fixed.map.story.items.length === 1 && fixed.dropped.length === 1 && fixed.map.name.length === C.LIMITS.name && !('script' in fixed.map),
+  'a draft\'s bad things left out, and said');
+check(C.repair({ v: 1, kind: 'skirmish', w: 10, h: 10, tiles: 'x' }) === null && C.repair('map') === null && C.repair([]) === null && C.repair({ v: 2 }) === null, 'what is not a map does not open');
+check(C.repair(JSON.parse(JSON.stringify(good))).map.name === 'Test', 'a finished map opens as validate keeps it');
 console.log(failed ? failed + ' failed' : 'all passed');
 process.exit(failed ? 1 : 0);

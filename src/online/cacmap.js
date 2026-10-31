@@ -319,6 +319,70 @@ export function validate(input) {
   return { ok: true, errors: [], map };
 }
 
+// A map from a file, to go on editing: a finished one as validate() keeps it; an unfinished one
+// (a draft saved before it had a name, its bases or its things -- what validate() refuses) as far
+// as the format allows, what it cannot keep left out and said: { map, dropped } (dropped: what was
+// left out, for the player), or null when it is not a map at all (its size, its tiles).  Data
+// only, as validate()'s: nothing of the file's but what the format knows.
+export function repair(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || input.v !== VERSION) return null;
+  const v = validate(JSON.parse(JSON.stringify(input)));
+  if (v.ok) return { map: v.map, dropped: [] };
+  const int = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
+  const num = (x, lo, hi) => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
+  const kind = input.kind === 'story' ? 'story' : 'skirmish';
+  if (!int(input.w, MIN_SIZE, MAX_SIZE) || !int(input.h, MIN_SIZE, MAX_SIZE)) return null;
+  const w = input.w, h = input.h;
+  if (typeof input.tiles !== 'string' || input.tiles.length !== w * h) return null;
+  for (const ch of input.tiles) { const id = ASCII.indexOf(ch); if (id < 0 || id >= TILE_COUNT) return null; }
+  const dropped = [];
+  const map = blank(kind, w, h);
+  map.tiles = input.tiles;
+  map.solid = [];
+  map.name = typeof input.name === 'string' ? input.name.slice(0, LIMITS.name) : '';
+  map.desc = typeof input.desc === 'string' ? input.desc.slice(0, LIMITS.desc) : '';
+  if (PALETTES.includes(input.palette)) map.palette = input.palette;
+  if (MUSIC.includes(input.music)) map.music = input.music;
+  for (const r of Array.isArray(input.solid) ? input.solid : []) {
+    if (Array.isArray(r) && r.length === 2 && int(r[0], 0, w * h - 1) && int(r[1], 1, w * h - r[0])) map.solid.push([r[0], r[1]]);
+    else { dropped.push('a bad run of rock'); break; }
+  }
+  const cell = (p) => p && typeof p === 'object' && int(p.x, 1, w) && int(p.y, 1, h);
+  const all = Array.isArray(input.bases) ? input.bases : [];
+  for (const b of all) if (cell(b) && map.bases.length < LIMITS.bases) map.bases.push({ x: b.x, y: b.y });
+  if (map.bases.length < all.length) dropped.push((all.length - map.bases.length) + ' base(s)');
+  if (kind === 'story') {
+    const s = input.story && typeof input.story === 'object' ? input.story : {};
+    const st = map.story;
+    if (s.side === 'good' || s.side === 'evil') st.side = s.side;
+    if (int(s.cash, 0, LIMITS.cash)) st.cash = s.cash;
+    let lost = 0;
+    for (const u of Array.isArray(s.units) ? s.units : []) {
+      if (!cell(u) || !(BUILDINGS.includes(u.t) || UNITS.includes(u.t)) || (u.own !== 'player' && u.own !== 'enemy') || st.units.length >= LIMITS.units) { lost++; continue; }
+      const one = { t: u.t, x: u.x, y: u.y, f: num(u.f, 0, 1) ? u.f : 0.5, own: u.own, hp: num(u.hp, 0.1, 1) ? u.hp : 1 };
+      if (u.own === 'enemy') { one.b = BEHAVIOURS.includes(u.b) ? u.b : 'still'; one.d = int(u.d, 0, LIMITS.delay) ? u.d : 0; }
+      st.units.push(one);
+    }
+    for (const it of Array.isArray(s.items) ? s.items : []) {
+      if (!cell(it) || !ITEMS.includes(it.k) || (it.k === 'crate' && !UNITS.includes(it.u)) || st.items.length >= LIMITS.items) { lost++; continue; }
+      st.items.push(it.k === 'crate' ? { k: it.k, x: it.x, y: it.y, u: it.u } : { k: it.k, x: it.x, y: it.y });
+    }
+    for (const r of Array.isArray(s.reveal) ? s.reveal : []) {
+      if (!cell(r) || !int(r.r, 1, 20) || st.reveal.length >= LIMITS.reveal) { lost++; continue; }
+      st.reveal.push({ x: r.x, y: r.y, r: r.r });
+    }
+    if (lost) dropped.push(lost + ' unit(s), item(s) or uncovered patch(es)');
+    const wn = s.win && typeof s.win === 'object' ? s.win : {};
+    if (WINS.includes(wn.k)) {
+      st.win = { k: wn.k };
+      if (int(wn.n, 0, Math.max(0, st.units.length - 1))) st.win.n = wn.n;
+      if (int(wn.s, 0, LIMITS.seconds)) st.win.s = wn.s;
+      if (wn.k === 'collect') { st.win.k2 = ITEMS.includes(wn.k2) ? wn.k2 : 'any'; if (int(wn.c, 1, LIMITS.collect)) st.win.c = wn.c; }
+    }
+  }
+  return { map, dropped };
+}
+
 // The cells a ground unit at `from` can walk to (eight ways), as indices.
 export function reachable(map, from, solidSet) {
   const seen = new Set();

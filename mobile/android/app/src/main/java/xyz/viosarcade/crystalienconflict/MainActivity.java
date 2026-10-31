@@ -10,11 +10,13 @@ import com.getcapacitor.BridgeActivity;
 
 // The game on the whole screen: the status and navigation bars hidden, back for a moment with a
 // swipe from the edge (as the website's full screen is, in a browser); and the way round the
-// player chose in the settings (OrientationPlugin), from the start.
+// player chose in the settings (OrientationPlugin), from the start; and custom maps saved as
+// files through Android's own Save (MapFilesPlugin).
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(OrientationPlugin.class);
+        registerPlugin(MapFilesPlugin.class);
         OrientationPlugin.apply(this);
         super.onCreate(savedInstanceState);
         immersive();

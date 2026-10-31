@@ -30,9 +30,12 @@ your own flag's home to knock them out. With **crates** on, drive over one for a
 (the player's and the enemy's units and buildings, each enemy waiting, wandering or hunting;
 crates, cash, presents and pizzas to pick up; ground uncovered at the start; and the goal:
 destroy everything, the buildings or the headquarters, infiltrate or protect something, pick up
-items, or survive). It starts from a blank map, any skirmish map, or a story level; it has brush
-sizes, line, square, circle and fill, copy, cut and paste, undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+C,
-Ctrl+X, Ctrl+V), test play, and saving to a file. **Share** sends a map to everyone; it appears
+items, or survive). It starts from a blank map, any skirmish map, or a story level (by its access code: They
+Live, Eclipse, Manic...); it has brush sizes, line, square, circle and fill, copy, cut and paste,
+undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+C, Ctrl+X, Ctrl+V), and test play. Maps are kept on the device
+as they are drawn, offline too. Export saves one map, or all of them, as a file (in the Android
+app, through Android's own Save); Import (or dropping files on the screen) brings them back,
+unfinished drafts included. **Share** sends a map to everyone; it appears
 once it has been looked at. The **Browser** lists shared maps (newest, most liked or most
 played, or searched); subscribing keeps one on the device, where a skirmish map is in the
 Skirmish and Online map lists (a room's guests are sent the host's) and a singleplayer map is

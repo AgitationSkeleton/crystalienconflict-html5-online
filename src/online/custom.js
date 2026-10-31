@@ -2,13 +2,17 @@
 // to, like and see the high scores of -- and the Editor, for the player's own.  The maps are
 // cacmap documents (src/online/cacmap.js), kept on this device: the player's drafts and the
 // maps they have subscribed to (IndexedDB, store()), the subscribed ones played in a skirmish,
-// offline or hosted online, as the game's own are (register()).  The shared ones are the
+// offline or hosted online, as the game's own are (register()).  A draft is kept as it is
+// drawn, a moment after each change (and at once when the page goes away); maps go to files and
+// come back from them (one map a file, or all of them in one: saveFile, importFiles).  The shared
+// ones are the
 // server's (server/src/maps.js): a player there is the author key this device made (authorKey).
 
 import * as C from './cacmap.js';
 import { isClean } from './profanity.js';
 import { PALETTES } from './settings.js';
 import { MapArt, CELL_W, ITEM_TYPES } from './mapart.js';
+import { isAndroidApp } from './android.js';
 
 // The game's own secret (game.js sendScore's), for the server to know a map or a score came from
 // the game: its hash of what is sent.
@@ -51,6 +55,8 @@ function el(tag, attrs, ...kids) {
 // Two stores: 'drafts' (the player's, by a local id) and 'maps' (subscribed, by the server's
 // id), each record { id, map, ... }.  Without IndexedDB (a private window), kept in memory.
 const DB_NAME = 'cac-custom';
+// A name for a file: letters, digits, spaces and dashes.
+const fileName = (s) => String(s).replace(/[^\w -]+/g, '').trim().slice(0, 40) || 'map';
 const clock = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 export const store = {
   db: null,
@@ -99,6 +105,8 @@ export function register(player, id, map) {
 }
 
 const NAMES = { good: 'Astro', evil: 'Alien' };
+// The access codes that are words run together, as they read.
+const LEVEL_NAMES = { niceman: 'Nice Man', powerup: 'Power Up', cavein: 'Cave In', redalert: 'Red Alert', theylive: 'They Live', ufo: 'UFO', '5050': '50/50' };
 const KIND_NAMES = { skirmish: 'Skirmish', story: 'Singleplayer' };
 const ITEM_NAMES = { crate: 'Crate (a unit)', cash: 'Cash crate', gift: 'Present', pizza: 'Pizza' };
 const BEHAVIOUR_NAMES = { still: 'Stands still', roam: 'Wanders', seek: 'Hunts the player' };
@@ -186,6 +194,19 @@ export class CustomMaps {
         el('button', { class: 'btn', onclick: () => { this.ui.sound('INT_cursor_select'); this.ui.show('main'); } }, 'Back')));
     this.ui.screens.custom = s;
     this.ui.root.append(s);
+    // Map files dropped on the screen: imported.
+    s.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
+    s.addEventListener('drop', (e) => {
+      const files = e.dataTransfer ? [...e.dataTransfer.files] : [];
+      if (!files.length) return;
+      e.preventDefault();
+      this.importFiles(files);
+    });
+    // The last change kept before the page goes (closed, reloaded, the app put away).
+    window.addEventListener('pagehide', () => this.flush());
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.flush(); });
+    // (and the browser asked to keep this site's storage, maps and all, when it is short of room)
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* (not asked) */ }
     // The editor's keys, wherever the focus is on its screen (not while typing in a box).
     document.addEventListener('keydown', (e) => {
       if (!this.ui.screens.custom.classList.contains('active') || this.tab !== 'edit' || !this.draft || !this.canvas) return;
@@ -256,6 +277,7 @@ export class CustomMaps {
     this.mineBox = el('div', { class: 'body' });
     const subList = mine.length ? el('div', { class: 'maplist' }, ...mine.map((r) => this.mapCard(r.map, [
       r.map.kind === 'story' ? el('button', { class: 'chip primary', onclick: () => this.play(r.map, { server: r.id, version: r.version }) }, '\u25B6 Play') : null,
+      el('button', { class: 'chip', title: 'A copy among your maps, to change', onclick: () => this.copyToMine(r.map) }, 'Copy to my maps'),
       el('button', { class: 'chip', onclick: () => this.unsubscribe(r.id) }, 'Unsubscribe')], r.author ? 'by ' + r.author : '')))
       : el('div', { class: 'note', text: q.kind === 'skirmish' ? 'Skirmish maps you subscribe to are kept on this device, in the Skirmish and Online map lists.'
         : 'Singleplayer maps you subscribe to are kept on this device, and played from here.' });
@@ -425,30 +447,22 @@ export class CustomMaps {
     const from = el('select', { 'aria-label': 'Start from' },
       el('option', { value: '', text: 'Nothing: a blank map' }),
       el('optgroup', { label: 'Skirmish maps' }, ...this.ui.maps().filter((m) => m.source !== 'custom').map((m) => el('option', { value: 'skirmish:' + m.id, text: m.name }))),
-      el('optgroup', { label: 'The story\'s levels' }, ...this.storyLevels().map((n) => el('option', { value: 'story:' + n, text: 'Level ' + n }))));
+      ...[['Astro campaign', 1, 10], ['Alien campaign', 11, 20], ['Extra levels', 21, 99]].map(([label, lo, hi]) => el('optgroup', { label },
+        ...this.storyLevels().filter((n) => n >= lo && n <= hi).map((n) => el('option', { value: 'story:' + n, text: this.levelName(n) })))));
     const size = el('select', { 'aria-label': 'Size' }, ...[[24, 'Small (24×24)'], [40, 'Medium (40×40)'], [64, 'Large (64×64)'], [96, 'Huge (96×96)']]
       .map(([n, t]) => el('option', { value: n, text: t, selected: n === 40 })));
     const make = (kind) => {
       let map;
       const [src, id] = from.value.split(':');
       if (src === 'skirmish') map = C.fromGameMap(this.player.online.maps[id] || this.eclipse(), kind);
-      else if (src === 'story') map = C.fromGameMap({ name: 'Level ' + id, map: this.storyMap(id) }, kind);
+      else if (src === 'story') map = C.fromGameMap({ name: this.levelName(Number(id)).replace(/ \(level \d+\)$/, ''), map: this.storyMap(id) }, kind);
       else map = C.blank(kind, Number(size.value), Number(size.value));
       map.name = map.name || 'My map';
       if (kind === 'skirmish' && map.bases.length < 2) map.bases = [{ x: 4, y: 4 }, { x: map.w - 3, y: map.h - 3 }].filter((b) => C.walkable(map, b.x, b.y));
       this.edit({ id: 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), map, updated: Date.now() });
     };
-    const file = el('input', { type: 'file', accept: '.json,.cacmap,application/json', style: 'display:none', onchange: async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      try {
-        const v = C.validate(JSON.parse(await f.text()));
-        if (!v.ok && !v.map) throw new Error(v.errors.join('; '));
-        this.edit({ id: 'd' + Date.now().toString(36), map: v.map || JSON.parse(await f.text()), updated: Date.now() });
-      } catch (err) {
-        this.ui.toast('That file is not a map this game can open: ' + err.message);
-      }
-    } });
+    const file = el('input', { type: 'file', multiple: true, accept: '.json,.cacmap,application/json', style: 'display:none',
+      onchange: (e) => { this.importFiles([...e.target.files]); e.target.value = ''; } });
     this.editBox.replaceChildren(
       el('div', { class: 'panel wide' }, el('h2', { text: 'New map' }), el('div', { class: 'body newmap' },
         el('div', { class: 'field' }, el('label', { text: 'Blank, this size' }), size),
@@ -456,13 +470,18 @@ export class CustomMaps {
         el('div', { class: 'row' },
           el('button', { class: 'chip primary', onclick: () => make('skirmish') }, '+ Skirmish map'),
           el('button', { class: 'chip primary', onclick: () => make('story') }, '+ Singleplayer map'),
-          el('button', { class: 'chip', onclick: () => file.click() }, 'Open a file\u2026'), file))),
+          el('button', { class: 'chip', title: 'Maps from files (or drop them here)', onclick: () => file.click() }, 'Import\u2026'), file))),
       el('div', { class: 'panel wide' }, el('h2', { text: 'Your maps' }), el('div', { class: 'body' },
+        drafts.length ? el('div', { class: 'row', style: 'margin-bottom:10px' },
+          el('span', { class: 'hint', text: drafts.length + (drafts.length === 1 ? ' map' : ' maps') + ', kept on this device as you draw.' }),
+          el('div', { style: 'flex:1' }),
+          el('button', { class: 'chip', title: 'Every map here in one file, to keep or move to another device', onclick: () => this.exportAll(drafts) }, 'Export all')) : null,
         drafts.length ? el('div', { class: 'maplist' }, ...drafts.map((d) => this.mapCard(d.map, [
           el('button', { class: 'chip primary', onclick: () => this.edit(d) }, 'Edit'),
           el('button', { class: 'chip', onclick: () => this.edit({ id: 'd' + Date.now().toString(36), map: JSON.parse(JSON.stringify(Object.assign({}, d.map, { name: (d.map.name + ' copy').slice(0, C.LIMITS.name) }))), updated: Date.now() }) }, 'Copy'),
+          el('button', { class: 'chip', title: 'Save it as a file', onclick: () => this.exportMap(d.map) }, 'Export'),
           el('button', { class: 'chip danger', onclick: async () => { if (confirm('Delete "' + (d.map.name || 'Untitled') + '"?')) { await store.remove('drafts', d.id); this.offer('custom-' + d.id, {}); this.renderDrafts(); } } }, 'Delete')])))
-          : el('div', { class: 'note', text: 'Maps you make are kept on this device.' }))));
+          : el('div', { class: 'note', text: 'Maps you make are kept on this device as you draw them. Import maps from files with Import, or drop them here.' }))));
   }
 
   storyLevels() {
@@ -472,6 +491,15 @@ export class CustomMaps {
     } catch (e) {
       return [];
     }
+  }
+
+  // A story level by its access code (the game's own: Panel.codes), as a name: "They Live
+  // (level 28)"; a level without one by its number.
+  levelName(n) {
+    const code = this.ui.panel && this.ui.panel.codes && this.ui.panel.codes[n];
+    if (!code) return 'Level ' + n;
+    const name = LEVEL_NAMES[code] || code.charAt(0).toUpperCase() + code.slice(1);
+    return name + ' (level ' + n + ')';
   }
 
   storyMap(n) {
@@ -498,9 +526,11 @@ export class CustomMaps {
 
   async save() {
     if (!this.draft) return;
+    this.dirty = false;
     this.draft.updated = Date.now();
     await store.put('drafts', JSON.parse(JSON.stringify(this.draft)));
     this.offer('custom-' + this.draft.id, this.draft.map);
+    if (this.savedNote && !this.dirty) this.savedNote.textContent = store.db ? 'Saved on this device' : 'Not saved: this browser keeps nothing (export it)';
   }
 
   snapshot() {
@@ -522,7 +552,16 @@ export class CustomMaps {
   changed() {
     this.draw();
     clearTimeout(this.checkTimer);
+    this.dirty = true;
+    if (this.savedNote) this.savedNote.textContent = 'Saving\u2026';
     this.checkTimer = setTimeout(() => { this.renderChecks(); this.save(); }, 250);
+  }
+
+  // Kept at once, a change not yet kept (the page going away, the app closing).
+  flush() {
+    if (!this.dirty || !this.draft) return;
+    clearTimeout(this.checkTimer);
+    this.save();
   }
 
   renderEditing() {
@@ -558,7 +597,8 @@ export class CustomMaps {
             el('button', { class: 'tool', title: 'Zoom out (\u2212)', 'aria-label': 'Zoom out', onclick: () => this.zoom(0.8) }, '\u2212'),
             el('button', { class: 'tool', title: 'Zoom in (+)', 'aria-label': 'Zoom in', onclick: () => this.zoom(1.25) }, '+')),
           el('div', { class: 'spacer' }),
-          el('button', { class: 'chip', title: 'Save it as a file, to keep or send', onclick: () => this.exportFile() }, 'Save as file'),
+          this.savedNote = el('span', { class: 'hint saved', text: 'Saved on this device' }),
+          el('button', { class: 'chip', title: 'Save it as a file, to keep or send', onclick: () => this.exportMap(this.draft.map) }, 'Export'),
           el('button', { class: 'chip', title: 'Share it with everyone (it is looked at first)', onclick: () => this.share() }, this.draft.shared ? 'Share again' : 'Share'),
           el('button', { class: 'chip primary', onclick: () => this.testPlay() }, '\u25B6 Test play')),
         toolbar, toolOptions,
@@ -1402,11 +1442,77 @@ export class CustomMaps {
     if (m && this.subs && this.subs.has(m[1])) this.api('POST', '/maps/' + m[1] + '/play', { key: authorKey() }).catch(() => {});
   }
 
-  exportFile() {
-    const blob = new Blob([JSON.stringify(this.draft.map)], { type: 'application/json' });
-    const a = el('a', { href: URL.createObjectURL(blob), download: (this.draft.map.name || 'map').replace(/[^\w -]+/g, '').trim() + '.cacmap.json' });
+  // ---- files ----------------------------------------------------------------------------------
+  // A file holds one map (its cacmap, as the server keeps it) or several: { cacmaps: [...] }.
+
+  exportMap(map) {
+    this.saveFile(fileName(map.name || 'map') + '.cacmap.json', JSON.stringify(map));
+  }
+
+  exportAll(drafts) {
+    const day = new Date().toISOString().slice(0, 10);
+    this.saveFile('crystalien-maps-' + day + '.cacmaps.json', JSON.stringify({ cacmaps: drafts.map((d) => d.map) }));
+  }
+
+  // A file to the player: in the Android app through Android's own Save (MapFiles, in mobile/:
+  // its web view keeps nothing a page downloads); elsewhere as a download (the desktop app asks
+  // where).
+  async saveFile(name, text) {
+    if (isAndroidApp()) {
+      try {
+        const C = window.Capacitor;
+        const files = C.registerPlugin ? C.registerPlugin('MapFiles') : C.Plugins.MapFiles;
+        const r = await files.save({ name, text });
+        if (r && r.saved) this.ui.toast('Saved as ' + (r.name || name) + '.');
+      } catch (e) {
+        this.ui.toast('Not saved: ' + (e && e.message || e));
+      }
+      return;
+    }
+    const a = el('a', { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: name });
     document.body.append(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  // Maps from files (one or several, a map or a bundle of them each): each a new draft here,
+  // unfinished ones too (cacmap's repair: what the format cannot keep is left out, and said).
+  async importFiles(files) {
+    const added = [], problems = [];
+    for (const f of files) {
+      if (f.size > 4 * 1024 * 1024) { problems.push(f.name + ': too big'); continue; }
+      let json;
+      try {
+        json = JSON.parse(await f.text());
+      } catch (e) {
+        problems.push(f.name + ': not a map file');
+        continue;
+      }
+      const maps = json && Array.isArray(json.cacmaps) ? json.cacmaps.slice(0, 500) : [json];
+      for (const m of maps) {
+        const r = C.repair(m);
+        if (!r) { problems.push(f.name + ': not a map this game can open'); continue; }
+        if (r.dropped.length) problems.push((r.map.name || f.name) + ': left out ' + r.dropped.join(', '));
+        added.push(r.map);
+      }
+    }
+    for (const map of added) await this.keep(map);
+    const what = added.length === 1 ? '"' + (added[0].name || 'Untitled') + '"' : added.length + ' maps';
+    this.ui.toast((added.length ? 'Imported ' + what + '.' : 'Nothing imported.') + (problems.length ? ' ' + problems.slice(0, 4).join('; ') + '.' : ''));
+    if (this.tab !== 'edit') this.show('edit');
+    else if (!this.draft) this.renderDrafts();
+  }
+
+  // A map kept as a new draft of the player's (not opened).
+  async keep(map) {
+    const d = { id: 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), map: JSON.parse(JSON.stringify(map)), updated: Date.now() };
+    await store.put('drafts', d);
+    this.offer('custom-' + d.id, d.map);
+    return d;
+  }
+
+  async copyToMine(map) {
+    await this.keep(Object.assign({}, map, { name: (map.name + ' copy').slice(0, C.LIMITS.name) }));
+    this.ui.toast('"' + map.name + '" is among your maps now (the Level editor).');
   }
 }
