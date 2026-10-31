@@ -44,7 +44,7 @@ async function api(env, method, path, body, form) {
   return null;
 }
 
-function describe(row, map) {
+function describe(row, map, file) {
   const fields = [
     { name: 'Kind', value: KINDS[row.kind] || row.kind, inline: true },
     { name: 'Size', value: row.w + ' × ' + row.h, inline: true },
@@ -54,22 +54,30 @@ function describe(row, map) {
     { name: 'Map', value: '`' + row.id + '`' + (row.version > 1 ? ' version ' + row.version : ''), inline: true },
   ];
   return { title: plain(row.name).slice(0, 200), description: row.descr ? plain(row.descr) : undefined, color: 0x6fd12a, fields,
-    image: { url: 'attachment://preview.png' }, footer: { text: 'React ✅ approve · ❌ reject · \u{1F528} reject and ban the author · !maps help' } };
+    image: { url: 'attachment://' + file }, footer: { text: 'React ✅ approve · ❌ reject · \u{1F528} reject and ban the author · !maps help' } };
 }
 
 // A map, posted for the owner to look at (or, approved by itself, for them to know of).
 export async function postForReview(env, row) {
   if (!ready(env)) return;
   const map = JSON.parse(row.data);
-  const scale = Math.max(1, Math.min(4, Math.floor(512 / (2 * Math.max(map.w, map.h)))));
-  const [w, h, px] = previewPixels(map, scale);
-  const png = await encodePng(w, h, new Uint8Array(px.buffer));
+  // (its picture as the game drew it, sent with it; or else its plain colours)
+  let picture, type = 'image/png';
+  if (row.thumb && /^image\/(jpeg|png)$/.test(row.thumb_type || '')) {
+    picture = new Uint8Array(row.thumb);
+    type = row.thumb_type;
+  } else {
+    const scale = Math.max(1, Math.min(4, Math.floor(512 / (2 * Math.max(map.w, map.h)))));
+    const [w, h, px] = previewPixels(map, scale);
+    picture = await encodePng(w, h, new Uint8Array(px.buffer));
+  }
+  const file = type === 'image/jpeg' ? 'preview.jpg' : 'preview.png';
   const form = new FormData();
   form.append('payload_json', JSON.stringify({
     content: row.status === 'approved' ? '\u{1F5FA}️ **A map was shared** (approved by itself: autoapprove is on)' : '\u{1F5FA}️ **A map to look at**',
-    embeds: [describe(row, map)], allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: 'preview.png' }],
+    embeds: [describe(row, map, file)], allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: file }],
   }));
-  form.append('files[0]', new Blob([png], { type: 'image/png' }), 'preview.png');
+  form.append('files[0]', new Blob([picture], { type }), file);
   const msg = await api(env, 'POST', '/channels/' + env.MAPS_CHANNEL + '/messages', null, form);
   if (!msg || !msg.id) return;
   await env.DB.prepare('UPDATE maps SET message_id = ?2 WHERE id = ?1').bind(row.id, msg.id).run();

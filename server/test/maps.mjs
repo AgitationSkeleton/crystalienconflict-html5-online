@@ -66,6 +66,16 @@ ok(got.status === 200 && C.validate(got.body.map).ok && got.body.map.name === sk
 const png = await call('GET', '/maps/' + id + '/preview.png');
 ok(png.status === 200 && new Uint8Array(png.body)[1] === 0x50, 'its picture (' + png.body.byteLength + ' bytes)');
 
+// a map's picture, as the game drew it: kept and shown if it is a picture, refused if not
+const jpeg = readFileSync(new URL('./picture.jpg', import.meta.url)).toString('base64');
+const withPic = await share(me, Object.assign({}, sky, { name: 'Pictured ' + Date.now().toString(36) }), { thumb: jpeg });
+ok(withPic.status === 200, 'shared with its picture');
+const shown = await fetch(SERVER + '/maps/' + withPic.body.id + '/preview.png');
+ok(shown.headers.get('Content-Type') === 'image/jpeg' && shown.headers.get('X-Content-Type-Options') === 'nosniff' && Buffer.from(await shown.arrayBuffer()).toString('base64') === jpeg, 'its picture is the one sent, as a JPEG');
+ok((await share(me, sky, { thumb: Buffer.from('<script>alert(1)</script>').toString('base64') })).status === 400, 'a picture that is not one is refused');
+ok((await share(me, sky, { thumb: 'not base64!' })).status === 400, 'nor anything else');
+ok((await call('GET', '/maps?q=' + encodeURIComponent(sky.name.toLowerCase()))).body.maps.every((m) => m.map && m.map.w === sky.w), 'the list carries the maps\' data, to draw them by');
+
 // liked, played
 ok((await call('POST', '/maps/' + id + '/like', { key: you, like: true })).body.likes === 1, 'liked');
 ok((await call('POST', '/maps/' + id + '/like', { key: you, like: true })).body.likes === 1, 'liked once a player');

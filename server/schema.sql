@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS maps (
   created INTEGER NOT NULL,
   updated INTEGER NOT NULL,
   ip_hash TEXT,
-  message_id TEXT              -- its post in the review channel
+  message_id TEXT,             -- its post in the review channel
+  thumb BLOB,                  -- its picture, as the game drew it (picture.js), if it came with one
+  thumb_type TEXT              -- 'image/jpeg' or 'image/png'
 );
 CREATE INDEX IF NOT EXISTS maps_by_status ON maps (status, created DESC);
 CREATE INDEX IF NOT EXISTS maps_by_author ON maps (author, updated DESC);

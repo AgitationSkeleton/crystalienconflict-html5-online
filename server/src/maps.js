@@ -8,15 +8,19 @@
 // "author key" their game made at random (32 hex digits), kept on their device; the server keeps
 // only a hash of it.  Addresses are kept hashed, for limits and bans.
 //
-//   GET    /maps?kind=&sort=new|likes|plays&q=&page=&key=   approved maps, 24 a page (no map
-//                                                      data; with key, which the player likes)
+//   GET    /maps?kind=&sort=new|likes|plays&q=&page=&key=   approved maps, 24 a page, each with
+//                                                      its data (the game draws its card from
+//                                                      it); with key, which the player likes
 //   GET    /maps/mine?key=                             the author's own, any status
 //   GET    /maps/ID?key=                               one map, with its data (approved, or the
 //                                                      author's own), and whether they like it
-//   GET    /maps/ID/preview.png                        its picture
-//   POST   /maps            {key, author, map, sig, id?} share a map (or a new version of one's
-//                                                      own); map is the cacmap as JSON text, sig
-//                                                      the game's hash of it
+//   GET    /maps/ID/preview.png                        its picture: the game's, sent with it,
+//                                                      or else the map's plain colours
+//   POST   /maps            {key, author, map, sig, id?, thumb?} share a map (or a new version
+//                                                      of one's own); map is the cacmap as JSON
+//                                                      text, sig the game's hash of it, thumb its
+//                                                      picture as the game drew it (base64 JPEG
+//                                                      or PNG: picture.js)
 //   DELETE /maps/ID?key=                               take one's own down
 //   POST   /maps/ID/like    {key, like}                like it, or not any more
 //   POST   /maps/ID/play    {key}                      played (once a player)
@@ -34,11 +38,14 @@ import { censor, isClean } from '../../src/online/profanity.js';
 import { validate, previewPixels } from '../../src/online/cacmap.js';
 import { encodePng } from './png.js';
 import { postForReview } from './mapbot.js';
+import { checkPicture } from './picture.js';
 
 const ID = /^[a-z0-9]{10}$/;
 const KEY = /^[a-f0-9]{32}$/;
 const PAGE = 24;
-const MAX_BODY = 100000;
+const MAX_BODY = 700000;
+// (a map's columns but its picture, which is only for preview.png and the review post)
+const COLS = 'id, author, author_name, kind, name, descr, w, h, players, data, status, version, likes, plays, created, updated, ip_hash, message_id';
 export const DEFAULTS = { autoapprove: '0', uploads: 'on', per_day: '5' };
 
 export async function config(env) {
@@ -80,7 +87,7 @@ async function body(request) {
 // What a list shows of a map (no map data).
 function card(r) {
   return { id: r.id, name: r.name, desc: r.descr, kind: r.kind, w: r.w, h: r.h, players: r.players, author: r.author_name,
-    likes: r.likes, plays: r.plays, version: r.version, created: r.created, updated: r.updated, status: r.status };
+    likes: r.likes, plays: r.plays, version: r.version, created: r.created, updated: r.updated, status: r.status, map: JSON.parse(r.data) };
 }
 
 export async function banned(env, author, ipHash) {
@@ -97,12 +104,12 @@ export async function handleMaps(request, env, url, ctx) {
   if (parts.length === 2 && parts[1] === 'mine' && method === 'GET') {
     const author = await authorOf(url.searchParams.get('key'));
     if (!author) return json(env, request, { error: 'key' }, 400);
-    const { results } = await env.DB.prepare("SELECT * FROM maps WHERE author = ?1 AND status != 'removed' ORDER BY updated DESC LIMIT 100").bind(author).all();
+    const { results } = await env.DB.prepare(`SELECT ${COLS} FROM maps WHERE author = ?1 AND status != 'removed' ORDER BY updated DESC LIMIT 100`).bind(author).all();
     return json(env, request, { maps: (results || []).map(card) });
   }
   const id = parts[1];
   if (!ID.test(String(id || ''))) return json(env, request, { error: 'not found' }, 404);
-  const row = await env.DB.prepare('SELECT * FROM maps WHERE id = ?1').bind(id).first();
+  const row = await env.DB.prepare(`SELECT ${COLS} FROM maps WHERE id = ?1`).bind(id).first();
   if (!row || row.status === 'removed') return json(env, request, { error: 'not found' }, 404);
   if (parts.length === 2 && method === 'GET') {
     const author = await authorOf(url.searchParams.get('key'));
@@ -117,6 +124,11 @@ export async function handleMaps(request, env, url, ctx) {
     return json(env, request, { ok: true });
   }
   if (parts[2] === 'preview.png' && method === 'GET') {
+    const pic = await env.DB.prepare('SELECT thumb, thumb_type FROM maps WHERE id = ?1').bind(id).first();
+    const headers = { 'Cache-Control': 'public, max-age=3600', 'Access-Control-Allow-Origin': '*', 'X-Content-Type-Options': 'nosniff' };
+    if (pic && pic.thumb && /^image\/(jpeg|png)$/.test(pic.thumb_type || '')) {
+      return new Response(new Uint8Array(pic.thumb), { headers: Object.assign({ 'Content-Type': pic.thumb_type }, headers) });
+    }
     const map = JSON.parse(row.data);
     const scale = Math.max(1, Math.min(4, Math.floor(512 / (2 * Math.max(map.w, map.h)))));
     const [w, h, px] = previewPixels(map, scale);
@@ -170,7 +182,7 @@ async function list(request, env, url) {
   const page = Math.max(0, Math.min(200, Number(url.searchParams.get('page')) | 0));
   const k = kind === 'skirmish' || kind === 'story' ? kind : '';
   // (the order is one of the two above, never what was sent)
-  const { results } = await env.DB.prepare(`SELECT * FROM maps WHERE status = 'approved' AND (?1 = '' OR kind = ?1) AND (?2 = '' OR instr(lower(name), ?2) > 0 OR instr(lower(author_name), ?2) > 0)
+  const { results } = await env.DB.prepare(`SELECT ${COLS} FROM maps WHERE status = 'approved' AND (?1 = '' OR kind = ?1) AND (?2 = '' OR instr(lower(name), ?2) > 0 OR instr(lower(author_name), ?2) > 0)
     ORDER BY ${sort} LIMIT ?3 OFFSET ?4`).bind(k, q, PAGE + 1, page * PAGE).all();
   const rows = (results || []).slice(0, PAGE);
   const author = await authorOf(url.searchParams.get('key'));
@@ -202,6 +214,8 @@ async function upload(request, env, ctx) {
   }
   const v = validate(input);
   if (!v.ok) return json(env, request, { error: 'The map is not right: ' + v.errors.join('; ') }, 400);
+  const pic = b.thumb === undefined ? null : checkPicture(b.thumb);
+  if (b.thumb !== undefined && !pic) return json(env, request, { error: 'The map\'s picture is not right.' }, 400);
   const map = v.map;
   const authorName = cleanName(b.author);
   if (!map.name) return json(env, request, { error: 'The map needs a name.' }, 400);
@@ -226,11 +240,13 @@ async function upload(request, env, ctx) {
     if (!old || old.author !== author || old.status === 'removed') return json(env, request, { error: 'not yours' }, 403);
     version = old.version + 1;
     await env.DB.prepare(`UPDATE maps SET author_name = ?2, kind = ?3, name = ?4, descr = ?5, w = ?6, h = ?7, players = ?8, data = ?9, status = ?10, version = ?11,
-      updated = ?12, ip_hash = ?13, message_id = NULL WHERE id = ?1`).bind(id, authorName, map.kind, map.name, map.desc, map.w, map.h, players, data, status, version, now, ipHash).run();
+      updated = ?12, ip_hash = ?13, message_id = NULL, thumb = ?14, thumb_type = ?15 WHERE id = ?1`)
+      .bind(id, authorName, map.kind, map.name, map.desc, map.w, map.h, players, data, status, version, now, ipHash, pic ? pic.bytes : null, pic ? pic.type : null).run();
   } else {
     id = newId();
-    await env.DB.prepare(`INSERT INTO maps (id, author, author_name, kind, name, descr, w, h, players, data, status, version, likes, plays, created, updated, ip_hash)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, 0, 0, ?12, ?12, ?13)`).bind(id, author, authorName, map.kind, map.name, map.desc, map.w, map.h, players, data, status, now, ipHash).run();
+    await env.DB.prepare(`INSERT INTO maps (id, author, author_name, kind, name, descr, w, h, players, data, status, version, likes, plays, created, updated, ip_hash, thumb, thumb_type)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, 0, 0, ?12, ?12, ?13, ?14, ?15)`)
+      .bind(id, author, authorName, map.kind, map.name, map.desc, map.w, map.h, players, data, status, now, ipHash, pic ? pic.bytes : null, pic ? pic.type : null).run();
   }
   await env.DB.prepare('INSERT INTO map_uploads (map, author, ip_hash, created) VALUES (?1, ?2, ?3, ?4)').bind(id, author, ipHash, now).run();
   const row = await env.DB.prepare('SELECT * FROM maps WHERE id = ?1').bind(id).first();

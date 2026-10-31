@@ -316,7 +316,7 @@ export class CustomMaps {
     const scores = el('div', { class: 'scores' });
     const like = el('button', { class: 'chip like' + (m.liked ? ' on' : ''), title: 'Like it', 'aria-pressed': String(!!m.liked), onclick: () => this.like(m, like) }, '\u2665 ' + m.likes);
     const card = el('div', { class: 'mapcard' },
-      el('img', { class: 'mapthumb', alt: '', loading: 'lazy', src: this.root + '/maps/' + m.id + '/preview.png?v=' + m.version }),
+      this.sharedThumb(m),
       el('div', { class: 'meta' }, el('div', { class: 'name nospell', text: m.name }),
         el('div', { class: 'note nospell', text: 'by ' + m.author }),
         el('div', { class: 'note', text: KIND_NAMES[m.kind] + ' \u00b7 ' + m.w + '\u00d7' + m.h + (m.kind === 'skirmish' ? ' \u00b7 ' + m.players + ' players' : '') + ' \u00b7 played ' + m.plays + (m.plays === 1 ? ' time' : ' times') }),
@@ -330,6 +330,14 @@ export class CustomMaps {
         m.kind === 'story' ? el('button', { class: 'chip', onclick: () => this.showScores(m, scores) }, 'High scores') : null),
       scores);
     return card;
+  }
+
+  // A shared map's picture: drawn here from its data, in the game's own art (thumbnail); the
+  // server's picture of it only if its data is not a map this game can draw.
+  sharedThumb(m) {
+    const v = m.map ? C.validate(JSON.parse(JSON.stringify(m.map))) : { ok: false };
+    if (v.ok) return this.thumbnail(v.map);
+    return el('img', { class: 'mapthumb', alt: '', loading: 'lazy', src: this.root + '/maps/' + m.id + '/preview.png?v=' + m.version });
   }
 
   async subscribe(m, quiet) {
@@ -392,7 +400,7 @@ export class CustomMaps {
     }
     const maps = got.maps.filter((m) => m.kind === this.query.kind);
     box.replaceChildren(maps.length ? el('div', { class: 'maplist' }, ...maps.map((m) => el('div', { class: 'mapcard' },
-      el('img', { class: 'mapthumb', alt: '', loading: 'lazy', src: this.root + '/maps/' + m.id + '/preview.png?v=' + m.version }),
+      this.sharedThumb(m),
       el('div', { class: 'meta' }, el('div', { class: 'name nospell', text: m.name }),
         el('div', { class: 'note' + (m.status === 'rejected' ? ' warn' : ''), text: STATUS_NAMES[m.status] + (m.status === 'approved' ? ' \u00b7 \u2665 ' + m.likes + ' \u00b7 played ' + m.plays : '') })),
       el('div', { class: 'row' }, el('button', { class: 'chip danger', onclick: async () => {
@@ -415,7 +423,10 @@ export class CustomMaps {
     if (!confirm((again ? 'Share this new version of "' : 'Share "') + v.map.name + '" as ' + name + '?\n\nIt is looked at before others can see it.')) return;
     const text = JSON.stringify(v.map);
     try {
-      const r = await this.api('POST', '/maps', Object.assign({ key: authorKey(), author: name, map: text, sig: await sha1(SECRET + 'SaveMap' + text) }, again ? { id: again } : {}));
+      // (with its picture as the game draws it, for its review post: the server's own is plain colours)
+      const pic = this.art.ready() ? this.thumbnail(v.map).toDataURL('image/jpeg', 0.85).split(',')[1] : undefined;
+      const r = await this.api('POST', '/maps', Object.assign({ key: authorKey(), author: name, map: text, sig: await sha1(SECRET + 'SaveMap' + text) },
+        again ? { id: again } : {}, pic && pic.length < 500000 ? { thumb: pic } : {}));
       this.draft.shared = { id: r.id, version: r.version };
       await this.save();
       this.renderEditing();
