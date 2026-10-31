@@ -376,3 +376,34 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 .touchbar button:active { background: rgba(255, 138, 0, 0.7); }
 .note a { color: var(--orange-hi); } .form .note { font-size: 13px; color: var(--ink-dim); text-transform: none; letter-spacing: 0; }
 .form .note.warn { color: #ff4a3d; font-weight: 700; margin-top: -4px; }
+
+/* ---- Custom Maps: the Browser and the Level editor -------------------------------------------- */
+.tabs { display: flex; gap: 6px; }
+.tab { font: 700 14px/1 'NissanD', sans-serif; letter-spacing: 0.1em; text-transform: uppercase; padding: 9px 14px 7px; border-radius: 8px 8px 0 0;
+  border: 1px solid var(--edge); background: rgba(0, 0, 0, 0.45); color: var(--ink-dim); cursor: pointer; }
+.tab.on { background: linear-gradient(180deg, var(--orange-hi), var(--orange) 50%, var(--orange-lo)); color: #fff; }
+.custom-browse, .custom-edit { width: min(1400px, 100%); display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; margin-bottom: 14px; }
+.maplist { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.mapcard { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--edge); border-radius: 8px; background: rgba(0, 0, 0, 0.3); }
+.mapcard .mapthumb { width: 100%; height: auto; image-rendering: pixelated; border-radius: 4px; background: #000; }
+.mapcard .name { font-weight: 700; }
+.mapcard .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.editor { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+@media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
+.edit-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.edit-bar, .tools, .tool-options { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tool { padding: 7px 10px; border-radius: 6px; border: 1px solid var(--edge); background: rgba(0, 0, 0, 0.45); color: #fff; cursor: pointer; font: 600 13px system-ui, sans-serif; }
+.tool.on { background: var(--orange); border-color: var(--orange-hi); }
+.tool-options label { font-size: 13px; color: var(--ink-dim); }
+.tilepick { display: flex; flex-wrap: wrap; gap: 3px; max-width: 100%; }
+.tilebtn { width: 30px; height: 22px; font: 600 10px system-ui, sans-serif; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.6); cursor: pointer; color: #fff; background: #a0522d; }
+.tilebtn.k1 { background: #5a3420; } .tilebtn.k2 { background: #6aa828; } .tilebtn.k3 { background: #3c9a3c; }
+.tilebtn.on { outline: 2px solid #fff; }
+.edit-canvas { width: 100%; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; background: #111; touch-action: none; }
+.editmap { display: block; touch-action: none; cursor: crosshair; }
+.edit-side { display: flex; flex-direction: column; gap: 12px; }
+.edit-side .panel input[type=text], .edit-side .panel input[type=number], .edit-side .panel textarea { width: 100%; box-sizing: border-box; }
+.edit-side .sizes { display: flex; align-items: center; gap: 4px; } .edit-side .sizes input { width: 70px; }
+.checks { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.checks .bad { color: #ff4a3d; font-weight: 700; } .checks .good { color: #7be36b; font-weight: 700; }
+.shapes { display: flex; flex-wrap: wrap; gap: 4px; }

@@ -6,6 +6,7 @@ import { COLOURS, COLOUR_CSS, DEFAULTS, MARS_PALETTES, PALETTES, UI_SCALES, load
 import { american } from './spelling.js';
 import { offline, ios } from './offline.js';
 import { android, isAndroidApp, openOutside, applyOrientation, RELEASES } from './android.js';
+import { CustomMaps } from './custom.js';
 
 const FACTIONS = { good: 'Astro', evil: 'Alien', random: 'Random', spectate: 'Spectator' };
 const DIFFICULTIES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
@@ -247,6 +248,7 @@ export class OnlineUI {
     this.buildOnline();
     this.buildRoom();
     this.buildSettings();
+    this.custom = new CustomMaps(this);
     this.applyVolumes();
     this.applyPrefs();
     this.watchSpelling();
@@ -263,6 +265,12 @@ export class OnlineUI {
           return;
         }
         this.screensaver = false;
+      }
+      // (a map tried from the editor: back to it)
+      if (this.custom && this.custom.testing) {
+        this.custom.testing = false;
+        this.open('custom');
+        return;
       }
       if (screen === 'lobby' && this.net && this.net.code) {
         this.net.ended();
@@ -329,6 +337,7 @@ export class OnlineUI {
     this.showAddress(name === 'room' && this.net && this.net.code);
     if (name === 'lobby') this.renderLobby();
     if (name === 'settings') this.renderSettings();
+    if (name === 'custom') this.custom.show();
     // (the list of games kept current while it is looked at: roomTick)
     clearInterval(this.roomTimer);
     if (name === 'online') {
@@ -372,6 +381,7 @@ export class OnlineUI {
         el('button', { class: 'btn', onclick: go(() => this.show('lobby')) }, 'Skirmish'),
         el('button', { class: 'btn', disabled: !this.net, onclick: go(() => this.show('online')) }, 'Online'),
         el('button', { class: 'btn', onclick: go(() => this.story()) }, 'Story'),
+        el('button', { class: 'btn', onclick: go(() => this.show('custom')) }, 'Custom Maps'),
         el('button', { class: 'btn', onclick: go(() => this.startScreensaver()) }, 'Screensaver Mode'),
         el('button', { class: 'btn', onclick: go(() => this.show('settings')) }, 'Settings')),
       el('div', { class: 'chars' },
@@ -387,8 +397,10 @@ export class OnlineUI {
   // and LEGO Battles' maps.  A map's id is its level number for the game's own.
   maps() {
     const all = (this.game && this.game.skirmishMaps && this.game.skirmishMaps()) || { 10: { name: 'Eclipse', bases: [{}, {}] } };
-    const order = { undefined: 0, cnc: 1, lego: 2 };
+    const order = { undefined: 0, cnc: 1, lego: 2, custom: 3 };
     return Object.entries(all)
+      // (not the editor's map being tried)
+      .filter(([id]) => id !== 'custom-test')
       .map(([id, m]) => ({ id: String(id), name: m.name, source: m.source, bases: Math.min(6, (m.bases || []).length || 2), info: m }))
       .sort((a, b) => (order[a.source] || 0) - (order[b.source] || 0) || a.name.localeCompare(b.name));
   }
@@ -532,7 +544,7 @@ export class OnlineUI {
   renderLobby() {
     this.renderLobbyAccess();
     const maps = this.maps();
-    const groups = { undefined: 'CrystAlien Conflict', cnc: 'Command & Conquer', lego: 'LEGO Battles' };
+    const groups = { undefined: 'CrystAlien Conflict', cnc: 'Command & Conquer', lego: 'LEGO Battles', custom: 'Custom maps' };
     const byGroup = {};
     for (const m of maps) (byGroup[m.source] = byGroup[m.source] || []).push(m);
     this.mapSelect.replaceChildren(this.randomOption(this.match.map), ...Object.entries(byGroup).map(([g, list]) => el('optgroup', { label: groups[g] || g },
@@ -1135,7 +1147,7 @@ export class OnlineUI {
     }
     // map and slots
     const maps = this.maps();
-    const groups = { undefined: 'CrystAlien Conflict', cnc: 'Command & Conquer', lego: 'LEGO Battles' };
+    const groups = { undefined: 'CrystAlien Conflict', cnc: 'Command & Conquer', lego: 'LEGO Battles', custom: 'Custom maps' };
     const byGroup = {};
     for (const x of maps) (byGroup[x.source] = byGroup[x.source] || []).push(x);
     this.roomMapSelect.replaceChildren(this.randomOption(m.map), ...Object.entries(byGroup).map(([g, list]) => el('optgroup', { label: groups[g] || g },
