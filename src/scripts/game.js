@@ -6235,6 +6235,18 @@
             {
                return undefined;
             }
+            // Online: a custom singleplayer map's pickup: counted (Level.customPickedUp); a pizza
+            // there is only that.
+            if(this.customItem)
+            {
+               this.parent?.customPickedUp?.(this, collectee);
+               if(this.customItem == "pizza")
+               {
+                  this.makeNoise?.("INT_collect");
+                  this.destroy?.(true);
+                  return undefined;
+               }
+            }
             if(this.stats?.pickup == "special" && this.parent?.skirmish)
             {
                // Online: a pizza (Pizza Mode).  Anyone else walking over it leaves it be.
@@ -8508,7 +8520,11 @@
             this.levelUpCounter++;
             if(this.levelUpCounter == 1 && !this.timeUp)
             {
-               if(this.skirmish)
+               if(this.skirmish?.mode == "custom")
+               {
+                  this.parent?.hud?.showMessage?.(dialogue?.(this.victory ? "int_victorious" : "int_levelLose"));
+               }
+               else if(this.skirmish)
                {
                   var colour = String(this.leader?.colour || "");
                   this.parent?.hud?.showMessage?.(this.victory ? dialogue?.("int_victorious") : dialogue?.("int_team_victorious")?.split?.("%s")?.join?.(colour.charAt(0).toUpperCase() + colour.substr(1)));
@@ -9144,7 +9160,12 @@
             var hq;
             var spot;
             var count;
-            while(index < this.players?.length)
+            // Online: a custom singleplayer map: what its maker put on it, and no bases.
+            if(settings?.mode == "custom")
+            {
+               this.setupCustom?.();
+            }
+            while(settings?.mode != "custom" && index < this.players?.length)
             {
                player = this.players?.[index];
                if(player?.spectator)
@@ -9251,6 +9272,149 @@
                __as.set(this.camera, "focus", this.findBuilding?.("BA_" + this.players?.[0]?.faction, this.players?.[0]));
             }
             this.jukebox = random?.(4) + 1;
+            if(settings?.mode == "custom" && settings?.music)
+            {
+               this.jukebox = settings.music;
+            }
+         };
+         // Online: a custom singleplayer map's start (src/online/cacmap.js, story): its units and
+         // buildings, the player's and the enemy's -- the enemy's waiting, roaming or seeking as
+         // the story's do --, its pickups, the shroud lifted where it says, and the player's cash.
+         this.setupCustom = function ()
+         {
+            var story = this.skirmish?.story || {};
+            var me = this.localPlayer;
+            var enemy = this.players?.find?.((p) => p != me && !p?.spectator);
+            var ITEM_TYPES = {crate:"UI_good",cash:"UI_evil",gift:"UO_evil",pizza:"UJ_good"};
+            var thing;
+            me.cash = Number(story.cash) || 0;
+            enemy.cash = 0;
+            this.customThings = new Array();
+            this.customCollected = {};
+            for(var one of story.units || [])
+            {
+               var owner = one.own == "enemy" ? enemy : me;
+               if(one.t?.charAt?.(0) == "B")
+               {
+                  this.buildings?.push?.(thing = new Building(this, one.t, one.x, one.y, owner, one.hp < 1 ? one.hp : undefined));
+               }
+               else
+               {
+                  this.units?.push?.(thing = new Unit(this, one.t, one.x, one.y, one.f, owner, one.hp < 1 ? one.hp : undefined, one.own == "enemy" ? one.b || "still" : undefined, one.b == "still" && one.d ? one.d : undefined));
+               }
+               this.customThings.push(thing);
+            }
+            // (a crate's unit, a cash crate's 2,000, a present's power-up -- the story's own --, and
+            // a pizza, which is only something to find)
+            for(var it of story.items || [])
+            {
+               this.units?.push?.(thing = new Unit(this, ITEM_TYPES[it.k], it.x, it.y, 0.5, "nobody", undefined, undefined, it.k == "crate" ? it.u : it.k == "gift" ? "powerup" : undefined));
+               thing.customItem = it.k;
+            }
+            for(var r of story.reveal || [])
+            {
+               this.arena?.shroud?.reveal?.(r.x, r.y, r.r);
+            }
+         };
+         // A custom singleplayer map's pickup, found: the player's counted for a Collect goal.
+         this.customPickedUp = function (item, collector)
+         {
+            if(collector?.owner == this.localPlayer)
+            {
+               this.customCollected[item.customItem] = (this.customCollected[item.customItem] || 0) + 1;
+            }
+         };
+         // Whether a custom singleplayer map is won or lost, each second: the player is out when
+         // nothing of theirs is left, as in a skirmish; otherwise by its goal.
+         this.customOutcome = function ()
+         {
+            var win = this.skirmish?.story?.win || {k:"all"};
+            var me = this.localPlayer;
+            var enemy = this.players?.find?.((p) => p != me && !p?.spectator);
+            var seconds = this.count / 23;
+            var target = win.n != undefined ? this.customThings?.[win.n] : undefined;
+            var enemyHas = (prefix) => this.buildings?.some?.((b) => b?.active && b.owner == enemy && (!prefix || b.type?.substr?.(0, 2) == prefix));
+            if(!this.holdsOn?.(me))
+            {
+               this.customEnd?.(false);
+               return undefined;
+            }
+            switch(win.k)
+            {
+               case "buildings":
+                  if(!enemyHas())
+                  {
+                     this.customEnd?.(true);
+                  }
+                  break;
+               case "hq":
+                  if(!enemyHas("BA") && !enemyHas("BK"))
+                  {
+                     this.customEnd?.(true);
+                  }
+                  break;
+               case "infiltrate":
+                  if(target?.owner == me)
+                  {
+                     this.customEnd?.(true);
+                  }
+                  else if(!target?.active)
+                  {
+                     this.customEnd?.(false);
+                  }
+                  break;
+               case "protect":
+                  if(!target?.active || target.owner != me)
+                  {
+                     this.customEnd?.(false);
+                  }
+                  else if(win.s ? seconds >= win.s : !this.holdsOn?.(enemy))
+                  {
+                     this.customEnd?.(true);
+                  }
+                  break;
+               case "collect":
+                  var kind = (k) => win.k2 == "any" || k == win.k2;
+                  var got = 0;
+                  for(var k of __as.keys(this.customCollected))
+                  {
+                     got += kind(k) ? this.customCollected[k] : 0;
+                  }
+                  var left = this.units?.filter?.((u) => u?.active && u.customItem && kind(u.customItem))?.length;
+                  if(got >= win.c)
+                  {
+                     this.customEnd?.(true);
+                  }
+                  else if(got + left < win.c)
+                  {
+                     this.customEnd?.(false);
+                  }
+                  break;
+               case "survive":
+                  if(seconds >= win.s)
+                  {
+                     this.customEnd?.(true);
+                  }
+                  break;
+               default:
+                  if(!this.holdsOn?.(enemy))
+                  {
+                     this.customEnd?.(true);
+                  }
+            }
+         };
+         // A custom singleplayer map over: how long it took and the cash left, for its high scores
+         // (Online.customEnded, src/online/custom.js); then back to the menus (outtro).
+         this.customEnd = function (victory)
+         {
+            this.active = false;
+            this.victory = victory;
+            this.levelUpCounterMax = 115;
+            this.parent?.sfx?.play?.("music_ingame_" + this.jukebox + "_stop");
+            this.parent?.sfx?.play?.(victory ? "INT_optionsadd" : "INT_optionsremove");
+            this.arena?.shroud?.clear?.();
+            this.customResult = {won:victory,seconds:Math.floor(this.count / 23),cash:Math.floor(Number(this.localPlayer?.cash) || 0)};
+            Online?.customEnded?.(this.customResult);
          };
          // Base markers for a map that has none: its corners, then the middles of its long
          // sides, a few tiles in.
@@ -9330,6 +9494,11 @@
             this.heroTick?.();
             if(!this.active || this.count % 23)
             {
+               return undefined;
+            }
+            if(this.skirmish?.mode == "custom")
+            {
+               this.customOutcome?.();
                return undefined;
             }
             this.passiveIncome?.();
