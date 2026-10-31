@@ -213,7 +213,7 @@
 .swatches .swatch { width: 24px; height: 24px; }
 .swatches .swatch.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--orange); }
 
-select, input[type=text] {
+select, input[type=text], input[type=search] {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -388,6 +388,13 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 .mapcard .mapthumb { width: 100%; height: auto; image-rendering: pixelated; border-radius: 4px; background: #000; }
 .mapcard .name { font-weight: 700; }
 .mapcard .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.mapcard .note.warn { color: #ff4a3d; font-weight: 700; }
+.mapcard .like.on { background: linear-gradient(180deg, #ff6a8a, #e0204c); }
+.browse-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.browse-bar select { width: auto; flex: none; }
+.browse-bar input[type=search] { flex: 1; min-width: 160px; width: auto; }
+.scorelist { margin: 0; padding-left: 22px; font-size: 13px; }
+.scorelist li span + span { margin-left: 10px; color: var(--ink-dim); }
 .editor { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
 @media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
 .edit-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }

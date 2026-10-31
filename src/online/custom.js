@@ -2,11 +2,36 @@
 // to, like and see the high scores of -- and the Editor, for the player's own.  The maps are
 // cacmap documents (src/online/cacmap.js), kept on this device: the player's drafts and the
 // maps they have subscribed to (IndexedDB, store()), the subscribed ones played in a skirmish,
-// offline or hosted online, as the game's own are (register()).
+// offline or hosted online, as the game's own are (register()).  The shared ones are the
+// server's (server/src/maps.js): a player there is the author key this device made (authorKey).
 
 import * as C from './cacmap.js';
 import { isClean } from './profanity.js';
 import { PALETTES } from './settings.js';
+
+// The game's own secret (game.js sendScore's), for the server to know a map or a score came from
+// the game: its hash of what is sent.
+const SECRET = '6a8566530d02deedf2beecbd1868d45f068613ca';
+const KEY_NAME = 'caconline.mapkey';
+
+async function sha1(s) {
+  const d = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// This device's author key: who the player is to the maps server (kept here only).
+export function authorKey() {
+  try {
+    let k = localStorage.getItem(KEY_NAME);
+    if (!/^[a-f0-9]{32}$/.test(k || '')) {
+      k = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem(KEY_NAME, k);
+    }
+    return k;
+  } catch (e) {
+    return null;
+  }
+}
 
 function el(tag, attrs, ...kids) {
   const e = document.createElement(tag);
@@ -25,6 +50,7 @@ function el(tag, attrs, ...kids) {
 // Two stores: 'drafts' (the player's, by a local id) and 'maps' (subscribed, by the server's
 // id), each record { id, map, ... }.  Without IndexedDB (a private window), kept in memory.
 const DB_NAME = 'cac-custom';
+const clock = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 export const store = {
   db: null,
   memory: { drafts: new Map(), maps: new Map() },
@@ -75,6 +101,7 @@ const NAMES = { good: 'Astro', evil: 'Alien' };
 const KIND_NAMES = { skirmish: 'Skirmish', story: 'Singleplayer' };
 const ITEM_NAMES = { crate: 'Crate (a unit)', cash: 'Cash crate', gift: 'Present', pizza: 'Pizza' };
 const BEHAVIOUR_NAMES = { still: 'Stands still', roam: 'Wanders', seek: 'Hunts the player' };
+const STATUS_NAMES = { pending: 'Waiting for review', approved: 'Shared', rejected: 'Not accepted' };
 const WIN_NAMES = { all: 'Destroy everything', buildings: 'Destroy every building', hq: 'Destroy the headquarters', infiltrate: 'Infiltrate a building',
   protect: 'Protect something', collect: 'Pick up items', survive: 'Survive' };
 const TOOLS = [
@@ -115,6 +142,7 @@ export class CustomMaps {
     this.revealR = 4;
     this.selected = null;            // { list: 'units' | 'items' | 'reveal' | 'bases', i }
     this.playable = {};              // id -> cacmap: the skirmish maps of this device's, in the map lists
+    this.query = { kind: '', sort: 'new', q: '', page: 0 };   // the Browser's
     this.build();
     this.loadAll();
   }
@@ -193,22 +221,186 @@ export class CustomMaps {
     else await this.renderEditor();
   }
 
-  // ---- the Browser -------------------------------------------------------------------------
-  // (the shared maps come with the server's part: until then, the maps subscribed to)
-  async renderBrowse() {
-    const subs = await store.all('maps');
-    const list = el('div', { class: 'maplist' }, ...subs.map((r) => this.mapCard(r.map, [
-      el('button', { class: 'btn small', onclick: async () => { await store.remove('maps', r.id); this.offer('custom-' + r.id, {}); this.renderBrowse(); } }, 'Unsubscribe')])));
-    this.browseBox.replaceChildren(el('div', { class: 'panel wide' }, el('h2', { text: 'Subscribed' }),
-      el('div', { class: 'body' }, subs.length ? list : el('div', { class: 'note', text: 'Maps you subscribe to are kept on this device, and are in the Skirmish and Online map lists.' }))));
+  // ---- the server ---------------------------------------------------------------------------
+  get root() { return this.ui.net && this.ui.net.root; }
+
+  async api(method, path, body) {
+    if (!this.root) throw new Error('There is no server here.');
+    const r = await fetch(this.root + path, { method, cache: 'no-store', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(out.error || 'The server said no (' + r.status + ').');
+    return out;
   }
 
-  mapCard(map, actions) {
+  // ---- the Browser -------------------------------------------------------------------------
+  // The maps shared (the server's, a page at a time, newest, most liked or most played; the
+  // player's search), the player's subscriptions, and what the player has shared themselves.
+  async renderBrowse() {
+    const subs = await store.all('maps');
+    this.subs = new Map(subs.map((r) => [r.id, r]));
+    const q = this.query;
+    const kind = el('select', { 'aria-label': 'Kind', onchange: (e) => { q.kind = e.target.value; q.page = 0; this.renderShared(); } },
+      ...[['', 'All maps'], ['skirmish', 'Skirmish'], ['story', 'Singleplayer']].map(([v, t]) => el('option', { value: v, text: t, selected: q.kind === v })));
+    const sort = el('select', { 'aria-label': 'Order', onchange: (e) => { q.sort = e.target.value; q.page = 0; this.renderShared(); } },
+      ...[['new', 'Newest'], ['likes', 'Most liked'], ['plays', 'Most played']].map(([v, t]) => el('option', { value: v, text: t, selected: q.sort === v })));
+    const search = el('input', { type: 'search', placeholder: 'Search names and authors', 'aria-label': 'Search', value: q.q, maxlength: 32,
+      onkeydown: (e) => { if (e.key === 'Enter') { q.q = e.target.value.trim(); q.page = 0; this.renderShared(); } } });
+    this.sharedBox = el('div', { class: 'body' });
+    this.mineBox = el('div', { class: 'body' });
+    const subList = subs.length ? el('div', { class: 'maplist' }, ...subs.map((r) => this.mapCard(r.map, [
+      r.map.kind === 'story' ? el('button', { class: 'btn small', onclick: () => this.play(r.map, { server: r.id, version: r.version }) }, 'Play') : null,
+      el('button', { class: 'btn small', onclick: () => this.unsubscribe(r.id) }, 'Unsubscribe')], r.author ? 'by ' + r.author : '')))
+      : el('div', { class: 'note', text: 'Maps you subscribe to are kept on this device: a skirmish map is in the Skirmish and Online map lists, a singleplayer one is played from here.' });
+    this.browseBox.replaceChildren(
+      el('div', { class: 'panel wide' }, el('h2', { text: 'Shared maps' }),
+        el('div', { class: 'body' }, el('div', { class: 'browse-bar' }, kind, sort, search,
+          el('button', { class: 'btn small', onclick: () => { q.q = search.value.trim(); q.page = 0; this.renderShared(); } }, 'Search'))),
+        this.sharedBox),
+      el('div', { class: 'panel wide' }, el('h2', { text: 'Subscribed' }), el('div', { class: 'body' }, subList)),
+      el('div', { class: 'panel wide' }, el('h2', { text: 'Shared by you' }), this.mineBox));
+    this.renderShared();
+    this.renderMine();
+  }
+
+  async renderShared() {
+    const q = this.query;
+    const box = this.sharedBox;
+    box.replaceChildren(el('div', { class: 'note', text: 'Loading…' }));
+    let got;
+    try {
+      got = await this.api('GET', '/maps?kind=' + q.kind + '&sort=' + q.sort + '&page=' + q.page + '&q=' + encodeURIComponent(q.q) + '&key=' + authorKey());
+    } catch (e) {
+      box.replaceChildren(el('div', { class: 'note', text: 'The shared maps could not be loaded (' + e.message + ') -- offline? Your subscribed maps are still here.' }));
+      return;
+    }
+    const pager = el('div', { class: 'actions' },
+      q.page > 0 ? el('button', { class: 'btn small', onclick: () => { q.page--; this.renderShared(); } }, 'Newer') : null,
+      got.more ? el('button', { class: 'btn small', onclick: () => { q.page++; this.renderShared(); } }, 'More') : null);
+    box.replaceChildren(got.maps.length ? el('div', { class: 'maplist' }, ...got.maps.map((m) => this.sharedCard(m))) : el('div', { class: 'note', text: q.q ? 'No map like that.' : 'Nothing shared yet: be the first (the Level editor\'s Share).' }), pager);
+  }
+
+  // A shared map: its picture (the server's), who made it, its likes and plays; subscribe (or
+  // update), like, and a singleplayer map's high scores.
+  sharedCard(m) {
+    const sub = this.subs.get(m.id);
+    const scores = el('div', { class: 'scores' });
+    const like = el('button', { class: 'btn small like' + (m.liked ? ' on' : ''), title: 'Like it', 'aria-pressed': String(!!m.liked), onclick: () => this.like(m, like) }, '\u2665 ' + m.likes);
+    const card = el('div', { class: 'mapcard' },
+      el('img', { class: 'mapthumb', alt: '', loading: 'lazy', src: this.root + '/maps/' + m.id + '/preview.png?v=' + m.version }),
+      el('div', { class: 'meta' }, el('div', { class: 'name nospell', text: m.name }),
+        el('div', { class: 'note nospell', text: 'by ' + m.author }),
+        el('div', { class: 'note', text: KIND_NAMES[m.kind] + ' \u00b7 ' + m.w + '\u00d7' + m.h + (m.kind === 'skirmish' ? ' \u00b7 ' + m.players + ' players' : '') + ' \u00b7 played ' + m.plays + (m.plays === 1 ? ' time' : ' times') }),
+        m.desc ? el('div', { class: 'note nospell', text: m.desc }) : null),
+      el('div', { class: 'actions' },
+        !sub ? el('button', { class: 'btn small', onclick: () => this.subscribe(m) }, 'Subscribe')
+          : sub.version < m.version ? el('button', { class: 'btn small', onclick: () => this.subscribe(m) }, 'Update')
+          : el('button', { class: 'btn small', onclick: () => this.unsubscribe(m.id) }, 'Unsubscribe'),
+        m.kind === 'story' ? el('button', { class: 'btn small', onclick: async () => { const r = await this.subscribe(m, true); if (r) this.play(r.map, { server: m.id, version: r.version }); } }, 'Play') : null,
+        like,
+        m.kind === 'story' ? el('button', { class: 'btn small', onclick: () => this.showScores(m, scores) }, 'High scores') : null),
+      scores);
+    return card;
+  }
+
+  async subscribe(m, quiet) {
+    try {
+      const got = await this.api('GET', '/maps/' + m.id + '?key=' + authorKey());
+      const v = C.validate(got.map);
+      if (!v.ok) throw new Error('it is not a map this game can play');
+      const rec = { id: m.id, map: v.map, version: got.version, author: got.author, updated: Date.now() };
+      await store.put('maps', rec);
+      this.offer('custom-' + m.id, v.map);
+      if (!quiet) {
+        this.ui.toast('"' + v.map.name + '" is on this device' + (v.map.kind === 'skirmish' ? ': it is in the Skirmish and Online map lists.' : '.'));
+        if (v.map.kind === 'skirmish') this.api('POST', '/maps/' + m.id + '/play', { key: authorKey() }).catch(() => {});
+        this.renderBrowse();
+      }
+      return rec;
+    } catch (e) {
+      this.ui.toast('Could not get that map: ' + e.message);
+      return null;
+    }
+  }
+
+  async unsubscribe(id) {
+    await store.remove('maps', id);
+    this.offer('custom-' + id, {});
+    this.renderBrowse();
+  }
+
+  async like(m, button) {
+    const on = button.getAttribute('aria-pressed') !== 'true';
+    try {
+      const r = await this.api('POST', '/maps/' + m.id + '/like', { key: authorKey(), like: on });
+      button.setAttribute('aria-pressed', String(r.liked));
+      button.classList.toggle('on', r.liked);
+      button.textContent = '\u2665 ' + r.likes;
+    } catch (e) {
+      this.ui.toast('Could not like it: ' + e.message);
+    }
+  }
+
+  async showScores(m, box) {
+    if (box.childElementCount) { box.replaceChildren(); return; }
+    try {
+      const { scores } = await this.api('GET', '/maps/' + m.id + '/scores');
+      box.replaceChildren(scores.length ? el('ol', { class: 'scorelist' }, ...scores.map((s) => el('li', {},
+        el('span', { class: 'nospell', text: s.name }), el('span', { text: clock(s.seconds) + ' \u00b7 ' + s.cash.toLocaleString('en') })))) : el('div', { class: 'note', text: 'Nobody has won it yet.' }));
+    } catch (e) {
+      box.replaceChildren(el('div', { class: 'note', text: 'Could not load them: ' + e.message }));
+    }
+  }
+
+  async renderMine() {
+    const box = this.mineBox;
+    let got;
+    try {
+      got = await this.api('GET', '/maps/mine?key=' + authorKey());
+    } catch (e) {
+      box.replaceChildren(el('div', { class: 'note', text: 'Could not load them (' + e.message + ').' }));
+      return;
+    }
+    box.replaceChildren(got.maps.length ? el('div', { class: 'maplist' }, ...got.maps.map((m) => el('div', { class: 'mapcard' },
+      el('img', { class: 'mapthumb', alt: '', loading: 'lazy', src: this.root + '/maps/' + m.id + '/preview.png?v=' + m.version }),
+      el('div', { class: 'meta' }, el('div', { class: 'name nospell', text: m.name }),
+        el('div', { class: 'note' + (m.status === 'rejected' ? ' warn' : ''), text: STATUS_NAMES[m.status] + (m.status === 'approved' ? ' \u00b7 \u2665 ' + m.likes + ' \u00b7 played ' + m.plays : '') })),
+      el('div', { class: 'actions' }, el('button', { class: 'btn small', onclick: async () => {
+        if (!confirm('Take "' + m.name + '" down? Nobody new can get it.')) return;
+        try { await this.api('DELETE', '/maps/' + m.id + '?key=' + authorKey()); } catch (e) { this.ui.toast(e.message); }
+        this.renderMine();
+      } }, 'Take down'))))) : el('div', { class: 'note', text: 'Maps you share (the Level editor\'s Share) are looked at before others can see them.' }));
+  }
+
+  // The draft, shared: checked here as the server will check it, the player asked, then sent
+  // (again: a new version of the one shared before).
+  async share() {
+    const v = C.validate(JSON.parse(JSON.stringify(this.draft.map)));
+    if (!v.ok) { this.ui.toast('Not yet: ' + v.errors.join('; ') + '.'); return; }
+    const name = String(this.ui.settings.name || '').trim();
+    for (const [what, s] of [['map\'s name', v.map.name], ['description', v.map.desc], ['player name (the settings)', name]]) {
+      if (!isClean(s)) { this.ui.toast('Please choose another ' + what + '.'); return; }
+    }
+    const again = this.draft.shared && this.draft.shared.id;
+    if (!confirm((again ? 'Share this new version of "' : 'Share "') + v.map.name + '" as ' + name + '?\n\nIt is looked at before others can see it.')) return;
+    const text = JSON.stringify(v.map);
+    try {
+      const r = await this.api('POST', '/maps', Object.assign({ key: authorKey(), author: name, map: text, sig: await sha1(SECRET + 'SaveMap' + text) }, again ? { id: again } : {}));
+      this.draft.shared = { id: r.id, version: r.version };
+      await this.save();
+      this.renderEditing();
+      this.ui.toast(r.status === 'approved' ? 'Shared: it is in the Browser now.' : 'Sent: it will be in the Browser once it has been looked at.');
+    } catch (e) {
+      this.ui.toast('Not shared: ' + e.message);
+    }
+  }
+
+  mapCard(map, actions, by) {
     const [w, h, px] = C.previewPixels(map, 2);
     const c = el('canvas', { width: w, height: h, class: 'mapthumb' });
     c.getContext('2d').putImageData(new ImageData(px, w, h), 0, 0);
     return el('div', { class: 'mapcard' }, c,
       el('div', { class: 'meta' }, el('div', { class: 'name nospell', text: map.name || 'Untitled' }),
+        by ? el('div', { class: 'note nospell', text: by }) : null,
         el('div', { class: 'note', text: KIND_NAMES[map.kind] + ' · ' + map.w + '×' + map.h + (map.kind === 'skirmish' ? ' · ' + map.bases.length + ' players' : '') }),
         map.desc ? el('div', { class: 'note nospell', text: map.desc }) : null),
       el('div', { class: 'actions' }, ...actions));
@@ -346,6 +538,7 @@ export class CustomMaps {
           el('button', { class: 'btn small', title: 'Zoom in', onclick: () => this.zoom(1.25) }, '+'),
           el('button', { class: 'btn small', title: 'Zoom out', onclick: () => this.zoom(0.8) }, '−'),
           el('button', { class: 'btn small', onclick: () => this.testPlay() }, 'Test play'),
+          el('button', { class: 'btn small', title: 'Share it with everyone (it is looked at first)', onclick: () => this.share() }, this.draft.shared ? 'Share again' : 'Share'),
           el('button', { class: 'btn small', onclick: () => this.exportFile() }, 'Save as file')),
         toolbar, toolOptions,
         el('div', { class: 'edit-canvas' }, this.canvas),
@@ -1009,7 +1202,12 @@ export class CustomMaps {
   testPlay() {
     const v = C.validate(JSON.parse(JSON.stringify(this.draft.map)));
     if (!v.ok) { this.ui.toast('Not yet: ' + v.errors.join('; ') + '.'); return; }
-    const map = v.map;
+    this.play(v.map, {});
+  }
+
+  // A map played from here (tried in the editor, or a shared singleplayer map from the Browser:
+  // server, version -- its win then sent as a high score), and back here after.
+  play(map, { server, version }) {
     const id = 'custom-test';
     register(this.player, id, map);
     const p = this.ui.panel;
@@ -1032,7 +1230,37 @@ export class CustomMaps {
     }
     if (this.ui.hooks.setSpeed) this.ui.hooks.setSpeed(1);
     this.ui.close();
+    // (a singleplayer map's end, from the game -- Level.customEnd: told on coming back here)
+    this.result = null;
+    this.player.online.customEnded = (r) => { this.result = Object.assign({ server, version }, r); };
+    if (server) this.api('POST', '/maps/' + server + '/play', { key: authorKey() }).catch(() => {});
     p.startSkirmish(settings);
+  }
+
+  // Back from playing a map: how a singleplayer one went (a shared one's win, a high score).
+  async returned() {
+    const r = this.result;
+    this.result = null;
+    if (!r) return;
+    const time = clock(r.seconds);
+    if (!r.won) { this.ui.toast('Lost, after ' + time + '.'); return; }
+    let sent = '';
+    if (r.server) {
+      try {
+        await this.api('POST', '/maps/' + r.server + '/score', { key: authorKey(), name: this.ui.settings.name, seconds: r.seconds, cash: r.cash, version: r.version,
+          sig: await sha1(SECRET + 'SaveMapScore' + r.server + r.seconds + '|' + r.cash) });
+        sent = ' Your score is on its table.';
+      } catch (e) {
+        sent = ' (Your score was not saved: ' + e.message + ')';
+      }
+    }
+    this.ui.toast('Won in ' + time + ', with ' + r.cash.toLocaleString('en') + ' left.' + sent);
+  }
+
+  // A subscribed skirmish map played (src/online/ui.js): counted once a player.
+  started(id) {
+    const m = /^custom-([a-z0-9]{10})$/.exec(String(id));
+    if (m && this.subs && this.subs.has(m[1])) this.api('POST', '/maps/' + m[1] + '/play', { key: authorKey() }).catch(() => {});
   }
 
   exportFile() {

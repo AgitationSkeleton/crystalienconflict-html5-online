@@ -44,7 +44,16 @@
 		// port, for testing locally).
 		"ALLOWED_ORIGINS": "https://cac.viosarcade.xyz,https://caconline.viosarcade.xyz,app://game,https://localhost,http://localhost:*,http://127.0.0.1:*",
 		// The game's own score secret (it is in the SWF: game.js sendScore), to check a score's hash.
-		"SCORE_SECRET": "6a8566530d02deedf2beecbd1868d45f068613ca"
+		"SCORE_SECRET": "6a8566530d02deedf2beecbd1868d45f068613ca",
+		// Custom maps' review (src/mapbot.js): the Discord channel the maps are posted to, and the
+		// one person whose reactions and !maps commands there count.  The bot's token is the
+		// DISCORD_BOT_TOKEN secret.
+		"MAPS_CHANNEL": "1553966372801740858",
+		"MAPS_OWNER": "748343958190555217"
+	},
+	// Once a minute: the owner's reactions and commands in that channel.
+	"triggers": {
+		"crons": ["* * * * *"]
 	},
 	// The server's address.  viosarcade.xyz must be a zone on this Cloudflare account; the
 	// address and its certificate are made on the first deploy.

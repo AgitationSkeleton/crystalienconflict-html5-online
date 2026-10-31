@@ -271,6 +271,7 @@ export class OnlineUI {
       if (this.custom && this.custom.testing) {
         this.custom.testing = false;
         this.open('custom');
+        this.custom.returned();
         return;
       }
       if (screen === 'lobby' && this.net && this.net.code) {
@@ -791,6 +792,7 @@ export class OnlineUI {
     saveSettings(this.settings);
     if (this.hooks.setSpeed) this.hooks.setSpeed(m.speed);
     this.close();
+    if (this.custom) this.custom.started(settings.map);
     p.startSkirmish(settings);
   }
 
@@ -1325,6 +1327,7 @@ export class OnlineUI {
         const p = this.panel;
         if (p && p.game) p.skirmishOver();
         this.close();
+        if (this.custom) this.custom.started(settings.map);
         if (p && p.startSkirmish) p.startSkirmish(settings);
       },
       desync: (n) => this.toast('This game has gone out of step with the others (turn ' + n + '), which should not happen. Please report it (the notice in the corner has a report to copy).'),

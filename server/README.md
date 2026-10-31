@@ -8,6 +8,8 @@ One Cloudflare Worker for both of the port's sites:
 - **Match rooms** (`/rooms/...`): a Durable Object for each game, holding its lobby and relaying
   its match between the players' browsers over WebSockets (deterministic lockstep; see
   `src/room.js`).
+- **Custom maps** (`/maps/...`): maps players share from the game's Level editor, kept in D1 and
+  looked at by the owner in Discord before anyone else sees them (`src/maps.js`, `src/mapbot.js`).
 
 Its address is **https://cacserver.viosarcade.xyz**; both sites use it by default
 (`src/hiscore.js` and `src/online/net.js`; `?server=URL` on a page points it at another).
@@ -30,6 +32,7 @@ it for you, it adds a second binding instead: keep the one called `DB`), then:
 npm run db:init                          # makes the scores table in the database
 npx wrangler secret put ADMIN_KEY        # the NAME is ADMIN_KEY; it then asks for the password
 npx wrangler secret put DISCORD_WEBHOOK  # optional: a Discord channel's webhook, for the log below
+npx wrangler secret put DISCORD_BOT_TOKEN  # the bot that posts custom maps for review (below)
 npm run deploy
 ```
 
@@ -68,6 +71,44 @@ curl -H "Authorization: Bearer YOUR_ADMIN_KEY" "https://cacserver.viosarcade.xyz
 curl -X DELETE -H "Authorization: Bearer YOUR_ADMIN_KEY" https://cacserver.viosarcade.xyz/hiscore/scores/ID
 ```
 
+## Custom maps
+
+A map is data only (`src/online/cacmap.js`, which the game and the server share): the server
+keeps what `validate()` keeps, the game checks it again when it downloads it, and every query is a
+prepared statement. Names and descriptions go through the profanity filter and are refused if
+they hold anything. A player is an author key their game made at random; the server keeps only
+its hash (and addresses only hashed).
+
+- `GET /maps?kind=&sort=new|likes|plays&q=&page=`: approved maps, 24 a page.
+- `GET /maps/ID`, `GET /maps/ID/preview.png`, `GET /maps/ID/scores`, `GET /maps/mine?key=`.
+- `POST /maps`: share a map (or a new version of one's own); `DELETE /maps/ID?key=` takes it down.
+- `POST /maps/ID/like`, `POST /maps/ID/play`, `POST /maps/ID/score` (a singleplayer map's: the
+  quickest win, then the most money left; a new version starts its table again).
+
+**Review.** Each map shared is posted, with its picture, to the channel `MAPS_CHANNEL`
+(`wrangler.jsonc`) by the bot whose token is the `DISCORD_BOT_TOKEN` secret (Alien Commander's:
+only its REST API is used, so the bot's own program is not touched). The owner, `MAPS_OWNER`,
+reacts on the post: ✅ approve, ❌ reject (or take an approved one down), 🔨 reject and ban its
+author (and the address it came from). Or types in that channel:
+
+```
+!maps help | status | pending
+!maps approve ID | reject ID | remove ID
+!maps ban ID|AUTHOR | unban AUTHOR | bans
+!maps autoapprove on|off       maps go up without waiting
+!maps uploads on|off           sharing open or closed
+!maps limit N|off              maps a player may share a day (an address: three times that); 5 to begin with
+```
+
+Nobody else's reactions or commands count. The Worker looks at the channel once a minute (its
+cron trigger), so a decision takes up to a minute. Without the token nothing is posted, and maps
+can still be reviewed with the `ADMIN_KEY`:
+
+```
+curl -H "Authorization: Bearer YOUR_ADMIN_KEY" https://cacserver.viosarcade.xyz/maps/admin/pending
+curl -X POST -H "Authorization: Bearer YOUR_ADMIN_KEY" -d "{\"action\":\"approve\"}" https://cacserver.viosarcade.xyz/maps/admin/ID
+```
+
 ## Online games
 
 - `GET /lobbies`: every listed game (public or with a password).
@@ -85,6 +126,7 @@ npm install
 npm run db:init:local
 npm run dev                              # http://127.0.0.1:8787
 npm test                                 # the rooms' protocol and the scores, against it
+node test/maps.mjs                       # custom maps, against it (SERVER=... for another port)
 ```
 
 Open a site with `?server=http://127.0.0.1:8787` to use it; `tools/verify/online.py` in the
