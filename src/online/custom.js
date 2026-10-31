@@ -8,6 +8,7 @@
 import * as C from './cacmap.js';
 import { isClean } from './profanity.js';
 import { PALETTES } from './settings.js';
+import { MapArt, CELL_W, ITEM_TYPES } from './mapart.js';
 
 // The game's own secret (game.js sendScore's), for the server to know a map or a score came from
 // the game: its hash of what is sent.
@@ -117,6 +118,7 @@ const TOOLS = [
 // outline only, as thick as the brush), or the whole patch of the same ground (fill).
 const SHAPES = [['free', 'Brush'], ['line', 'Line'], ['rect', 'Square'], ['ellipse', 'Circle'], ['fill', 'Fill']];
 const PAINTS = ['open', 'rock', 'pool', 'crystal', 'tile'];
+const KIND_SWATCH = { open: '#c45d2e', rock: '#60341e', pool: '#7ec428', crystal: '#78e65a' };
 const BASE_COLOURS = ['#ff8c00', '#3c78ff', '#e62828', '#a03ce6', '#28c8dc', '#fadc28'];
 const KIND_COLOURS = { 0: null, 1: 'rock', 2: 'pool', 3: 'crystal' };
 
@@ -142,7 +144,8 @@ export class CustomMaps {
     this.revealR = 4;
     this.selected = null;            // { list: 'units' | 'items' | 'reveal' | 'bases', i }
     this.playable = {};              // id -> cacmap: the skirmish maps of this device's, in the map lists
-    this.query = { kind: '', sort: 'new', q: '', page: 0 };   // the Browser's
+    this.art = new MapArt(ui.player); // the game's own pictures of everything on the map
+    this.query = { kind: 'skirmish', sort: 'new', q: '', page: 0 };   // the Browser's (kind: its category)
     this.build();
     this.loadAll();
   }
@@ -233,28 +236,33 @@ export class CustomMaps {
   }
 
   // ---- the Browser -------------------------------------------------------------------------
-  // The maps shared (the server's, a page at a time, newest, most liked or most played; the
-  // player's search), the player's subscriptions, and what the player has shared themselves.
+  // Two categories, skirmish and singleplayer maps, each with the maps shared (the server's, a
+  // page at a time, newest, most liked or most played; the player's search), the player's
+  // subscriptions, and what the player has shared themselves.
   async renderBrowse() {
-    const subs = await store.all('maps');
-    this.subs = new Map(subs.map((r) => [r.id, r]));
     const q = this.query;
-    const kind = el('select', { 'aria-label': 'Kind', onchange: (e) => { q.kind = e.target.value; q.page = 0; this.renderShared(); } },
-      ...[['', 'All maps'], ['skirmish', 'Skirmish'], ['story', 'Singleplayer']].map(([v, t]) => el('option', { value: v, text: t, selected: q.kind === v })));
+    const subs = (await store.all('maps'));
+    this.subs = new Map(subs.map((r) => [r.id, r]));
+    const mine = subs.filter((r) => r.map.kind === q.kind);
+    const kind = el('div', { class: 'categories', role: 'tablist', 'aria-label': 'Category' },
+      ...[['skirmish', 'Skirmish maps'], ['story', 'Singleplayer maps']].map(([v, t]) => el('button', { class: 'category' + (q.kind === v ? ' on' : ''), role: 'tab',
+        'aria-selected': String(q.kind === v), onclick: () => { if (q.kind === v) return; q.kind = v; q.page = 0; this.renderBrowse(); } },
+        t)));
     const sort = el('select', { 'aria-label': 'Order', onchange: (e) => { q.sort = e.target.value; q.page = 0; this.renderShared(); } },
       ...[['new', 'Newest'], ['likes', 'Most liked'], ['plays', 'Most played']].map(([v, t]) => el('option', { value: v, text: t, selected: q.sort === v })));
     const search = el('input', { type: 'search', placeholder: 'Search names and authors', 'aria-label': 'Search', value: q.q, maxlength: 32,
       onkeydown: (e) => { if (e.key === 'Enter') { q.q = e.target.value.trim(); q.page = 0; this.renderShared(); } } });
     this.sharedBox = el('div', { class: 'body' });
     this.mineBox = el('div', { class: 'body' });
-    const subList = subs.length ? el('div', { class: 'maplist' }, ...subs.map((r) => this.mapCard(r.map, [
-      r.map.kind === 'story' ? el('button', { class: 'btn small', onclick: () => this.play(r.map, { server: r.id, version: r.version }) }, 'Play') : null,
-      el('button', { class: 'btn small', onclick: () => this.unsubscribe(r.id) }, 'Unsubscribe')], r.author ? 'by ' + r.author : '')))
-      : el('div', { class: 'note', text: 'Maps you subscribe to are kept on this device: a skirmish map is in the Skirmish and Online map lists, a singleplayer one is played from here.' });
-    this.browseBox.replaceChildren(
-      el('div', { class: 'panel wide' }, el('h2', { text: 'Shared maps' }),
-        el('div', { class: 'body' }, el('div', { class: 'browse-bar' }, kind, sort, search,
-          el('button', { class: 'btn small', onclick: () => { q.q = search.value.trim(); q.page = 0; this.renderShared(); } }, 'Search'))),
+    const subList = mine.length ? el('div', { class: 'maplist' }, ...mine.map((r) => this.mapCard(r.map, [
+      r.map.kind === 'story' ? el('button', { class: 'chip primary', onclick: () => this.play(r.map, { server: r.id, version: r.version }) }, '\u25B6 Play') : null,
+      el('button', { class: 'chip', onclick: () => this.unsubscribe(r.id) }, 'Unsubscribe')], r.author ? 'by ' + r.author : '')))
+      : el('div', { class: 'note', text: q.kind === 'skirmish' ? 'Skirmish maps you subscribe to are kept on this device, in the Skirmish and Online map lists.'
+        : 'Singleplayer maps you subscribe to are kept on this device, and played from here.' });
+    this.browseBox.replaceChildren(kind,
+      el('div', { class: 'panel wide' }, el('h2', { text: q.kind === 'skirmish' ? 'Shared skirmish maps' : 'Shared singleplayer maps' }),
+        el('div', { class: 'body' }, el('div', { class: 'browse-bar' }, sort, search,
+          el('button', { class: 'chip', onclick: () => { q.q = search.value.trim(); q.page = 0; this.renderShared(); } }, 'Search'))),
         this.sharedBox),
       el('div', { class: 'panel wide' }, el('h2', { text: 'Subscribed' }), el('div', { class: 'body' }, subList)),
       el('div', { class: 'panel wide' }, el('h2', { text: 'Shared by you' }), this.mineBox));
@@ -273,9 +281,9 @@ export class CustomMaps {
       box.replaceChildren(el('div', { class: 'note', text: 'The shared maps could not be loaded (' + e.message + ') -- offline? Your subscribed maps are still here.' }));
       return;
     }
-    const pager = el('div', { class: 'actions' },
-      q.page > 0 ? el('button', { class: 'btn small', onclick: () => { q.page--; this.renderShared(); } }, 'Newer') : null,
-      got.more ? el('button', { class: 'btn small', onclick: () => { q.page++; this.renderShared(); } }, 'More') : null);
+    const pager = el('div', { class: 'row' },
+      q.page > 0 ? el('button', { class: 'chip', onclick: () => { q.page--; this.renderShared(); } }, 'Newer') : null,
+      got.more ? el('button', { class: 'chip', onclick: () => { q.page++; this.renderShared(); } }, 'More') : null);
     box.replaceChildren(got.maps.length ? el('div', { class: 'maplist' }, ...got.maps.map((m) => this.sharedCard(m))) : el('div', { class: 'note', text: q.q ? 'No map like that.' : 'Nothing shared yet: be the first (the Level editor\'s Share).' }), pager);
   }
 
@@ -284,20 +292,20 @@ export class CustomMaps {
   sharedCard(m) {
     const sub = this.subs.get(m.id);
     const scores = el('div', { class: 'scores' });
-    const like = el('button', { class: 'btn small like' + (m.liked ? ' on' : ''), title: 'Like it', 'aria-pressed': String(!!m.liked), onclick: () => this.like(m, like) }, '\u2665 ' + m.likes);
+    const like = el('button', { class: 'chip like' + (m.liked ? ' on' : ''), title: 'Like it', 'aria-pressed': String(!!m.liked), onclick: () => this.like(m, like) }, '\u2665 ' + m.likes);
     const card = el('div', { class: 'mapcard' },
       el('img', { class: 'mapthumb', alt: '', loading: 'lazy', src: this.root + '/maps/' + m.id + '/preview.png?v=' + m.version }),
       el('div', { class: 'meta' }, el('div', { class: 'name nospell', text: m.name }),
         el('div', { class: 'note nospell', text: 'by ' + m.author }),
         el('div', { class: 'note', text: KIND_NAMES[m.kind] + ' \u00b7 ' + m.w + '\u00d7' + m.h + (m.kind === 'skirmish' ? ' \u00b7 ' + m.players + ' players' : '') + ' \u00b7 played ' + m.plays + (m.plays === 1 ? ' time' : ' times') }),
         m.desc ? el('div', { class: 'note nospell', text: m.desc }) : null),
-      el('div', { class: 'actions' },
-        !sub ? el('button', { class: 'btn small', onclick: () => this.subscribe(m) }, 'Subscribe')
-          : sub.version < m.version ? el('button', { class: 'btn small', onclick: () => this.subscribe(m) }, 'Update')
-          : el('button', { class: 'btn small', onclick: () => this.unsubscribe(m.id) }, 'Unsubscribe'),
-        m.kind === 'story' ? el('button', { class: 'btn small', onclick: async () => { const r = await this.subscribe(m, true); if (r) this.play(r.map, { server: m.id, version: r.version }); } }, 'Play') : null,
+      el('div', { class: 'row' },
+        !sub ? el('button', { class: 'chip primary', onclick: () => this.subscribe(m) }, 'Subscribe')
+          : sub.version < m.version ? el('button', { class: 'chip primary', onclick: () => this.subscribe(m) }, 'Update')
+          : el('button', { class: 'chip', onclick: () => this.unsubscribe(m.id) }, 'Unsubscribe'),
+        m.kind === 'story' ? el('button', { class: 'chip primary', onclick: async () => { const r = await this.subscribe(m, true); if (r) this.play(r.map, { server: m.id, version: r.version }); } }, '\u25B6 Play') : null,
         like,
-        m.kind === 'story' ? el('button', { class: 'btn small', onclick: () => this.showScores(m, scores) }, 'High scores') : null),
+        m.kind === 'story' ? el('button', { class: 'chip', onclick: () => this.showScores(m, scores) }, 'High scores') : null),
       scores);
     return card;
   }
@@ -360,11 +368,12 @@ export class CustomMaps {
       box.replaceChildren(el('div', { class: 'note', text: 'Could not load them (' + e.message + ').' }));
       return;
     }
-    box.replaceChildren(got.maps.length ? el('div', { class: 'maplist' }, ...got.maps.map((m) => el('div', { class: 'mapcard' },
+    const maps = got.maps.filter((m) => m.kind === this.query.kind);
+    box.replaceChildren(maps.length ? el('div', { class: 'maplist' }, ...maps.map((m) => el('div', { class: 'mapcard' },
       el('img', { class: 'mapthumb', alt: '', loading: 'lazy', src: this.root + '/maps/' + m.id + '/preview.png?v=' + m.version }),
       el('div', { class: 'meta' }, el('div', { class: 'name nospell', text: m.name }),
         el('div', { class: 'note' + (m.status === 'rejected' ? ' warn' : ''), text: STATUS_NAMES[m.status] + (m.status === 'approved' ? ' \u00b7 \u2665 ' + m.likes + ' \u00b7 played ' + m.plays : '') })),
-      el('div', { class: 'actions' }, el('button', { class: 'btn small', onclick: async () => {
+      el('div', { class: 'row' }, el('button', { class: 'chip danger', onclick: async () => {
         if (!confirm('Take "' + m.name + '" down? Nobody new can get it.')) return;
         try { await this.api('DELETE', '/maps/' + m.id + '?key=' + authorKey()); } catch (e) { this.ui.toast(e.message); }
         this.renderMine();
@@ -395,15 +404,13 @@ export class CustomMaps {
   }
 
   mapCard(map, actions, by) {
-    const [w, h, px] = C.previewPixels(map, 2);
-    const c = el('canvas', { width: w, height: h, class: 'mapthumb' });
-    c.getContext('2d').putImageData(new ImageData(px, w, h), 0, 0);
+    const c = this.thumbnail(map);
     return el('div', { class: 'mapcard' }, c,
       el('div', { class: 'meta' }, el('div', { class: 'name nospell', text: map.name || 'Untitled' }),
         by ? el('div', { class: 'note nospell', text: by }) : null,
         el('div', { class: 'note', text: KIND_NAMES[map.kind] + ' · ' + map.w + '×' + map.h + (map.kind === 'skirmish' ? ' · ' + map.bases.length + ' players' : '') }),
         map.desc ? el('div', { class: 'note nospell', text: map.desc }) : null),
-      el('div', { class: 'actions' }, ...actions));
+      el('div', { class: 'row' }, ...actions));
   }
 
   // ---- the Editor ---------------------------------------------------------------------------
@@ -416,7 +423,7 @@ export class CustomMaps {
   async renderDrafts() {
     const drafts = (await store.all('drafts')).sort((a, b) => (b.updated || 0) - (a.updated || 0));
     const from = el('select', { 'aria-label': 'Start from' },
-      el('option', { value: '', text: 'Start from a map of the game\'s…' }),
+      el('option', { value: '', text: 'Nothing: a blank map' }),
       el('optgroup', { label: 'Skirmish maps' }, ...this.ui.maps().filter((m) => m.source !== 'custom').map((m) => el('option', { value: 'skirmish:' + m.id, text: m.name }))),
       el('optgroup', { label: 'The story\'s levels' }, ...this.storyLevels().map((n) => el('option', { value: 'story:' + n, text: 'Level ' + n }))));
     const size = el('select', { 'aria-label': 'Size' }, ...[[24, 'Small (24×24)'], [40, 'Medium (40×40)'], [64, 'Large (64×64)'], [96, 'Huge (96×96)']]
@@ -443,17 +450,18 @@ export class CustomMaps {
       }
     } });
     this.editBox.replaceChildren(
-      el('div', { class: 'panel wide' }, el('h2', { text: 'New map' }), el('div', { class: 'body' },
-        el('div', { class: 'form' }, el('label', { text: 'Size' }), size, el('label', { text: 'Or' }), from),
-        el('div', { class: 'actions' },
-          el('button', { class: 'btn small', onclick: () => make('skirmish') }, 'New skirmish map'),
-          el('button', { class: 'btn small', onclick: () => make('story') }, 'New singleplayer map'),
-          el('button', { class: 'btn small', onclick: () => file.click() }, 'Open a file…'), file))),
+      el('div', { class: 'panel wide' }, el('h2', { text: 'New map' }), el('div', { class: 'body newmap' },
+        el('div', { class: 'field' }, el('label', { text: 'Blank, this size' }), size),
+        el('div', { class: 'field' }, el('label', { text: 'Or a copy of' }), from),
+        el('div', { class: 'row' },
+          el('button', { class: 'chip primary', onclick: () => make('skirmish') }, '+ Skirmish map'),
+          el('button', { class: 'chip primary', onclick: () => make('story') }, '+ Singleplayer map'),
+          el('button', { class: 'chip', onclick: () => file.click() }, 'Open a file\u2026'), file))),
       el('div', { class: 'panel wide' }, el('h2', { text: 'Your maps' }), el('div', { class: 'body' },
         drafts.length ? el('div', { class: 'maplist' }, ...drafts.map((d) => this.mapCard(d.map, [
-          el('button', { class: 'btn small', onclick: () => this.edit(d) }, 'Edit'),
-          el('button', { class: 'btn small', onclick: () => this.edit({ id: 'd' + Date.now().toString(36), map: JSON.parse(JSON.stringify(Object.assign({}, d.map, { name: (d.map.name + ' copy').slice(0, C.LIMITS.name) }))), updated: Date.now() }) }, 'Copy'),
-          el('button', { class: 'btn small', onclick: async () => { if (confirm('Delete "' + (d.map.name || 'Untitled') + '"?')) { await store.remove('drafts', d.id); this.offer('custom-' + d.id, {}); this.renderDrafts(); } } }, 'Delete')])))
+          el('button', { class: 'chip primary', onclick: () => this.edit(d) }, 'Edit'),
+          el('button', { class: 'chip', onclick: () => this.edit({ id: 'd' + Date.now().toString(36), map: JSON.parse(JSON.stringify(Object.assign({}, d.map, { name: (d.map.name + ' copy').slice(0, C.LIMITS.name) }))), updated: Date.now() }) }, 'Copy'),
+          el('button', { class: 'chip danger', onclick: async () => { if (confirm('Delete "' + (d.map.name || 'Untitled') + '"?')) { await store.remove('drafts', d.id); this.offer('custom-' + d.id, {}); this.renderDrafts(); } } }, 'Delete')])))
           : el('div', { class: 'note', text: 'Maps you make are kept on this device.' }))));
   }
 
@@ -478,7 +486,9 @@ export class CustomMaps {
     this.undo = [];
     this.redo = [];
     this.selected = null;
-    this.tool = draft.map.kind === 'skirmish' ? 'rock' : 'rock';
+    this.area = null;
+    this.pasting = false;
+    this.tool = 'rock';
     this.fitPending = true;           // (the whole map in view, once the canvas has its size: draw)
     this.view.x = 0;
     this.view.y = 0;
@@ -519,30 +529,41 @@ export class CustomMaps {
     const map = this.draft.map;
     this.canvas = el('canvas', { class: 'editmap', tabindex: 0, 'aria-label': 'The map' });
     this.wireCanvas();
-    const toolbar = el('div', { class: 'tools' }, ...TOOLS.filter(([k]) => this.toolFits(k)).map(([k, name, title]) =>
-      el('button', { class: 'tool' + (this.tool === k ? ' on' : ''), title, onclick: () => { this.tool = k; this.renderEditing(); } }, name)));
-    const brush = el('select', { 'aria-label': 'Brush size', onchange: (e) => { this.brush = Number(e.target.value); } },
-      ...[1, 2, 3, 5, 8].map((n) => el('option', { value: n, text: n + '×' + n, selected: n === this.brush })));
+    // (the tools in groups: picking, the ground, and what goes on it)
+    const tool = ([k, name, title]) => el('button', { class: 'tool' + (this.tool === k ? ' on' : ''), title, onclick: () => { this.tool = k; this.renderEditing(); } },
+      KIND_SWATCH[k] ? el('span', { class: 'swatch', style: 'background:' + KIND_SWATCH[k] }) : null, name);
+    const group = (label, keys) => {
+      const tools = TOOLS.filter(([k]) => keys.includes(k) && this.toolFits(k));
+      return tools.length ? el('div', { class: 'toolgroup' }, el('span', { class: 'grouplabel', text: label }), el('div', { class: 'seg' }, ...tools.map(tool))) : null;
+    };
+    const toolbar = el('div', { class: 'tools' }, group('Pick', ['select', 'area']), group('Terrain', ['open', 'rock', 'pool', 'crystal', 'tile']),
+      group('Place', ['base', 'thing', 'item', 'reveal']));
+    const brush = el('div', { class: 'seg', role: 'group', 'aria-label': 'Brush size' }, ...[1, 2, 3, 5, 8].map((n) => el('button', { class: 'tool' + (n === this.brush ? ' on' : ''),
+      title: n + ' by ' + n + ' cells', onclick: () => { this.brush = n; this.renderEditing(); } }, String(n))));
     const toolOptions = this.toolOptions(brush);
     this.side = el('div', { class: 'edit-side' });
     this.checks = el('div', { class: 'checks' });
     this.editBox.replaceChildren(el('div', { class: 'editor' },
       el('div', { class: 'edit-main' },
         el('div', { class: 'edit-bar' },
-          el('button', { class: 'btn small', onclick: async () => { await this.save(); this.draft = null; this.renderDrafts(); } }, 'Your maps'),
-          el('button', { class: 'btn small', title: 'Undo (Ctrl+Z)', onclick: () => this.back(this.undo, this.redo) }, 'Undo'),
-          el('button', { class: 'btn small', title: 'Redo (Ctrl+Y)', onclick: () => this.back(this.redo, this.undo) }, 'Redo'),
-          el('button', { class: 'btn small', title: 'Copy the area (Ctrl+C)', onclick: () => this.copyArea(false) }, 'Copy'),
-          el('button', { class: 'btn small', title: 'Cut the area (Ctrl+X)', onclick: () => this.copyArea(true) }, 'Cut'),
-          el('button', { class: 'btn small', title: 'Paste where you click next (Ctrl+V)', onclick: () => this.startPaste() }, 'Paste'),
-          el('button', { class: 'btn small', title: 'Zoom in', onclick: () => this.zoom(1.25) }, '+'),
-          el('button', { class: 'btn small', title: 'Zoom out', onclick: () => this.zoom(0.8) }, '−'),
-          el('button', { class: 'btn small', onclick: () => this.testPlay() }, 'Test play'),
-          el('button', { class: 'btn small', title: 'Share it with everyone (it is looked at first)', onclick: () => this.share() }, this.draft.shared ? 'Share again' : 'Share'),
-          el('button', { class: 'btn small', onclick: () => this.exportFile() }, 'Save as file')),
+          el('button', { class: 'chip', title: 'Back to your maps (it is kept as it is)', onclick: async () => { await this.save(); this.draft = null; this.renderDrafts(); } }, '\u2039 Your maps'),
+          el('div', { class: 'seg' },
+            el('button', { class: 'tool', title: 'Undo (Ctrl+Z)', onclick: () => this.back(this.undo, this.redo) }, '\u21B6 Undo'),
+            el('button', { class: 'tool', title: 'Redo (Ctrl+Y)', onclick: () => this.back(this.redo, this.undo) }, 'Redo \u21B7')),
+          el('div', { class: 'seg' },
+            el('button', { class: 'tool', title: 'Copy the area (Ctrl+C)', onclick: () => this.copyArea(false) }, 'Copy'),
+            el('button', { class: 'tool', title: 'Cut the area (Ctrl+X)', onclick: () => this.copyArea(true) }, 'Cut'),
+            el('button', { class: 'tool', title: 'Paste where you click next (Ctrl+V)', onclick: () => this.startPaste() }, 'Paste')),
+          el('div', { class: 'seg' },
+            el('button', { class: 'tool', title: 'Zoom out (\u2212)', 'aria-label': 'Zoom out', onclick: () => this.zoom(0.8) }, '\u2212'),
+            el('button', { class: 'tool', title: 'Zoom in (+)', 'aria-label': 'Zoom in', onclick: () => this.zoom(1.25) }, '+')),
+          el('div', { class: 'spacer' }),
+          el('button', { class: 'chip', title: 'Save it as a file, to keep or send', onclick: () => this.exportFile() }, 'Save as file'),
+          el('button', { class: 'chip', title: 'Share it with everyone (it is looked at first)', onclick: () => this.share() }, this.draft.shared ? 'Share again' : 'Share'),
+          el('button', { class: 'chip primary', onclick: () => this.testPlay() }, '\u25B6 Test play')),
         toolbar, toolOptions,
         el('div', { class: 'edit-canvas' }, this.canvas),
-        el('div', { class: 'note', text: 'Draw with the mouse or a finger; move the map with the right mouse button, two fingers or the arrow keys; zoom with the wheel, a pinch or + and −.' })),
+        el('div', { class: 'hint', text: 'Draw with the mouse or a finger. Move the map with the right mouse button, two fingers or the arrow keys; zoom with the wheel, a pinch, or + and \u2212.' })),
       this.side));
     this.renderSide();
     // (drawn now, so that the canvas has its size for the next press, and again once laid out)
@@ -562,16 +583,28 @@ export class CustomMaps {
   toolOptions(brush) {
     const t = this.tool;
     const row = (...kids) => el('div', { class: 'tool-options' }, ...kids);
-    const shapes = el('div', { class: 'shapes' }, ...SHAPES.map(([k, name]) => el('button', { class: 'tool' + (this.shape === k ? ' on' : ''),
+    const shapes = el('div', { class: 'seg' }, ...SHAPES.map(([k, name]) => el('button', { class: 'tool' + (this.shape === k ? ' on' : ''),
       title: k === 'rect' || k === 'ellipse' ? name + ' (Shift: just its outline)' : name, onclick: () => { this.shape = k; this.renderEditing(); } }, name)));
-    if (['open', 'rock', 'pool', 'crystal'].includes(t)) return row(shapes, el('label', { text: 'Size' }), brush);
+    if (['open', 'rock', 'pool', 'crystal'].includes(t)) return row(el('label', { text: 'Shape' }), shapes, el('label', { text: 'Brush' }), brush);
     if (t === 'tile') {
       const pick = el('div', { class: 'tilepick' }, ...Array.from({ length: C.TILE_COUNT }, (_, id) => {
         const k = C.kindOf(id);
-        return el('button', { class: 'tilebtn k' + k + (id === this.tileId ? ' on' : ''), title: 'Piece ' + id + ' (' + ['open', 'rock', 'water', 'crystals'][k] + ')',
-          onclick: () => { this.tileId = id; this.renderEditing(); } }, String(id));
+        const btn = el('button', { class: 'tilebtn k' + k + (id === this.tileId ? ' on' : ''), title: 'Piece ' + id + ' (' + ['open', 'rock', 'water', 'crystals'][k] + ')',
+          onclick: () => { this.tileId = id; this.renderEditing(); } });
+        // (the piece itself, as the game draws it, in the map's palette)
+        const t = this.art.ready() ? this.art.tile(id, this.draft.map.palette) : null;
+        const ground = this.art.ready() ? this.art.ground(this.draft.map.palette) : null;
+        if (ground || t) {
+          const c = el('canvas', { width: 48, height: 24 });
+          const g = c.getContext('2d');
+          if (ground) g.drawImage(ground, 0, 0, 96, 48, 0, 0, 48, 24);
+          if (t) g.drawImage(t.c, -t.ox / 2, -t.oy / 2, t.c.width / 2, t.c.height / 2);
+          btn.append(c);
+          btn.classList.add('art');
+        } else btn.textContent = String(id);
+        return btn;
       }));
-      return el('div', {}, row(shapes), row(el('label', { text: 'Piece' }), pick));
+      return el('div', {}, row(el('label', { text: 'Shape' }), shapes), row(el('label', { text: 'Piece' }), pick));
     }
     if (t === 'thing') {
       const types = el('select', { 'aria-label': 'What', onchange: (e) => { this.thingType = e.target.value; } },
@@ -593,7 +626,7 @@ export class CustomMaps {
       return row(el('label', { text: 'Radius' }), el('select', { 'aria-label': 'Radius', onchange: (e) => { this.revealR = Number(e.target.value); } },
         ...[2, 3, 4, 6, 8, 12].map((n) => el('option', { value: n, text: n + ' cells', selected: n === this.revealR }))));
     }
-    return row(el('span', { class: 'note', text: (TOOLS.find(([k]) => k === t) || [])[2] || '' }));
+    return row(el('span', { class: 'hint', text: (TOOLS.find(([k]) => k === t) || [])[2] || '' }));
   }
 
   title(type) {
@@ -623,7 +656,7 @@ export class CustomMaps {
     const h = el('input', { type: 'number', min: C.MIN_SIZE, max: C.MAX_SIZE, value: map.h, 'aria-label': 'Height' });
     const anchor = el('select', { 'aria-label': 'Keep in place' },
       ...[['0,0', 'Top left'], ['0.5,0.5', 'Middle'], ['1,1', 'Bottom right']].map(([v, t]) => el('option', { value: v, text: t })));
-    const resize = el('button', { class: 'btn small', onclick: () => {
+    const resize = el('button', { class: 'chip', onclick: () => {
       const nw = Math.max(C.MIN_SIZE, Math.min(C.MAX_SIZE, Number(w.value) || map.w)), nh = Math.max(C.MIN_SIZE, Math.min(C.MAX_SIZE, Number(h.value) || map.h));
       const [ax, ay] = anchor.value.split(',').map(Number);
       this.snapshot();
@@ -631,16 +664,16 @@ export class CustomMaps {
       this.changed();
       this.renderSide();
     } }, 'Resize');
-    const mirror = (how) => el('button', { class: 'btn small', onclick: () => { this.snapshot(); this.mirror(how); this.changed(); this.renderSide(); } },
-      { lr: 'Mirror left to right', tb: 'Mirror top to bottom', rot: 'Copy turned (half turn)' }[how]);
+    const mirror = (how) => el('button', { class: 'tool', title: { lr: 'The left half copied onto the right, mirrored', tb: 'The top half copied onto the bottom, mirrored',
+      rot: 'The top half copied onto the bottom, turned half round (fair for two players)' }[how], onclick: () => { this.snapshot(); this.mirror(how); this.changed(); this.renderSide(); } },
+      { lr: '\u21C6 Mirror', tb: '\u21C5 Mirror', rot: '\u21BB Turn' }[how]);
     const parts = [
       el('div', { class: 'panel' }, el('h2', { text: 'Map' }), el('div', { class: 'body form' },
         el('label', { text: 'Name' }), name, el('label', { text: 'Description' }), desc,
         el('label', { text: 'Kind' }), el('div', { text: KIND_NAMES[map.kind] }),
         el('label', { text: 'Palette' }), palette, el('label', { text: 'Music' }), music,
-        el('label', { text: 'Size' }), el('div', { class: 'sizes' }, w, '×', h), el('label', { text: 'Keep in place' }), anchor,
-        el('div', { class: 'wide actions' }, resize),
-        el('div', { class: 'wide actions' }, mirror('lr'), mirror('tb'), mirror('rot')))),
+        el('label', { text: 'Size' }), el('div', { class: 'sizes' }, w, '\u00D7', h), el('label', { text: 'Grow from' }), el('div', { class: 'sizes' }, anchor, resize),
+        el('label', { text: 'Symmetry' }), el('div', { class: 'seg' }, mirror('lr'), mirror('tb'), mirror('rot')))),
     ];
     if (map.kind === 'story') parts.push(this.storyPanel(set));
     parts.push(this.selectedPanel(set));
@@ -687,7 +720,7 @@ export class CustomMaps {
     const list = sel.list === 'bases' ? map.bases : map.story[sel.list];
     const it = list[sel.i];
     if (!it) { this.selected = null; body.append(el('div', { class: 'wide note', text: 'Pick something on the map with Select.' })); return box; }
-    const remove = el('button', { class: 'btn small', onclick: () => { this.removeSelected(); } }, 'Delete');
+    const remove = el('button', { class: 'chip danger', onclick: () => { this.removeSelected(); } }, 'Delete');
     if (sel.list === 'bases') body.append(el('label', { text: 'Base' }), el('div', { text: String(sel.i + 1) + ' at ' + it.x + ',' + it.y }));
     if (sel.list === 'units') {
       const s = map.story;
@@ -703,8 +736,8 @@ export class CustomMaps {
           ...C.BEHAVIOURS.map((b) => el('option', { value: b, text: BEHAVIOUR_NAMES[b], selected: (it.b || 'still') === b }))),
         el('label', { text: 'Wakes after (seconds)' }), el('input', { type: 'number', min: 0, max: Math.floor(C.LIMITS.delay / 23), value: Math.round((it.d || 0) / 23), 'aria-label': 'Wakes after',
           onchange: (e) => set(() => { it.d = Math.max(0, Math.min(C.LIMITS.delay, Math.round((Number(e.target.value) || 0) * 23))); }) }));
-        if (it.t[0] === 'B') body.append(el('div', { class: 'wide actions' }, el('button', { class: 'btn small', onclick: () => set(() => { s.win = { k: 'infiltrate', n: sel.i }; this.renderSide(); }) }, 'Infiltrate this to win')));
-      } else body.append(el('div', { class: 'wide actions' }, el('button', { class: 'btn small', onclick: () => set(() => { s.win = { k: 'protect', n: sel.i, s: (s.win && s.win.s) || 0 }; this.renderSide(); }) }, 'Protect this to win')));
+        if (it.t[0] === 'B') body.append(el('div', { class: 'wide row' }, el('button', { class: 'chip', onclick: () => set(() => { s.win = { k: 'infiltrate', n: sel.i }; this.renderSide(); }) }, 'Infiltrate this to win')));
+      } else body.append(el('div', { class: 'wide row' }, el('button', { class: 'chip', onclick: () => set(() => { s.win = { k: 'protect', n: sel.i, s: (s.win && s.win.s) || 0 }; this.renderSide(); }) }, 'Protect this to win')));
     }
     if (sel.list === 'items') {
       body.append(el('label', { text: 'Item' }), el('div', { text: ITEM_NAMES[it.k] }));
@@ -713,7 +746,7 @@ export class CustomMaps {
     }
     if (sel.list === 'reveal') body.append(el('label', { text: 'Radius' }), el('input', { type: 'number', min: 1, max: 20, value: it.r, 'aria-label': 'Radius',
       onchange: (e) => set(() => { it.r = Math.max(1, Math.min(20, Math.round(Number(e.target.value) || 1))); }) }));
-    body.append(el('div', { class: 'wide actions' }, remove));
+    body.append(el('div', { class: 'wide row' }, remove));
     return box;
   }
 
@@ -775,7 +808,31 @@ export class CustomMaps {
     const solid = C.solidCells(map);
     const x0 = Math.max(1, Math.floor(-ox / W) + 1), y0 = Math.max(1, Math.floor(-oy / H) + 1);
     const x1 = Math.min(map.w, Math.ceil((cw - ox) / W)), y1 = Math.min(map.h, Math.ceil((ch - oy) / H));
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    // The game's own art, as it draws the map (src/online/mapart.js): the ground, then the pieces
+    // row by row (each row over the ones above it: a rock reaches up over the cell behind it).
+    // (Before the game has loaded its library: plain colours.)
+    const art = this.art.ready() ? this.art : null;
+    const s = W / CELL_W;
+    if (art) {
+      const ground = art.ground(map.palette);
+      g.save();
+      g.beginPath();
+      g.rect(ox, oy, map.w * W, map.h * H);
+      g.clip();
+      if (ground) {
+        const pat = g.createPattern(ground, 'repeat');
+        // (placed as Arena.extendTerrain places the game's)
+        pat.setTransform(new DOMMatrix([s, 0, 0, s, ox + 1290 * s, oy + 1290 * s]));
+        g.fillStyle = pat;
+      } else g.fillStyle = rgb(pal.ground);
+      g.fillRect(ox, oy, map.w * W, map.h * H);
+      g.restore();
+      for (let y = Math.max(1, y0 - 1); y <= Math.min(map.h, y1 + 2); y++) for (let x = Math.max(1, x0 - 1); x <= Math.min(map.w, x1 + 1); x++) {
+        const t = art.tile(C.ASCII.indexOf(map.tiles[(y - 1) * map.w + (x - 1)]), map.palette);
+        if (t) g.drawImage(t.c, ox + (x - 1) * W - t.ox * s, oy + (y - 1) * H - t.oy * s, t.c.width * s, t.c.height * s);
+      }
+    }
+    for (let y = y0; y <= y1 && !art; y++) for (let x = x0; x <= x1; x++) {
       const i = (y - 1) * map.w + (x - 1);
       const id = C.ASCII.indexOf(map.tiles[i]);
       const k = solid.has(i) ? C.ROCK : C.kindOf(id);
@@ -792,7 +849,7 @@ export class CustomMaps {
       }
     }
     if (W >= 14) {
-      g.strokeStyle = 'rgba(0,0,0,0.12)';
+      g.strokeStyle = art ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0.12)';
       g.lineWidth = 1;
       g.beginPath();
       for (let x = x0; x <= x1 + 1; x++) { g.moveTo(ox + (x - 1) * W + 0.5, oy + (y0 - 1) * H); g.lineTo(ox + (x - 1) * W + 0.5, oy + y1 * H); }
@@ -815,14 +872,15 @@ export class CustomMaps {
         g.setLineDash([4, 4]); g.strokeStyle = isSel('reveal', i) ? '#fff' : 'rgba(255,255,255,0.6)'; g.lineWidth = 1.5;
         g.beginPath(); g.ellipse(x, y, r.r * W, r.r * H, 0, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
       }
-      for (const [i, it] of map.story.items.entries()) {
+      if (art) this.drawThings(g, art, map, ox, oy, W, H, isSel);
+      for (const [i, it] of (art ? [] : map.story.items.entries())) {
         const [x, y] = at(it);
         g.fillStyle = { crate: '#c8a050', cash: '#f0d040', gift: '#e0303c', pizza: '#ffb050' }[it.k];
         g.beginPath(); g.moveTo(x, y - H * 0.6); g.lineTo(x + W * 0.45, y); g.lineTo(x, y + H * 0.6); g.lineTo(x - W * 0.45, y); g.closePath(); g.fill();
         g.strokeStyle = isSel('items', i) ? '#fff' : '#000'; g.lineWidth = isSel('items', i) ? 3 : 1; g.stroke();
       }
       const win = map.story.win;
-      for (const [i, u] of map.story.units.entries()) {
+      for (const [i, u] of (art ? [] : map.story.units.entries())) {
         const [x, y] = at(u);
         const big = u.t[0] === 'B';
         const sw = big ? W * 1.6 : W * 0.8, sh = big ? H * 1.6 : H * 0.8;
@@ -852,6 +910,87 @@ export class CustomMaps {
       g.strokeStyle = '#fff'; g.lineWidth = 1.5;
       g.strokeRect(ox + (hx - 1) * W + 0.5, oy + (hy - 1) * H + 0.5, n * W - 1, n * H - 1);
     }
+  }
+
+  // A singleplayer map's units, buildings and pickups as the game draws them: each where the game
+  // puts its clip (a unit or pickup at its cell's middle, a building at its cell's bottom right),
+  // those further down over those above; the player's in their side's colour, the enemy's in the
+  // other's (as Custom Maps' test play colours them).  The selected one, and what the goal names,
+  // ringed.
+  drawThings(g, art, map, ox, oy, W, H, isSel) {
+    const st = map.story;
+    const s = W / CELL_W;
+    const colourOf = (side) => (side === 'evil' ? 'green' : 'orange');
+    const other = st.side === 'evil' ? 'good' : 'evil';
+    const things = [];
+    st.items.forEach((it, i) => things.push({ list: 'items', i, art: art.unit(ITEM_TYPES[it.k], 0.5, null), x: ox + (it.x - 0.5) * W, y: oy + (it.y - 0.5) * H }));
+    st.units.forEach((u, i) => {
+      const side = u.own === 'player' ? st.side : other;
+      const building = u.t[0] === 'B';
+      things.push({ list: 'units', i, u, art: building ? art.building(u.t, colourOf(side), side) : art.unit(u.t, u.f, colourOf(side)),
+        x: ox + (building ? u.x : u.x - 0.5) * W, y: oy + (building ? u.y : u.y - 0.5) * H });
+    });
+    things.sort((a, b) => a.y - b.y);
+    const win = st.win;
+    for (const t of things) {
+      const a = t.art;
+      const box = a ? [t.x - a.ox * s, t.y - a.oy * s, a.c.width * s, a.c.height * s] : [t.x - W * 0.4, t.y - H * 0.4, W * 0.8, H * 0.8];
+      if (a) g.drawImage(a.c, box[0], box[1], box[2], box[3]);
+      else { g.fillStyle = t.u && t.u.own === 'enemy' ? '#c82828' : '#ff8c00'; g.fillRect(box[0], box[1], box[2], box[3]); }
+      const goal = t.list === 'units' && win.n === t.i && (win.k === 'infiltrate' || win.k === 'protect');
+      if (isSel(t.list, t.i) || goal) {
+        g.setLineDash(goal && !isSel(t.list, t.i) ? [5, 3] : []);
+        g.strokeStyle = isSel(t.list, t.i) ? '#fff' : '#ffe000';
+        g.lineWidth = 2;
+        g.strokeRect(box[0] - 2, box[1] - 2, box[2] + 4, box[3] + 4);
+        g.setLineDash([]);
+      }
+      // (the enemy's, marked, at a size to read)
+      if (t.u && t.u.own === 'enemy' && W >= 16) {
+        g.fillStyle = '#e02020';
+        g.beginPath();
+        g.arc(box[0] + box[2] - 3, box[1] + 3, 4, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+  }
+
+  // A map's picture for its card: the whole map in the game's own art, small (the bases marked);
+  // before the game's library is there, the plain colours of its preview.
+  thumbnail(map) {
+    const art = this.art.ready() ? this.art : null;
+    if (!art) {
+      const [w, h, px] = C.previewPixels(map, 2);
+      const c = el('canvas', { width: w, height: h, class: 'mapthumb' });
+      c.getContext('2d').putImageData(new ImageData(px, w, h), 0, 0);
+      return c;
+    }
+    const W = Math.max(2, Math.min(16, Math.floor(512 / map.w))), H = W / 2;
+    const c = el('canvas', { width: map.w * W, height: map.h * H, class: 'mapthumb' });
+    const g = c.getContext('2d');
+    const s = W / CELL_W;
+    const ground = art.ground(map.palette);
+    if (ground) {
+      const pat = g.createPattern(ground, 'repeat');
+      pat.setTransform(new DOMMatrix([s, 0, 0, s, 1290 * s, 1290 * s]));
+      g.fillStyle = pat;
+      g.fillRect(0, 0, c.width, c.height);
+    }
+    for (let y = 1; y <= map.h; y++) for (let x = 1; x <= map.w; x++) {
+      const t = art.tile(C.ASCII.indexOf(map.tiles[(y - 1) * map.w + (x - 1)]), map.palette);
+      if (t) g.drawImage(t.c, (x - 1) * W - t.ox * s, (y - 1) * H - t.oy * s, t.c.width * s, t.c.height * s);
+    }
+    if (map.story) this.drawThings(g, art, map, 0, 0, W, H, () => false);
+    map.bases.forEach((b, i) => {
+      g.fillStyle = BASE_COLOURS[i % BASE_COLOURS.length];
+      g.strokeStyle = '#000';
+      g.lineWidth = Math.max(1, W / 8);
+      g.beginPath();
+      g.ellipse((b.x - 0.5) * W, (b.y - 0.5) * H, Math.max(3, W * 0.9), Math.max(2, H * 0.9), 0, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+    });
+    return c;
   }
 
   // ---- input ----------------------------------------------------------------------------------

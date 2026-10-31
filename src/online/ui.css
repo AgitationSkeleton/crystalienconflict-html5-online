@@ -394,39 +394,96 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 .form .note.warn { color: #ff4a3d; font-weight: 700; margin-top: -4px; }
 
 /* ---- Custom Maps: the Browser and the Level editor -------------------------------------------- */
+/* Compact controls of their own (the big chevron buttons are the menus'): chips for actions --
+   orange for the one that matters, red for the one that removes --, and segmented groups of
+   tools, the one in use orange. */
 .tabs { display: flex; gap: 6px; }
 .tab { font: 700 14px/1 'NissanD', sans-serif; letter-spacing: 0.1em; text-transform: uppercase; padding: 9px 14px 7px; border-radius: 8px 8px 0 0;
   border: 1px solid var(--edge); background: rgba(0, 0, 0, 0.45); color: var(--ink-dim); cursor: pointer; }
 .tab.on { background: linear-gradient(180deg, var(--orange-hi), var(--orange) 50%, var(--orange-lo)); color: #fff; }
 .custom-browse, .custom-edit { width: min(1400px, 100%); display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; margin-bottom: 14px; }
-.maplist { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.mapcard { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--edge); border-radius: 8px; background: rgba(0, 0, 0, 0.3); }
-.mapcard .mapthumb { width: 100%; height: auto; image-rendering: pixelated; border-radius: 4px; background: #000; }
-.mapcard .name { font-weight: 700; }
-.mapcard .actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.mapcard .note.warn { color: #ff4a3d; font-weight: 700; }
-.mapcard .like.on { background: linear-gradient(180deg, #ff6a8a, #e0204c); }
-.browse-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.screen.custom input[type=number], .screen.custom textarea { box-sizing: border-box; padding: 6px 8px 5px; font: 400 14px/1.3 system-ui, sans-serif; color: #1c1c1c;
+  background: linear-gradient(180deg, #fafafa, #e4e6e9); border: 1px solid #555; border-radius: 5px; text-transform: none; }
+.screen.custom textarea { resize: vertical; min-height: 54px; }
+
+.chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px 7px; border-radius: 8px; cursor: pointer;
+  font: 700 13px/1 'NissanD', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; white-space: nowrap;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)); border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
+.chip:hover { border-color: var(--orange-hi); }
+.chip:active { transform: translateY(1px); box-shadow: none; }
+.chip.primary { background: linear-gradient(180deg, var(--orange-hi), var(--orange) 50%, var(--orange-lo)); border-color: var(--orange-hi); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5); }
+.chip.danger { background: rgba(120, 20, 16, 0.55); border-color: rgba(255, 90, 70, 0.5); color: #ffd6d0; }
+.chip.danger:hover { background: rgba(170, 30, 22, 0.75); border-color: #ff6a55; }
+.chip.like.on { background: linear-gradient(180deg, #ff7a96, #e0204c); border-color: #ff8aa2; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.hint { font: 400 13px/1.35 system-ui, sans-serif; color: var(--ink-dim); text-transform: none; letter-spacing: 0; }
+
+.seg { display: inline-flex; flex-wrap: wrap; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(0, 0, 0, 0.5); }
+.seg > .tool { border: 0; border-radius: 0; border-left: 1px solid rgba(255, 255, 255, 0.12); }
+.seg > .tool:first-child { border-left: 0; }
+.tool { display: inline-flex; align-items: center; gap: 6px; padding: 8px 11px 7px; color: #fff; background: transparent; cursor: pointer;
+  font: 700 12px/1 'NissanD', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--edge); border-radius: 6px; white-space: nowrap; }
+.tool:hover { background: rgba(255, 255, 255, 0.08); }
+.tool.on { background: linear-gradient(180deg, var(--orange-hi), var(--orange) 50%, var(--orange-lo)); color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5); }
+.tool .swatch { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.25); }
+
+/* the Browser */
+.categories { display: flex; gap: 8px; flex-wrap: wrap; }
+.category { flex: 1 1 200px; padding: 12px 16px 10px; font: 700 16px/1 'NissanD', sans-serif; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim);
+  background: rgba(0, 0, 0, 0.45); border: 1px solid var(--edge); border-radius: 10px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; }
+.category.on { color: #fff; background: linear-gradient(180deg, var(--orange-hi), var(--orange) 50%, var(--orange-lo)); border-color: var(--orange-hi); }
+.browse-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .browse-bar select { width: auto; flex: none; }
 .browse-bar input[type=search] { flex: 1; min-width: 160px; width: auto; }
-.scorelist { margin: 0; padding-left: 22px; font-size: 13px; }
-.scorelist li span + span { margin-left: 10px; color: var(--ink-dim); }
-.editor { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.maplist { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.mapcard { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--edge); border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.35)); }
+.mapcard .mapthumb { width: 100%; height: auto; image-rendering: pixelated; border-radius: 6px; background: #000; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15); }
+.mapcard .meta { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.mapcard .name { font: 700 16px/1.15 'NissanD', sans-serif; letter-spacing: 0.04em; color: #fff; }
+.mapcard .meta .note { font: 400 12px/1.35 system-ui, sans-serif; color: var(--ink-dim); text-transform: none; letter-spacing: 0; }
+.mapcard .note.warn { color: #ff6a55; font-weight: 700; }
+.mapcard > .row { margin-top: 2px; }
+.scorelist { margin: 0; padding: 8px 10px 8px 30px; font: 400 13px/1.5 system-ui, sans-serif; text-transform: none; background: rgba(0, 0, 0, 0.35); border-radius: 6px; }
+.scorelist li span + span { float: right; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+/* your maps */
+.newmap { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+.newmap .field { display: flex; flex-direction: column; gap: 5px; flex: 1 1 200px; }
+.newmap .field label { font-size: 12px; color: var(--ink-dim); letter-spacing: 0.08em; }
+
+/* the editor */
+.editor { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
 @media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
 .edit-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.edit-bar, .tools, .tool-options { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.tool { padding: 7px 10px; border-radius: 6px; border: 1px solid var(--edge); background: rgba(0, 0, 0, 0.45); color: #fff; cursor: pointer; font: 600 13px system-ui, sans-serif; }
-.tool.on { background: var(--orange); border-color: var(--orange-hi); }
-.tool-options label { font-size: 13px; color: var(--ink-dim); }
+.edit-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px; border-radius: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--edge); }
+.edit-bar .spacer { flex: 1; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; }
+.toolgroup { display: flex; flex-direction: column; gap: 4px; }
+.grouplabel { font-size: 10px; letter-spacing: 0.14em; color: var(--ink-dim); padding-left: 2px; }
+.tool-options { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 32px; }
+.tool-options label { font-size: 11px; letter-spacing: 0.12em; color: var(--ink-dim); }
+.tool-options select { width: auto; }
 .tilepick { display: flex; flex-wrap: wrap; gap: 3px; max-width: 100%; }
 .tilebtn { width: 30px; height: 22px; font: 600 10px system-ui, sans-serif; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.6); cursor: pointer; color: #fff; background: #a0522d; }
 .tilebtn.k1 { background: #5a3420; } .tilebtn.k2 { background: #6aa828; } .tilebtn.k3 { background: #3c9a3c; }
 .tilebtn.on { outline: 2px solid #fff; }
-.edit-canvas { width: 100%; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; background: #111; touch-action: none; }
+.edit-canvas { width: 100%; border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; background: #0c0c0c; touch-action: none; }
 .editmap { display: block; touch-action: none; cursor: crosshair; }
 .edit-side { display: flex; flex-direction: column; gap: 12px; }
-.edit-side .panel input[type=text], .edit-side .panel input[type=number], .edit-side .panel textarea { width: 100%; box-sizing: border-box; }
-.edit-side .sizes { display: flex; align-items: center; gap: 4px; } .edit-side .sizes input { width: 70px; }
-.checks { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.checks .bad { color: #ff4a3d; font-weight: 700; } .checks .good { color: #7be36b; font-weight: 700; }
-.shapes { display: flex; flex-wrap: wrap; gap: 4px; }
+.edit-side .form { grid-template-columns: 96px minmax(0, 1fr); }
+.edit-side .panel input[type=text], .edit-side .panel input[type=number], .edit-side .panel textarea { width: 100%; }
+.edit-side .sizes { display: flex; align-items: center; gap: 6px; } .edit-side .sizes input { width: 64px; flex: none; }
+.edit-side .seg { width: 100%; } .edit-side .seg > .tool { flex: 1; justify-content: center; }
+.edit-side .row { justify-content: flex-end; }
+.checks { display: flex; flex-direction: column; gap: 4px; font: 400 13px/1.35 system-ui, sans-serif; text-transform: none; }
+.checks .bad { color: #ff6a55; font-weight: 700; } .checks .good { color: #7be36b; font-weight: 700; }
+/* (the lobby's map card centres its parts: not these) */
+.maplist .mapcard { align-items: stretch; text-align: left; }
+.screen.custom .panel > .body > .note { font: 400 14px/1.4 system-ui, sans-serif; color: var(--ink-dim); text-transform: none; letter-spacing: 0; }
+.edit-side .sizes input[type=number] { width: 62px; flex: none; }
+.edit-side .seg > .tool { padding: 8px 4px 7px; font-size: 11px; }
+.tilebtn.art { width: 52px; height: 28px; padding: 1px; background: #000; } .tilebtn.art canvas { display: block; width: 48px; height: 24px; }
+.edit-side .sizes select { flex: 1; min-width: 0; }
+.edit-side .seg { flex-wrap: nowrap; } .edit-side .seg > .tool { padding: 8px 2px 7px; letter-spacing: 0.02em; }

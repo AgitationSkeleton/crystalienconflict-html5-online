@@ -13,7 +13,7 @@
 //   network.  Other sites (the game's server, GitHub) are not touched.
 
 // stamp: tools/stamp_offline.py
-const VERSION = '2af6cd66bbb4';
+const VERSION = 'ba873ba39fed';
 const FILES = [
   "assets/fonts/125_NissanD.ttf",
   "assets/fonts/1641_NissanD.ttf",
@@ -173,6 +173,7 @@ const FILES = [
   "src/online/cacmap.js",
   "src/online/custom.js",
   "src/online/errors.js",
+  "src/online/mapart.js",
   "src/online/net.js",
   "src/online/offline.js",
   "src/online/profanity-table.js",
