@@ -8496,14 +8496,8 @@
                }
                index++;
             }
-            // (Online: the Screensaver's match that no one is winning ends after half an hour of
-            // the game's own time, for the next)
-            if(this.active && this.skirmish?.screensaver && this.count > 23 * 60 * 30)
-            {
-               this.active = false;
-               this.timeUp = true;
-               this.levelUpCounterMax = 46;
-            }
+            // (Online: the Screensaver's match is played out, however long it takes -- once cut off
+            // after half an hour of the game's own time)
             if(!this.active)
             {
                this.outtro?.();
