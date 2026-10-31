@@ -234,7 +234,7 @@ async function upload(request, env, ctx) {
   }
   await env.DB.prepare('INSERT INTO map_uploads (map, author, ip_hash, created) VALUES (?1, ?2, ?3, ?4)').bind(id, author, ipHash, now).run();
   const row = await env.DB.prepare('SELECT * FROM maps WHERE id = ?1').bind(id).first();
-  const post = postForReview(env, row).catch(() => {});
+  const post = postForReview(env, row).catch((e) => console.log('mapbot: ' + (e && e.stack || e)));
   if (ctx && ctx.waitUntil) ctx.waitUntil(post);
   return json(env, request, { id, version, status });
 }

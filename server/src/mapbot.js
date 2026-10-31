@@ -34,7 +34,11 @@ async function api(env, method, path, body, form) {
       await sleep(Math.min(5, wait) * 1000 + 100);
       continue;
     }
-    if (!r.ok) return null;
+    // (what went wrong, in the Worker's log: wrangler tail, or the dashboard's)
+    if (!r.ok) {
+      console.log('discord ' + method + ' ' + path.replace(/\?.*/, '') + ': ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 300));
+      return null;
+    }
     return r.status === 204 ? {} : r.json().catch(() => ({}));
   }
   return null;

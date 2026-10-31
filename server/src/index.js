@@ -34,6 +34,6 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(mapbotTick(env).catch(() => {}));
+    ctx.waitUntil(mapbotTick(env).catch((e) => console.log('mapbot: ' + (e && e.stack || e))));
   },
 };
