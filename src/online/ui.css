@@ -147,6 +147,22 @@
 .btn.primary::after { background: linear-gradient(180deg, #fff, #ffe2b8); }
 
 .footnote { margin-top: auto; padding-top: 18px; font-size: 11px; color: var(--ink-dim); text-align: center; text-shadow: var(--glow); position: relative; z-index: 1; text-transform: none; letter-spacing: 0; }
+/* A phone on its side (a short, wide window): the title beside the buttons, all of it in view
+   with nothing to scroll. */
+@media (orientation: landscape) and (max-height: 640px) {
+  .screen.main.active { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, 300px); grid-template-rows: minmax(0, 1fr) auto;
+    align-items: center; column-gap: 5vw; padding: 10px max(16px, env(safe-area-inset-right)) 6px max(16px, env(safe-area-inset-left)); }
+  .screen.main .logo { grid-column: 1; grid-row: 1; margin: 0; justify-self: center; max-width: 100%; }
+  .screen.main .chars { display: none; }
+  .screen.main .logo .script { font-size: min(2.2vw, 4.5vh); }
+  .screen.main .logo .l1 { font-size: min(5.6vw, 15vh); }
+  .screen.main .logo .l2 { font-size: min(3.5vw, 9.5vh); }
+  .screen.main .logo .l3 { font-size: min(1.9vw, 4vh); }
+  .screen.main .menu { grid-column: 2; grid-row: 1; width: 100%; gap: min(8px, 1.6vh); }
+  .screen.main .menu .btn { padding: min(10px, 2.2vh) 14px min(9px, 2vh) 16px; font-size: min(17px, 4.4vh); }
+  .screen.main .menu .btn::after { height: min(20px, 4.8vh); width: 12px; }
+  .screen.main .footnote { grid-column: 1 / -1; grid-row: 2; padding-top: 4px; font-size: 10px; }
+}
 
 /* ---- panels ------------------------------------------------------------------------------ */
 
