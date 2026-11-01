@@ -114,6 +114,7 @@ const STATUS_NAMES = { pending: 'Waiting for review', approved: 'Shared', reject
 const WIN_NAMES = { all: 'Destroy everything', buildings: 'Destroy every building', hq: 'Destroy the headquarters', infiltrate: 'Infiltrate a building',
   protect: 'Protect something', collect: 'Pick up items', survive: 'Survive' };
 const TOOLS = [
+  ['pan', 'Move', 'Drag to move the map (also two fingers, or the right mouse button); pinch or the wheel to zoom'],
   ['select', 'Select', 'Pick a thing, base or item to change or move it (drag), Delete to remove it'],
   ['area', 'Area', 'Mark a rectangle: copy it (Ctrl+C), cut it (Ctrl+X), clear it (Delete); paste (Ctrl+V) where you click'],
   ['open', 'Ground', 'Open ground'], ['rock', 'Rock', 'Rock (impassable)'], ['pool', 'Water', 'Acid pools (impassable)'], ['crystal', 'Crystals', 'Crystals to mine'],
@@ -127,6 +128,8 @@ const TOOLS = [
 const SHAPES = [['free', 'Brush'], ['line', 'Line'], ['rect', 'Square'], ['ellipse', 'Circle'], ['fill', 'Fill']];
 const PAINTS = ['open', 'rock', 'pool', 'crystal', 'tile'];
 const KIND_SWATCH = { open: '#c45d2e', rock: '#60341e', pool: '#7ec428', crystal: '#78e65a' };
+// (the game's names for those colours: a base's headquarters drawn in its own)
+const BASE_TEAMS = ['orange', 'blue', 'red', 'purple', 'cyan', 'yellow'];
 const BASE_COLOURS = ['#ff8c00', '#3c78ff', '#e62828', '#a03ce6', '#28c8dc', '#fadc28'];
 const KIND_COLOURS = { 0: null, 1: 'rock', 2: 'pool', 3: 'crystal' };
 
@@ -202,6 +205,12 @@ export class CustomMaps {
       e.preventDefault();
       this.importFiles(files);
     });
+    // The window resized or the phone turned: the editor laid out again (for a phone or not).
+    window.addEventListener('resize', () => {
+      if (!this.draft || !this.canvas || !this.ui.screens.custom.classList.contains('active') || this.tab !== 'edit') return;
+      if (this.isCompact() !== this.compact) this.renderEditing();
+      else this.draw();
+    });
     // The last change kept before the page goes (closed, reloaded, the app put away).
     window.addEventListener('pagehide', () => this.flush());
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.flush(); });
@@ -241,7 +250,7 @@ export class CustomMaps {
     this.tabEdit.setAttribute('aria-selected', String(this.tab === 'edit'));
     this.browseBox.style.display = this.tab === 'browse' ? '' : 'none';
     this.editBox.style.display = this.tab === 'edit' ? '' : 'none';
-    if (this.tab === 'browse') await this.renderBrowse();
+    if (this.tab === 'browse') { this.ui.screens.custom.classList.remove('editing-compact'); await this.renderBrowse(); }
     else await this.renderEditor();
   }
 
@@ -415,6 +424,7 @@ export class CustomMaps {
   async share() {
     const v = C.validate(JSON.parse(JSON.stringify(this.draft.map)));
     if (!v.ok) { this.ui.toast('Not yet: ' + v.errors.join('; ') + '.'); return; }
+    if (this.overlaps().length) { this.ui.toast('Not yet: two things are on top of each other (the Checks say where).'); return; }
     const name = String(this.ui.settings.name || '').trim();
     for (const [what, s] of [['map\'s name', v.map.name], ['description', v.map.desc], ['mission text', (v.map.story && v.map.story.brief) || ''], ['player name (the settings)', name]]) {
       if (!isClean(s)) { this.ui.toast('Please choose another ' + what + '.'); return; }
@@ -454,6 +464,7 @@ export class CustomMaps {
 
   // The player's drafts, and new ones: blank, or from one of the game's maps.
   async renderDrafts() {
+    this.ui.screens.custom.classList.remove('editing-compact');
     const drafts = (await store.all('drafts')).sort((a, b) => (b.updated || 0) - (a.updated || 0));
     const from = el('select', { 'aria-label': 'Start from' },
       el('option', { value: '', text: 'Nothing: a blank map' }),
@@ -576,52 +587,83 @@ export class CustomMaps {
     this.save();
   }
 
+  // On a phone (a narrow or short window: compact) the editor fills the screen: the map as big as
+  // it can be, a slim bar above it, the tools in a strip (along the bottom, or down the side when
+  // the phone is on its side), the chosen tool's choices beside the map, and the map's settings in
+  // a sheet that slides over it (openSheet).  The same controls as on a big screen, laid out by
+  // the stylesheet (.editor.compact).
+  isCompact() {
+    try {
+      return window.matchMedia('(max-width: 900px), (max-height: 560px)').matches;
+    } catch (e) {
+      return false;
+    }
+  }
+
   renderEditing() {
-    const map = this.draft.map;
+    this.compact = this.isCompact();
+    this.ui.screens.custom.classList.toggle('editing-compact', this.compact);
     this.canvas = el('canvas', { class: 'editmap', tabindex: 0, 'aria-label': 'The map' });
     this.wireCanvas();
-    // (the tools in groups: picking, the ground, and what goes on it)
+    // (the tools in groups: picking and moving, the ground, and what goes on it)
     const tool = ([k, name, title]) => el('button', { class: 'tool' + (this.tool === k ? ' on' : ''), title, onclick: () => { this.tool = k; this.renderEditing(); } },
       KIND_SWATCH[k] ? el('span', { class: 'swatch', style: 'background:' + KIND_SWATCH[k] }) : null, name);
     const group = (label, keys) => {
       const tools = TOOLS.filter(([k]) => keys.includes(k) && this.toolFits(k));
       return tools.length ? el('div', { class: 'toolgroup' }, el('span', { class: 'grouplabel', text: label }), el('div', { class: 'seg' }, ...tools.map(tool))) : null;
     };
-    const toolbar = el('div', { class: 'tools' }, group('Pick', ['select', 'area']), group('Terrain', ['open', 'rock', 'pool', 'crystal', 'tile']),
+    const toolbar = el('div', { class: 'tools' }, group('Pick', ['pan', 'select', 'area']), group('Terrain', ['open', 'rock', 'pool', 'crystal', 'tile']),
       group('Place', ['base', 'thing', 'item', 'reveal']));
-    const brush = el('div', { class: 'seg', role: 'group', 'aria-label': 'Brush size' }, ...[1, 2, 3, 5, 8].map((n) => el('button', { class: 'tool' + (n === this.brush ? ' on' : ''),
-      title: n + ' by ' + n + ' cells', onclick: () => { this.brush = n; this.renderEditing(); } }, String(n))));
-    const toolOptions = this.toolOptions(brush);
-    this.side = el('div', { class: 'edit-side' });
+    this.optionsBox = el('div', { class: 'opts' });
+    this.side = el('div', { class: 'edit-side' + (this.sheetOpen && this.compact ? ' open' : '') });
     this.checks = el('div', { class: 'checks' });
-    this.editBox.replaceChildren(el('div', { class: 'editor' },
+    this.statusChip = el('button', { class: 'chip compact-only status', title: 'What the map still needs', onclick: () => this.openSheet(true) }, '\u2026');
+    const back = async () => { if (this.listening) this.listen(false); this.sheetOpen = false; await this.save(); this.draft = null; this.renderDrafts(); };
+    this.editBox.replaceChildren(el('div', { class: 'editor' + (this.compact ? ' compact' : '') },
       el('div', { class: 'edit-main' },
         el('div', { class: 'edit-bar' },
-          el('button', { class: 'chip', title: 'Back to your maps (it is kept as it is)', onclick: async () => { if (this.listening) this.listen(false); await this.save(); this.draft = null; this.renderDrafts(); } }, '\u2039 Your maps'),
+          el('button', { class: 'chip', title: 'Back to your maps (it is kept as it is)', 'aria-label': 'Your maps', onclick: back }, '\u2039', el('span', { class: 'desk-only', text: ' Your maps' })),
           el('div', { class: 'seg' },
-            el('button', { class: 'tool', title: 'Undo (Ctrl+Z)', onclick: () => this.back(this.undo, this.redo) }, '\u21B6 Undo'),
-            el('button', { class: 'tool', title: 'Redo (Ctrl+Y)', onclick: () => this.back(this.redo, this.undo) }, 'Redo \u21B7')),
-          el('div', { class: 'seg' },
+            el('button', { class: 'tool', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => this.back(this.undo, this.redo) }, '\u21B6', el('span', { class: 'desk-only', text: ' Undo' })),
+            el('button', { class: 'tool', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => this.back(this.redo, this.undo) }, el('span', { class: 'desk-only', text: 'Redo ' }), '\u21B7')),
+          el('div', { class: 'seg desk-only' },
             el('button', { class: 'tool', title: 'Copy the area (Ctrl+C)', onclick: () => this.copyArea(false) }, 'Copy'),
             el('button', { class: 'tool', title: 'Cut the area (Ctrl+X)', onclick: () => this.copyArea(true) }, 'Cut'),
             el('button', { class: 'tool', title: 'Paste where you click next (Ctrl+V)', onclick: () => this.startPaste() }, 'Paste')),
           el('div', { class: 'seg' },
             el('button', { class: 'tool', title: 'Zoom out (\u2212)', 'aria-label': 'Zoom out', onclick: () => this.zoom(0.8) }, '\u2212'),
+            el('button', { class: 'tool', title: 'The whole map in view', onclick: () => { this.fitPending = true; this.draw(); } }, 'Fit'),
             el('button', { class: 'tool', title: 'Zoom in (+)', 'aria-label': 'Zoom in', onclick: () => this.zoom(1.25) }, '+')),
           el('div', { class: 'spacer' }),
-          this.savedNote = el('span', { class: 'hint saved', text: 'Saved on this device' }),
-          el('button', { class: 'chip', title: 'Save it as a file, to keep or send', onclick: () => this.exportMap(this.draft.map) }, 'Export'),
-          el('button', { class: 'chip', title: 'Share it with everyone (it is looked at first)', onclick: () => this.share() }, this.draft.shared ? 'Share again' : 'Share'),
-          el('button', { class: 'chip primary', onclick: () => this.testPlay() }, '\u25B6 Test play')),
-        toolbar, toolOptions,
+          this.savedNote = el('span', { class: 'hint saved desk-only', text: 'Saved on this device' }),
+          this.statusChip,
+          el('button', { class: 'chip compact-only', title: 'The map\'s settings, what is selected, export and share', 'aria-label': 'Settings', onclick: () => this.openSheet(!this.sheetOpen) }, '\u2699'),
+          el('button', { class: 'chip desk-only', title: 'Save it as a file, to keep or send', onclick: () => this.exportMap(this.draft.map) }, 'Export'),
+          el('button', { class: 'chip desk-only', title: 'Share it with everyone (it is looked at first)', onclick: () => this.share() }, this.draft.shared ? 'Share again' : 'Share'),
+          el('button', { class: 'chip primary', title: 'Play it', onclick: () => this.testPlay() }, '\u25B6', el('span', { class: 'tlabel', text: ' Test' }), el('span', { class: 'desk-only', text: ' play' }))),
+        toolbar, this.optionsBox,
         el('div', { class: 'edit-canvas' }, this.canvas),
-        el('div', { class: 'hint', text: 'Draw with the mouse or a finger. Move the map with the right mouse button, two fingers or the arrow keys; zoom with the wheel, a pinch, or + and \u2212.' })),
+        el('div', { class: 'hint desk-only', text: 'Draw with the mouse or a finger. Move the map with the right mouse button, two fingers, the Move tool or the arrow keys; zoom with the wheel, a pinch, or + and \u2212.' })),
       this.side));
     this.renderSide();
     // (drawn now, so that the canvas has its size for the next press, and again once laid out)
     this.draw();
     requestAnimationFrame(() => this.draw());
     this.renderChecks();
+  }
+
+  // The map's settings sheet, on a phone: open (or not).
+  openSheet(on) {
+    this.sheetOpen = !!on;
+    if (this.side) this.side.classList.toggle('open', this.sheetOpen && this.compact);
+  }
+
+  // The chosen tool's choices, again (a selection changed, a shape chosen).
+  renderOptions() {
+    if (!this.optionsBox) return;
+    const brush = el('div', { class: 'seg', role: 'group', 'aria-label': 'Brush size' }, ...[1, 2, 3, 5, 8].map((n) => el('button', { class: 'tool' + (n === this.brush ? ' on' : ''),
+      title: n + ' by ' + n + ' cells', onclick: () => { this.brush = n; this.renderOptions(); } }, String(n))));
+    this.optionsBox.replaceChildren(this.toolOptions(brush));
   }
 
   toolFits(k) {
@@ -636,13 +678,37 @@ export class CustomMaps {
     const t = this.tool;
     const row = (...kids) => el('div', { class: 'tool-options' }, ...kids);
     const shapes = el('div', { class: 'seg' }, ...SHAPES.map(([k, name]) => el('button', { class: 'tool' + (this.shape === k ? ' on' : ''),
-      title: k === 'rect' || k === 'ellipse' ? name + ' (Shift: just its outline)' : name, onclick: () => { this.shape = k; this.renderEditing(); } }, name)));
-    if (['open', 'rock', 'pool', 'crystal'].includes(t)) return row(el('label', { text: 'Shape' }), shapes, el('label', { text: 'Brush' }), brush);
+      title: k === 'rect' || k === 'ellipse' ? name + ' (Shift: just its outline)' : name, onclick: () => { this.shape = k; this.renderOptions(); } }, name)));
+    // (a square's or circle's outline only: Shift, or this)
+    const outline = this.shape === 'rect' || this.shape === 'ellipse' ? el('button', { class: 'tool' + (this.outline ? ' on' : ''), 'aria-pressed': String(!!this.outline),
+      title: 'Just its outline', onclick: () => { this.outline = !this.outline; this.renderOptions(); } }, 'Outline') : null;
+    if (['open', 'rock', 'pool', 'crystal'].includes(t)) return row(el('label', { text: 'Shape' }), shapes, outline, el('label', { text: 'Brush' }), brush);
+    if (t === 'area') {
+      return row(el('div', { class: 'seg' },
+        el('button', { class: 'tool', onclick: () => this.copyArea(false) }, 'Copy'),
+        el('button', { class: 'tool', onclick: () => this.copyArea(true) }, 'Cut'),
+        el('button', { class: 'tool' + (this.pasting ? ' on' : ''), onclick: () => { this.startPaste(); this.renderOptions(); } }, 'Paste'),
+        el('button', { class: 'tool', onclick: () => { if (this.area) { this.clearArea(); this.draw(); } } }, 'Clear')),
+      el('span', { class: 'hint', text: this.pasting ? 'Tap where its top left goes.' : this.area ? 'Copy, cut or clear it; paste it elsewhere.' : 'Drag over the map to mark an area.' }));
+    }
+    if (t === 'pan') return row(el('span', { class: 'hint', text: 'Drag to move the map; pinch to zoom.' }));
+    if (t === 'select' && this.selected) {
+      const sel = this.selected, map = this.draft.map;
+      const list = sel.list === 'bases' ? map.bases : map.story && map.story[sel.list];
+      const it = list && list[sel.i];
+      const what = !it ? '' : sel.list === 'bases' ? 'Base ' + (sel.i + 1) : sel.list === 'units' ? this.title(it.t) : sel.list === 'items' ? ITEM_NAMES[it.k] : 'Uncovered ground';
+      if (it) {
+        return row(el('span', { class: 'selname', text: what }),
+          el('button', { class: 'chip', onclick: () => this.openSheet(true) }, 'Details'),
+          el('button', { class: 'chip danger', onclick: () => this.removeSelected() }, 'Delete'),
+          el('span', { class: 'hint', text: 'Drag it to move it.' }));
+      }
+    }
     if (t === 'tile') {
       const pick = el('div', { class: 'tilepick' }, ...Array.from({ length: C.TILE_COUNT }, (_, id) => {
         const k = C.kindOf(id);
         const btn = el('button', { class: 'tilebtn k' + k + (id === this.tileId ? ' on' : ''), title: 'Piece ' + id + ' (' + ['open', 'rock', 'water', 'crystals'][k] + ')',
-          onclick: () => { this.tileId = id; this.renderEditing(); } });
+          onclick: () => { this.tileId = id; this.renderOptions(); } });
         // (the piece itself, as the game draws it, in the map's palette)
         const t = this.art.ready() ? this.art.tile(id, this.draft.map.palette) : null;
         const ground = this.art.ready() ? this.art.ground(this.draft.map.palette) : null;
@@ -656,7 +722,7 @@ export class CustomMaps {
         } else btn.textContent = String(id);
         return btn;
       }));
-      return el('div', {}, row(el('label', { text: 'Shape' }), shapes), row(el('label', { text: 'Piece' }), pick));
+      return el('div', { class: 'opt-rows' }, row(el('label', { text: 'Shape' }), shapes, outline), row(el('label', { text: 'Piece' }), pick));
     }
     if (t === 'thing') {
       const types = el('select', { 'aria-label': 'What', onchange: (e) => { this.thingType = e.target.value; } },
@@ -668,7 +734,7 @@ export class CustomMaps {
       return row(el('label', { text: 'Put down' }), types, own);
     }
     if (t === 'item') {
-      const kinds = el('select', { 'aria-label': 'Item', onchange: (e) => { this.itemKind = e.target.value; this.renderEditing(); } },
+      const kinds = el('select', { 'aria-label': 'Item', onchange: (e) => { this.itemKind = e.target.value; this.renderOptions(); } },
         ...C.ITEMS.map((k) => el('option', { value: k, text: ITEM_NAMES[k], selected: k === this.itemKind })));
       const unit = this.itemKind === 'crate' ? el('select', { 'aria-label': 'In the crate', onchange: (e) => { this.crateUnit = e.target.value; } },
         ...C.UNITS.map((x) => el('option', { value: x, text: this.title(x), selected: x === this.crateUnit }))) : null;
@@ -703,7 +769,7 @@ export class CustomMaps {
     const palette = el('select', { 'aria-label': 'Palette', onchange: (e) => set(() => { map.palette = e.target.value; }) },
       ...PALETTES.map(([k, t]) => el('option', { value: k, text: t, selected: map.palette === k })));
     const music = el('select', { 'aria-label': 'Music', onchange: (e) => { this.listen(false); set(() => { map.music = Number(e.target.value); }); } },
-      ...C.MUSIC.map((n) => el('option', { value: n, text: n ? 'Track ' + n : 'Any (as a skirmish picks)', selected: (map.music || 0) === n })));
+      ...C.MUSIC.map((n) => el('option', { value: n, text: n ? 'Track ' + n : 'Any', selected: (map.music || 0) === n })));
     this.listenButton = el('button', { class: 'chip', title: 'Hear the track', onclick: () => this.listen(!this.listening) }, this.listening ? '\u25A0' : '\u266A');
     const w = el('input', { type: 'number', min: C.MIN_SIZE, max: C.MAX_SIZE, value: map.w, 'aria-label': 'Width' });
     const h = el('input', { type: 'number', min: C.MIN_SIZE, max: C.MAX_SIZE, value: map.h, 'aria-label': 'Height' });
@@ -729,9 +795,20 @@ export class CustomMaps {
         el('label', { text: 'Symmetry' }), el('div', { class: 'seg' }, mirror('lr'), mirror('tb'), mirror('rot')))),
     ];
     if (map.kind === 'story') parts.push(this.storyPanel(set));
-    parts.push(this.selectedPanel(set));
+    const selected = this.selectedPanel(set);
+    parts.push(selected);
     parts.push(el('div', { class: 'panel' }, el('h2', { text: 'Checks' }), el('div', { class: 'body' }, this.checks)));
-    this.side.replaceChildren(...parts);
+    // (on a phone, the sheet's head: what is in it, and the map's own export and share)
+    const head = el('div', { class: 'sheet-head compact-only' },
+      el('strong', { text: 'Map' }), el('div', { class: 'spacer' }),
+      el('button', { class: 'chip', onclick: () => this.exportMap(this.draft.map) }, 'Export'),
+      el('button', { class: 'chip', onclick: () => this.share() }, this.draft.shared ? 'Share again' : 'Share'),
+      el('button', { class: 'chip', 'aria-label': 'Close', onclick: () => this.openSheet(false) }, '\u2715'));
+    // (what is selected first, where a tap on Details shows it)
+    const sel = parts.indexOf(selected);
+    if (this.compact && this.selected && sel > 0) { parts.splice(sel, 1); parts.unshift(selected); }
+    this.side.replaceChildren(head, ...parts);
+    this.renderOptions();
   }
 
   storyPanel(set) {
@@ -794,6 +871,13 @@ export class CustomMaps {
           ...C.BEHAVIOURS.map((b) => el('option', { value: b, text: BEHAVIOUR_NAMES[b], selected: (it.b || 'still') === b }))),
         el('label', { text: 'Wakes after (seconds)' }), el('input', { type: 'number', min: 0, max: Math.floor(C.LIMITS.delay / 23), value: Math.round((it.d || 0) / 23), 'aria-label': 'Wakes after',
           onchange: (e) => set(() => { it.d = Math.max(0, Math.min(C.LIMITS.delay, Math.round((Number(e.target.value) || 0) * 23))); }) }));
+        // (the story's way for an enemy's buildings to send more: a unit that, destroyed, comes
+        // out of the building that makes it again, as long as that stands)
+        if (it.t[0] === 'U') {
+          body.append(el('label', { text: 'Comes back' }), el('select', { 'aria-label': 'Comes back', onchange: (e) => set(() => { if (e.target.value === '1') it.r = true; else delete it.r; }) },
+            el('option', { value: '', text: 'No: once destroyed, gone', selected: !it.r }),
+            el('option', { value: '1', text: 'Yes: from its building, while that stands', selected: !!it.r })));
+        }
         if (it.t[0] === 'B') body.append(el('div', { class: 'wide row' }, el('button', { class: 'chip', onclick: () => set(() => { s.win = { k: 'infiltrate', n: sel.i }; this.renderSide(); }) }, 'Infiltrate this to win')));
       } else body.append(el('div', { class: 'wide row' }, el('button', { class: 'chip', onclick: () => set(() => { s.win = { k: 'protect', n: sel.i, s: (s.win && s.win.s) || 0 }; this.renderSide(); }) }, 'Protect this to win')));
     }
@@ -834,10 +918,17 @@ export class CustomMaps {
     if (name && !isClean(name)) rows.push(el('div', { class: 'bad', text: 'The name has a word that is not allowed.' }));
     if (this.draft.map.desc && !isClean(this.draft.map.desc)) rows.push(el('div', { class: 'bad', text: 'The description has a word that is not allowed.' }));
     for (const e of v.errors) rows.push(el('div', { class: 'bad', text: 'Needs ' + e + '.' }));
+    for (const o of this.overlaps()) rows.push(el('div', { class: 'bad', text: 'Two things on top of each other at ' + o.x + ',' + o.y + ': move or delete one.' }));
     for (const a of advice) rows.push(el('div', { class: 'note', text: a }));
     if (v.ok && !rows.some((r) => r.className === 'bad')) rows.unshift(el('div', { class: 'good', text: 'Ready to play' + (this.draft.map.kind === 'skirmish' ? ' (' + this.draft.map.bases.length + ' players)' : '') + '.' }));
     this.checks.replaceChildren(...rows);
-    this.valid = v.ok;
+    this.valid = v.ok && !this.overlaps().length;
+    if (this.statusChip) {
+      const bad = rows.filter((r) => r.className === 'bad').length;
+      this.statusChip.textContent = bad ? '\u26A0 ' + bad : '\u2713';
+      this.statusChip.classList.toggle('bad', !!bad);
+      this.statusChip.title = bad ? bad + ' thing(s) to fix before it can be played' : 'Ready to play';
+    }
   }
 
   // ---- drawing --------------------------------------------------------------------------------
@@ -847,7 +938,8 @@ export class CustomMaps {
     const map = this.draft.map;
     const box = c.parentElement ? c.parentElement.getBoundingClientRect() : { width: 800, height: 500 };
     const dpr = window.devicePixelRatio || 1;
-    const cw = Math.max(200, Math.floor(box.width)), ch = Math.max(200, Math.min(Math.floor(window.innerHeight * 0.62), 720));
+    const cw = Math.max(this.compact ? 100 : 200, Math.floor(box.width));
+    const ch = this.compact ? Math.max(100, Math.floor(box.height)) : Math.max(200, Math.min(Math.floor(window.innerHeight * 0.62), 720));
     if (c.width !== cw * dpr || c.height !== ch * dpr) { c.width = cw * dpr; c.height = ch * dpr; c.style.width = cw + 'px'; c.style.height = ch + 'px'; }
     if (this.fitPending) {
       this.fitPending = false;
@@ -919,8 +1011,16 @@ export class CustomMaps {
     const isSel = (list, i) => this.selected && this.selected.list === list && this.selected.i === i;
     map.bases.forEach((b, i) => {
       const [x, y] = at(b);
+      const box = art ? this.drawBase(g, art, b, i, ox, oy, W, H) : null;
+      if (!box) {
+        g.fillStyle = BASE_COLOURS[i % BASE_COLOURS.length];
+        g.beginPath(); g.ellipse(x, y, W * 0.9, H * 0.9, 0, 0, Math.PI * 2); g.fill();
+      }
+      if (isSel('bases', i) && box) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.strokeRect(box[0] - 2, box[1] - 2, box[2] + 4, box[3] + 4); }
+      // (its number, on a disc in its colour)
+      const r = Math.max(7, Math.min(13, H * 0.6));
       g.fillStyle = BASE_COLOURS[i % BASE_COLOURS.length];
-      g.beginPath(); g.ellipse(x, y, W * 0.9, H * 0.9, 0, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
       g.strokeStyle = isSel('bases', i) ? '#fff' : '#000'; g.lineWidth = isSel('bases', i) ? 3 : 1.5; g.stroke();
       label(String(i + 1), x, y, '#000');
     });
@@ -1037,6 +1137,87 @@ export class CustomMaps {
     if (this.listenButton) this.listenButton.textContent = on ? '\u25A0' : '\u266A';
   }
 
+  // A skirmish base as a match starts it: the headquarters the game puts there (Level.placeNear,
+  // at the base's cell: a building's clip at its cell's bottom right), an Eagle Command or a
+  // Mothership by turns, in the base's colour.  Its box on the canvas, or null (no art).
+  drawBase(g, art, b, i, ox, oy, W, H) {
+    const side = i % 2 ? 'evil' : 'good';
+    const a = art.building('BA_' + side, BASE_TEAMS[i % BASE_TEAMS.length], side);
+    if (!a) return null;
+    const s = W / CELL_W;
+    const box = [ox + b.x * W - a.ox * s, oy + b.y * H - a.oy * s, a.c.width * s, a.c.height * s];
+    g.drawImage(a.c, box[0], box[1], box[2], box[3]);
+    return box;
+  }
+
+  // ---- what may go where: nothing on top of something else (as the game would have it), but a
+  // pickup under a building (as in the story's Santa and They Live levels)
+
+  // A building's cells, as the game works them out from where it stands (BuildingStats: its
+  // topLeftX and topLeftY); a unit's, its own.
+  footprint(t, x, y) {
+    if (t[0] !== 'B') return [[x, y]];
+    this.sizes = this.sizes || {};
+    if (!this.sizes[t]) {
+      try {
+        const st = new this.ui.game.BuildingStats(t);
+        this.sizes[t] = { w: st.width || 1, h: st.height || 1 };
+      } catch (e) {
+        this.sizes[t] = { w: 1, h: 1 };
+      }
+    }
+    const { w, h } = this.sizes[t];
+    let fx = x, fy = y;
+    if (w % 2) fx -= 0.5;
+    if (h !== 2) fy -= 1;
+    const left = Math.floor(fx - w / 2) + 1;
+    const top = Math.floor(fy - h) + 3 - (h === 2 ? 1 : 0);
+    const cells = [];
+    for (let yy = top; yy < top + h; yy++) for (let xx = left; xx < left + w; xx++) cells.push([xx, yy]);
+    return cells;
+  }
+
+  // The cells the map's units and buildings stand on (but the one numbered except), as "x,y".
+  taken(except) {
+    const set = new Set();
+    const st = this.draft.map.story;
+    if (!st) return set;
+    st.units.forEach((u, i) => { if (i !== except) for (const [x, y] of this.footprint(u.t, u.x, u.y)) set.add(x + ',' + y); });
+    return set;
+  }
+
+  canPut(t, x, y, except) {
+    const taken = this.taken(except);
+    const items = new Set(this.draft.map.story.items.map((it) => it.x + ',' + it.y));
+    return this.footprint(t, x, y).every(([cx, cy]) => this.inside({ x: cx, y: cy }) && !taken.has(cx + ',' + cy) && (t[0] === 'B' || !items.has(cx + ',' + cy)));
+  }
+
+  // (a pickup: not on another, nor on a unit; under a building it may)
+  canPutItem(x, y, except) {
+    const st = this.draft.map.story;
+    if (st.items.some((it, i) => i !== except && it.x === x && it.y === y)) return false;
+    return !st.units.some((u) => u.t[0] === 'U' && u.x === x && u.y === y);
+  }
+
+  // Things on top of each other (maps made before the editor stopped it), each place once.
+  overlaps() {
+    const st = this.draft && this.draft.map.story;
+    if (!st) return [];
+    const seen = new Map(), out = [], told = new Set();
+    st.units.forEach((u) => {
+      for (const [x, y] of this.footprint(u.t, u.x, u.y)) {
+        const k = x + ',' + y;
+        if (seen.has(k) && !told.has(k)) { out.push({ x, y }); told.add(k); }
+        seen.set(k, true);
+      }
+    });
+    st.items.forEach((it) => {
+      const k = it.x + ',' + it.y;
+      if (st.units.some((u) => u.t[0] === 'U' && u.x === it.x && u.y === it.y) && !told.has(k)) { out.push({ x: it.x, y: it.y }); told.add(k); }
+    });
+    return out;
+  }
+
   // A map's picture for its card: the whole map in the game's own art, small (the bases marked);
   // before the game's library is there, the plain colours of its preview.
   thumbnail(map) {
@@ -1064,6 +1245,7 @@ export class CustomMaps {
     }
     if (map.story) this.drawThings(g, art, map, 0, 0, W, H, () => false);
     map.bases.forEach((b, i) => {
+      if (this.drawBase(g, art, b, i, 0, 0, W, H)) return;
       g.fillStyle = BASE_COLOURS[i % BASE_COLOURS.length];
       g.strokeStyle = '#000';
       g.lineWidth = Math.max(1, W / 8);
@@ -1098,19 +1280,35 @@ export class CustomMaps {
     const c = this.canvas;
     const pointers = new Map();
     let stroke = null, pan = null, pinch = null;
+    // (a finger down, not yet drawing: if a second comes within a moment, it is a pinch, and
+    // nothing was drawn)
+    let pending = null;
+    const start = () => {
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      const p = pending;
+      pending = null;
+      stroke = this.begin(p.cell, p.ev);
+    };
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     c.addEventListener('wheel', (e) => { e.preventDefault(); const r = c.getBoundingClientRect(); this.zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
     c.addEventListener('pointerdown', (e) => {
       c.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 2) {
-        // two fingers: the map moved and zoomed, the stroke dropped
-        stroke = null;
+        // two fingers: the map moved and zoomed, the stroke dropped (and undone)
+        if (pending) { clearTimeout(pending.timer); pending = null; }
+        if (stroke) { this.dropStroke(stroke); stroke = null; }
         const [a, b] = [...pointers.values()];
         pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
         return;
       }
-      if (e.button === 1 || e.button === 2) { pan = { x: e.clientX, y: e.clientY }; return; }
+      if (e.button === 1 || e.button === 2 || this.tool === 'pan') { pan = { x: e.clientX, y: e.clientY }; return; }
+      if (e.pointerType === 'touch') {
+        pending = { cell: this.cellAt(e), ev: { shiftKey: false }, x: e.clientX, y: e.clientY, timer: setTimeout(start, 130) };
+        this.hover = pending.cell;
+        return;
+      }
       stroke = this.begin(this.cellAt(e), e);
     });
     c.addEventListener('pointermove', (e) => {
@@ -1127,11 +1325,13 @@ export class CustomMaps {
         return;
       }
       if (pan) { this.view.x -= e.clientX - pan.x; this.view.y -= e.clientY - pan.y; pan = { x: e.clientX, y: e.clientY }; this.draw(); return; }
+      if (pending && Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > 8) start();
       this.hover = this.cellAt(e);
       if (stroke) this.continue(stroke, this.hover);
       else this.draw();
     });
     const end = (e) => {
+      if (pending && pointers.size < 2) start();
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = null;
       if (stroke) { this.finish(stroke); stroke = null; }
@@ -1140,6 +1340,14 @@ export class CustomMaps {
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', end);
     c.addEventListener('pointerleave', () => { this.hover = null; this.draw(); });
+  }
+
+  // A stroke given up (a second finger came): the map as it was before it.
+  dropStroke(stroke) {
+    if (stroke.kind === 'area' || !this.undo.length) return;
+    this.draft.map = JSON.parse(this.undo.pop());
+    this.selected = null;
+    this.draw();
   }
 
   inside(p) { const m = this.draft.map; return p.x >= 1 && p.y >= 1 && p.x <= m.w && p.y <= m.h; }
@@ -1154,7 +1362,7 @@ export class CustomMaps {
     this.snapshot();
     if (PAINTS.includes(t)) {
       if (this.shape === 'fill') { this.applyCells(this.fillCells(p)); this.changed(); return null; }
-      if (this.shape !== 'free') return { kind: 'shape', from: p, to: p, outline: !!(ev && ev.shiftKey) };
+      if (this.shape !== 'free') return { kind: 'shape', from: p, to: p, outline: !!((ev && ev.shiftKey) || this.outline) };
       const s = { kind: 'paint', last: null }; this.continue(s, p); return s;
     }
     if (t === 'select') {
@@ -1171,6 +1379,7 @@ export class CustomMaps {
     }
     if (t === 'thing') {
       if (map.story.units.length >= C.LIMITS.units) { this.undo.pop(); return null; }
+      if (!this.canPut(this.thingType, p.x, p.y)) { this.ui.toast('There is something there already.'); this.undo.pop(); return null; }
       const u = { t: this.thingType, x: p.x, y: p.y, f: 0.5, own: this.thingOwn, hp: 1 };
       if (u.own === 'enemy') { u.b = 'still'; u.d = 0; }
       map.story.units.push(u);
@@ -1178,6 +1387,7 @@ export class CustomMaps {
     }
     if (t === 'item') {
       if (map.story.items.length >= C.LIMITS.items) { this.undo.pop(); return null; }
+      if (!this.canPutItem(p.x, p.y)) { this.ui.toast('There is something there already (a pickup can go under a building).'); this.undo.pop(); return null; }
       const it = { k: this.itemKind, x: p.x, y: p.y };
       if (it.k === 'crate') it.u = this.crateUnit;
       map.story.items.push(it);
@@ -1217,7 +1427,9 @@ export class CustomMaps {
       const sel = this.selected;
       const list = sel.list === 'bases' ? map.bases : map.story[sel.list];
       const it = list[sel.i];
-      if (it && (it.x !== p.x || it.y !== p.y)) { it.x = p.x; it.y = p.y; this.draw(); }
+      // (moved only where it fits: not onto something else)
+      const fits = sel.list === 'units' ? this.canPut(it.t, p.x, p.y, sel.i) : sel.list === 'items' ? this.canPutItem(p.x, p.y, sel.i) : true;
+      if (it && fits && (it.x !== p.x || it.y !== p.y)) { it.x = p.x; it.y = p.y; this.draw(); }
     }
   }
 

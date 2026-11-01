@@ -9323,7 +9323,9 @@
             var ITEM_TYPES = {crate:"UI_good",cash:"UI_evil",gift:"UO_evil",pizza:"UJ_good"};
             var thing;
             me.cash = Number(story.cash) || 0;
-            enemy.cash = 0;
+            // (the enemy's purse as the story's -- 999,999,900 --: what pays for its units that come
+            // back from their buildings, Unit.destroy's respawn)
+            enemy.cash = 999999900;
             this.customThings = new Array();
             this.customCollected = {};
             for(var one of story.units || [])
@@ -9335,7 +9337,7 @@
                }
                else
                {
-                  this.units?.push?.(thing = new Unit(this, one.t, one.x, one.y, one.f, owner, one.hp < 1 ? one.hp : undefined, one.own == "enemy" ? one.b || "still" : undefined, one.b == "still" && one.d ? one.d : undefined));
+                  this.units?.push?.(thing = new Unit(this, one.t, one.x, one.y, one.f, owner, one.hp < 1 ? one.hp : undefined, one.own == "enemy" ? one.b || "still" : undefined, one.b == "still" && one.d ? one.d : undefined, one.own == "enemy" && one.r === true));
                }
                this.customThings.push(thing);
             }

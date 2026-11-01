@@ -32,7 +32,12 @@ crates, cash, presents and pizzas to pick up; ground uncovered at the start; and
 destroy everything, the buildings or the headquarters, infiltrate or protect something, pick up
 items, or survive). It starts from a blank map, any skirmish map, or a story level (by its access code: They
 Live, Eclipse, Manic...); it has brush sizes, line, square, circle and fill, copy, cut and paste,
-undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+C, Ctrl+X, Ctrl+V), and test play. Maps are kept on the device
+undo and redo (Ctrl+Z, Ctrl+Y, Ctrl+C, Ctrl+X, Ctrl+V), and test play. On a phone the editor fills
+the screen: the map as big as it can be, the tools in a strip, the map's settings in a sheet that
+slides over it; draw with a finger, move and zoom with two (or the Move tool), Fit to see it all.
+Nothing can stand on top of something else, but a pickup can hide under a building. An enemy
+unit can be set to come back from the building that makes it while that stands, as the story's
+do. Maps are kept on the device
 as they are drawn, offline too. Export saves one map, or all of them, as a file (in the Android
 app, through Android's own Save); Import (or dropping files on the screen) brings them back,
 unfinished drafts included. **Share** sends a map to everyone; it appears

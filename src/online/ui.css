@@ -487,3 +487,72 @@ input[type=range] { width: 100%; accent-color: var(--orange); }
 .tilebtn.art { width: 52px; height: 28px; padding: 1px; background: #000; } .tilebtn.art canvas { display: block; width: 48px; height: 24px; }
 .edit-side .sizes select { flex: 1; min-width: 0; }
 .edit-side .seg { flex-wrap: nowrap; } .edit-side .seg > .tool { padding: 8px 2px 7px; letter-spacing: 0.02em; }
+
+/* ---- the editor on a phone (custom.js isCompact): the whole screen, the map as big as it can be,
+   a slim bar, the tools in a strip (down the side when the phone is on its side), the chosen tool's
+   choices by the map, and the map's settings in a sheet that slides over it ------------------------ */
+.editor:not(.compact) .compact-only { display: none !important; }
+.editor.compact .desk-only { display: none !important; }
+.screen.custom.editing-compact { padding: 0; overflow: hidden; }
+.screen.custom.editing-compact > .titlebar, .screen.custom.editing-compact > .actions { display: none; }
+.editor.compact { position: fixed; inset: 0; z-index: 30; display: block; background: #0c0c0c; }
+.editor.compact .edit-main { position: absolute; inset: 0; display: grid; gap: 0;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: "bar" "map" "opts" "tools";
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); box-sizing: border-box; }
+.editor.compact .edit-bar { grid-area: bar; flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding: 6px; border-radius: 0; border: 0;
+  border-bottom: 1px solid var(--edge); background: #141414; scrollbar-width: none; }
+.editor.compact .edit-bar::-webkit-scrollbar, .editor.compact .tools::-webkit-scrollbar, .editor.compact .tool-options::-webkit-scrollbar { display: none; }
+.editor.compact .edit-bar .chip { padding: 9px 12px 8px; flex: none; }
+.editor.compact .edit-bar .seg { flex: none; }
+.editor.compact .chip.status { color: #7be36b; }
+.editor.compact .chip.status.bad { color: #ffb0a5; border-color: rgba(255, 90, 70, 0.6); }
+.editor.compact .edit-canvas { grid-area: map; position: relative; min-height: 0; border: 0; border-radius: 0; }
+.editor.compact .edit-canvas canvas { position: absolute; left: 0; top: 0; }
+.editor.compact .opts { grid-area: opts; min-width: 0; background: rgba(20, 20, 20, 0.96); border-top: 1px solid var(--edge); }
+.editor.compact .opts:empty { display: none; }
+.editor.compact .tool-options { flex-wrap: nowrap; overflow-x: auto; padding: 5px 8px; min-height: 0; scrollbar-width: none; }
+.editor.compact .tool-options > * { flex: none; }
+.editor.compact .tool-options .hint { white-space: nowrap; font-size: 12px; }
+.editor.compact .tilepick { flex-wrap: nowrap; }
+.editor.compact .selname { font-weight: 700; white-space: nowrap; }
+.editor.compact .tools { grid-area: tools; flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding: 6px 8px; align-items: center;
+  background: #141414; border-top: 1px solid var(--edge); scrollbar-width: none; }
+.editor.compact .toolgroup { flex: none; }
+.editor.compact .grouplabel { display: none; }
+.editor.compact .seg { flex-wrap: nowrap; }
+.editor.compact .tool { padding: 10px 12px 9px; }
+/* (on its side: the tools down the left, the choices under the map) */
+@media (orientation: landscape) {
+  .editor.compact .edit-main { grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "bar bar" "tools map" "tools opts"; }
+  .editor.compact .tools { flex-direction: column; overflow-x: hidden; overflow-y: auto; border-top: 0; border-right: 1px solid var(--edge);
+    padding: 6px; align-items: stretch; }
+  .editor.compact .tools .seg { flex-direction: column; }
+  .editor.compact .tools .seg > .tool { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+  .editor.compact .tools .seg > .tool:first-child { border-top: 0; }
+  .editor.compact .tools .tool { justify-content: flex-start; padding: 9px 10px 8px; }
+}
+/* the sheet: the map's settings, what is selected, the checks; up from the bottom (from the right,
+   on its side) */
+.editor.compact .edit-side { position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; max-height: 72%; overflow-y: auto; overscroll-behavior: contain;
+  gap: 10px; padding: 0 10px calc(12px + env(safe-area-inset-bottom)); background: #171717; border-top: 2px solid var(--orange);
+  border-radius: 14px 14px 0 0; box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.7); transform: translateY(105%); transition: transform 0.2s ease; }
+.editor.compact .edit-side.open { transform: none; }
+.editor.compact .sheet-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px; padding: 10px 0 8px;
+  background: #171717; border-bottom: 1px solid var(--edge); }
+.editor.compact .sheet-head strong { font-size: 15px; letter-spacing: 0.1em; }
+.editor.compact .sheet-head .spacer { flex: 1; }
+.editor.compact .edit-side .panel { margin: 0; }
+@media (orientation: landscape) {
+  .editor.compact .edit-side { left: auto; top: 0; width: min(380px, 62%); max-height: none; border-top: 0; border-left: 2px solid var(--orange);
+    border-radius: 14px 0 0 14px; transform: translateX(105%); }
+}
+/* (a narrow phone, upright: the bar's buttons tighter, Test only its arrow) */
+@media (max-width: 480px) {
+  .editor.compact .edit-bar { gap: 4px; padding: 5px; }
+  .editor.compact .edit-bar .chip { padding: 9px 10px 8px; }
+  .editor.compact .edit-bar .tool { padding: 9px 9px 8px; }
+  .editor.compact .edit-bar .tlabel { display: none; }
+}
+/* (the sheet scrolls; its panels keep their whole height) */
+.editor.compact .edit-side > * { flex-shrink: 0; }

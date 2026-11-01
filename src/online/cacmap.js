@@ -12,10 +12,11 @@
 //       side: 'good' | 'evil', cash,
 //       brief,                  the mission text shown at the start (up to 280 characters; none:
 //                               the goal's own summary, summary())
-//       units: [{t, x, y, f, own, hp, b, d}],   things on the map at the start: type, cell,
+//       units: [{t, x, y, f, own, hp, b, d, r}], things on the map at the start: type, cell,
 //                               facing (0 to 1), whose ('player', 'enemy'), health (0.1 to 1),
 //                               behaviour (an enemy's: 'still', 'roam', 'seek'), and a delay
-//                               (frames before an enemy stirs)
+//                               (frames before an enemy stirs); r, an enemy unit that comes back
+//                               from the building that makes it, while that stands (the story's)
 //       items: [{k, x, y, u}],  pickups: 'crate' (a unit in a box, u its type), 'cash', 'gift',
 //                               'pizza'
 //       reveal: [{x, y, r}],    shroud lifted at the start
@@ -282,6 +283,7 @@ export function validate(input) {
       if (u.own === 'enemy') {
         one.b = BEHAVIOURS.includes(u.b) ? u.b : 'still';
         one.d = int(u.d, 0, LIMITS.delay) ? u.d : 0;
+        if (u.r === true && u.t[0] === 'U') one.r = true;
       }
       story.units.push(one);
     }
@@ -367,7 +369,7 @@ export function repair(input) {
     for (const u of Array.isArray(s.units) ? s.units : []) {
       if (!cell(u) || !(BUILDINGS.includes(u.t) || UNITS.includes(u.t)) || (u.own !== 'player' && u.own !== 'enemy') || st.units.length >= LIMITS.units) { lost++; continue; }
       const one = { t: u.t, x: u.x, y: u.y, f: num(u.f, 0, 1) ? u.f : 0.5, own: u.own, hp: num(u.hp, 0.1, 1) ? u.hp : 1 };
-      if (u.own === 'enemy') { one.b = BEHAVIOURS.includes(u.b) ? u.b : 'still'; one.d = int(u.d, 0, LIMITS.delay) ? u.d : 0; }
+      if (u.own === 'enemy') { one.b = BEHAVIOURS.includes(u.b) ? u.b : 'still'; one.d = int(u.d, 0, LIMITS.delay) ? u.d : 0; if (u.r === true && u.t[0] === 'U') one.r = true; }
       st.units.push(one);
     }
     for (const it of Array.isArray(s.items) ? s.items : []) {
