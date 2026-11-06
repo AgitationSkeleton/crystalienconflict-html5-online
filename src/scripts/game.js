@@ -5885,7 +5885,9 @@
             {
                this.doDeploy?.();
             }
-            if(this.stats?.boomerang && !this.stats?.home?.active)
+            // (Online: or taken by an enemy -- infiltrated: the fighter of a player who held nothing
+            // else stayed theirs, on a pad of yours, and kept them in the match)
+            if(this.stats?.boomerang && (!this.stats?.home?.active || this.parent?.hostile?.(this.stats?.home, this)))
             {
                this.destroy?.();
             }
@@ -8335,6 +8337,16 @@
                   }
                   else
                   {
+                     // (Online: its factory lost -- destroyed, sold, infiltrated -- in the second since
+                     // handle last looked: nowhere for it to come out, so given up, the money back, as
+                     // handle would have.  Made, it was placed nowhere: never seen, never hit, and its
+                     // owner never beaten -- a skirmish that would not end.)
+                     if(new UnitStats({type:item.type,owner:this.owner,parent:this.level}).home === false)
+                     {
+                        this.finished = false;
+                        this.cancel?.(false);
+                        return undefined;
+                     }
                      this.level?.units?.push?.(new Unit(this.level, item.type, undefined, undefined, 0.125 * random?.(8), this.owner));
                   }
                   this.unit = false;
@@ -9562,6 +9574,7 @@
             }
             this.passiveIncome?.();
             this.orphanMiners?.();
+            this.lostUnits?.();
             var standing = {};
             var teams = 0;
             var index = 0;
@@ -9699,6 +9712,23 @@
                   && !this.findBuilding?.("BK_good", unit.owner) && !this.findBuilding?.("BK_evil", unit.owner))
                {
                   unit.destroy?.();
+               }
+            }
+         };
+         // Online: a unit that is nowhere -- no place on the map, however it came to be so -- is
+         // gone: it could not be seen or hit, and kept its player in the match for good.  (A unit
+         // carried in a transport is at -1000, a place: not this.)  The same on every player's
+         // page, as all the match is.
+         this.lostUnits = function ()
+         {
+            for(var index of __as.keys(this.units))
+            {
+               var unit = this.units[index];
+               // (a number less itself is 0 only when it is one: not NaN, not infinite -- the
+               // game's Number is ActionScript's, which has no isFinite)
+               if(unit?.active && !unit.stats?.pickup && !(unit.posX - unit.posX === 0 && unit.posY - unit.posY === 0))
+               {
+                  unit.destroy?.(true);
                }
             }
          };
