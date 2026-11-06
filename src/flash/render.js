@@ -67,6 +67,7 @@ export class Renderer {
     this.offsetX = 0;
     this.offsetY = 0;
     this.tints = new Map();           // "bitmapId|cx" -> canvas, least recently used first
+    this.tintMisses = new Map();      // picture -> its last new transform (drawTinted: one changing every frame)
     this.team = undefined;            // the colour of the player whose object is being drawn
     this.tintPixels = 0;
     this.filterDefs = new Map();      // key -> { id, el }
@@ -914,6 +915,23 @@ export class Renderer {
     c = document.createElement('canvas');
     c.width = w;
     c.height = h;
+    // (Online, speed: made on the GPU, the picture drawn once through a colour-matrix filter --
+    // Flash's sums exactly, on unpremultiplied colour -- rather than its pixels read back,
+    // changed one by one and written again: a read back from the GPU stalls it, and a cutscene's
+    // fade asks for a new transform every frame.  Where the browser has no canvas filters, the
+    // old way.)
+    const url = w && h ? this.cxFilterUrl(cx) : null;
+    if (url) {
+      const fg = c.getContext('2d');
+      fg.filter = url;
+      fg.drawImage(img, 0, 0);
+      fg.filter = 'none';
+      c.$used = this.drawCount;
+      this.tints.set(k, c);
+      this.tintPixels += w * h;
+      this.trimTints();
+      return c;
+    }
     const g = c.getContext('2d', { willReadFrequently: true });
     g.drawImage(img, 0, 0);
     if (w && h) {
@@ -932,6 +950,22 @@ export class Renderer {
     this.tintPixels += w * h;
     this.trimTints();
     return c;
+  }
+
+  // A Flash colour transform as an SVG colour-matrix filter (filterUrl), or null where a canvas
+  // takes no filters.  cx: multipliers in 256ths (red, green, blue, alpha), then offsets.
+  cxFilterUrl(cx) {
+    if (this.canvasFilters === undefined) {
+      try {
+        const t = document.createElement('canvas').getContext('2d');
+        t.filter = 'blur(1px)';
+        this.canvasFilters = t.filter === 'blur(1px)';
+      } catch (e) {
+        this.canvasFilters = false;
+      }
+    }
+    if (!this.canvasFilters) return null;
+    return this.filterUrl([{ type: 'colorMatrix', matrix: [cx[0] / 256, 0, 0, 0, cx[4], 0, cx[1] / 256, 0, 0, cx[5], 0, 0, cx[2] / 256, 0, cx[6], 0, 0, 0, cx[3] / 256, cx[7]] }]);
   }
 
   // Colour tweens make a new tint every frame, and six players' colours a copy of each of
@@ -982,7 +1016,7 @@ export class Renderer {
       ctx.globalAlpha = 1;
     } else {
       ctx.globalAlpha = 1;
-      ctx.drawImage(this.tinted(key, img, cx), 0, 0);
+      this.drawTinted(ctx, key, img, cx);
     }
   }
 
@@ -998,8 +1032,34 @@ export class Renderer {
       ctx.drawImage(src, 0, 0);
       ctx.globalAlpha = 1;
     } else {
-      ctx.drawImage(this.tinted(`bmd${bmd.$id}:${bmd.$version}`, src, cx), 0, 0);
+      this.drawTinted(ctx, `bmd${bmd.$id}:${bmd.$version}`, src, cx);
     }
+  }
+
+  // A picture drawn in a colour transform: from the copy kept of it in that transform (tinted),
+  // or -- when its transform keeps changing, frame after frame, as in a cutscene's fade --
+  // straight through the transform's colour filter, no copy made of each step.
+  drawTinted(ctx, key, img, cx) {
+    const k = this.joinKey(key, '|' + cxKey(cx));
+    const kept = this.tints.get(k);
+    if (kept) {
+      kept.$used = this.drawCount;
+      ctx.drawImage(kept, 0, 0);
+      return;
+    }
+    // (a new transform for this picture in each of the last frames: it is changing)
+    const miss = this.tintMisses.get(key);
+    const changing = miss && this.drawCount - miss.at <= 2 && miss.n >= 2;
+    this.tintMisses.set(key, { at: this.drawCount, n: miss && this.drawCount - miss.at <= 2 ? miss.n + 1 : 1 });
+    if (this.tintMisses.size > 4096) this.tintMisses.clear();
+    const url = changing ? this.cxFilterUrl(cx) : null;
+    if (url) {
+      ctx.filter = url;
+      ctx.drawImage(img, 0, 0);
+      ctx.filter = 'none';
+      return;
+    }
+    ctx.drawImage(this.tinted(key, img, cx), 0, 0);
   }
 
   // ---- the drawing API ------------------------------------------------------------------
@@ -1352,8 +1412,24 @@ export class Renderer {
     if (w <= 0 || h <= 0) return;
     if (w * h > 16e6) return this.drawContent(ctx, obj, m, cx);
 
-    const key = `${m[0]},${m[1]},${m[2]},${m[3]}|${clamp}|${JSON.stringify(filters)}|${this.team || ''}|${this.contentSig(obj)}`;
+    // (Online, speed: what it holds is signed -- every part of it, walked -- only when something
+    // in it has changed since its picture was made (display.js marks it: $fstale), or when it
+    // holds what can change unmarked (text, a bitmap's pixels, a mask, a morph: volatile).  A
+    // cutscene's big blurred scene was walked whole for every frame it was drawn.)
+    const base = `${m[0]},${m[1]},${m[2]},${m[3]}|${clamp}|${JSON.stringify(filters)}|${this.team || ''}`;
+    if (!obj.$filtered) {
+      obj.$filtered = true;
+      obj.$fstale = true;
+      this.player.cachers = (this.player.cachers || 0) + 1;
+    }
     let e = this.fcache.get(obj);
+    let key;
+    if (e && e.base === base && !e.volatile && !obj.$fstale && !this.alwaysSign) key = e.key;
+    else {
+      this.sigVolatile = false;
+      key = base + '|' + this.contentSig(obj);
+    }
+    obj.$fstale = false;
     if (!e || e.key !== key) {
       if (e) this.fcachePixels -= e.canvas.width * e.canvas.height;
       const src = this.offscreen(w, h);
@@ -1378,7 +1454,7 @@ export class Renderer {
         octx.filter = 'none';
       }
       this.scratch.push(src);
-      e = { key, canvas: out, x0, y0, tx: m[4], ty: m[5], version: (e ? e.version : 0) + 1, id: this.fcacheIds++ };
+      e = { key, base, volatile: this.sigVolatile, canvas: out, x0, y0, tx: m[4], ty: m[5], version: (e ? e.version : 0) + 1, id: this.fcacheIds++ };
       this.fcachePixels += w * h;
     }
     this.fcache.delete(obj);                       // most recently used last
@@ -1422,16 +1498,19 @@ export class Renderer {
         if (o.$clipDepth) parts.push('k' + o.$clipDepth);
         if (o.$maskOf) parts.push('mo');
       }
-      if (o.$maskClip) parts.push('m' + o.$maskClip.$id + ':' + o.$maskClip.$worldMatrix().join(','));
+      if (o.$maskClip) { parts.push('m' + o.$maskClip.$id + ':' + o.$maskClip.$worldMatrix().join(',')); this.sigVolatile = true; }
       if (o instanceof MovieClip) {
         parts.push('f' + o.$cur);
         if (o.$gfx) parts.push('g' + o.$gfx.$id + ':' + o.$gfx.ops.length);
       } else if (o instanceof MorphObj) {
         parts.push('r' + o.$ratio);
+        this.sigVolatile = true;
       } else if (o instanceof EditText) {
+        this.sigVolatile = true;
         text.bind(o);
         parts.push(o.$text, o.$html ? 1 : 0, o.$color.join(','), o.$scroll, o.$focus && text.caretOn ? 1 : 0);
       } else if (o instanceof BitmapObj) {
+        this.sigVolatile = true;
         parts.push('b' + o.$bmd.$id + ':' + o.$bmd.$version);
       }
       if (o.$children) for (const c of o.$children) walk(c, false);

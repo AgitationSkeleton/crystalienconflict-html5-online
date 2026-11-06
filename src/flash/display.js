@@ -39,10 +39,15 @@ export class DisplayObject {
 
   // Online (cacheAsBitmap, render.js drawCached): something about this object that shows has
   // changed, so the clips above it that keep a picture of what they hold have to draw it again.
+  // (Online: and the filtered clips above it, whose filtered picture is kept (render.js
+  // drawFiltered: $filtered), have to draw it again: $fstale.)
   $changed() {
     const p = this.$player;
     if (!p || !p.cachers) return;
-    for (let o = this.$parent, via = this; o; via = o, o = o.$parent) if (o.$cacheAsBitmap) o.$markStale(via);
+    for (let o = this.$parent, via = this; o; via = o, o = o.$parent) {
+      if (o.$cacheAsBitmap) o.$markStale(via);
+      if (o.$filtered) o.$fstale = true;
+    }
   }
 
   // ... something inside it (its frame, its children, its drawing), so its own picture as well.
@@ -50,7 +55,11 @@ export class DisplayObject {
     const p = this.$player;
     if (!p || !p.cachers) return;
     if (this.$cacheAsBitmap) this.$markStale(null);
-    for (let o = this.$parent, via = this; o; via = o, o = o.$parent) if (o.$cacheAsBitmap) o.$markStale(via);
+    if (this.$filtered) this.$fstale = true;
+    for (let o = this.$parent, via = this; o; via = o, o = o.$parent) {
+      if (o.$cacheAsBitmap) o.$markStale(via);
+      if (o.$filtered) o.$fstale = true;
+    }
   }
 
   // A change under this clip, by way of its child `via` (the picture can be mended where that
