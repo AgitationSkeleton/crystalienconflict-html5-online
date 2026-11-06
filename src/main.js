@@ -151,6 +151,8 @@ addEventListener('resize', resize);
 
 // ---- input -----------------------------------------------------------------------------
 function stagePoint(ev) {
+  // (the mouse kept in the game: where the game's own pointer is, moved by the mouse's motion)
+  if (locked) return [lockX, lockY];
   const r = canvas.getBoundingClientRect();
   const dpr = canvas.width / Math.max(1, r.width);
   return player.renderer.toStage((ev.clientX - r.left) * dpr, (ev.clientY - r.top) * dpr);
@@ -169,13 +171,63 @@ function releaseWhenSeen() {
 }
 canvas.addEventListener('pointermove', (ev) => {
   if (ev.pointerType === 'mouse') touchMode(false);
+  // (out of a match the mouse is let go: the menus need the browser's pointer)
+  keepLock();
+  if (locked) {
+    // (the mouse's motion, in the stage's units, and the pointer kept on the stage)
+    const r = canvas.getBoundingClientRect();
+    const k = canvas.width / Math.max(1, r.width) / player.renderer.scale;
+    lockX = Math.max(0, Math.min(player.renderer.stageW - 1, lockX + ev.movementX * k));
+    lockY = Math.max(0, Math.min(player.renderer.stageH - 1, lockY + ev.movementY * k));
+    player.pointerMove(lockX, lockY);
+    return;
+  }
   const [x, y] = stagePoint(ev);
+  lastX = x;
+  lastY = y;
   player.pointerMove(x, y);
+});
+// ---- the mouse in a match, as in C&C (the player's settings; neither is on to begin with) -------
+// A browser lets the pointer go out of its window, past the edge that scrolls the view.  Either it
+// is kept in -- "Keep the Mouse in the Game": the browser's Pointer Lock, from a click on the map
+// in a match; the game draws its own pointer, moved by the mouse's motion and held on the stage,
+// so it can be pushed at an edge; Esc (the browser's) lets it go, and it goes by itself out of a
+// match -- or, gone out over an edge ("Scroll Past the Window's Edge"), the game is told it is at
+// that edge, and the view scrolls that way until it comes back.
+let locked = false, lockX = 0, lockY = 0, lastX = 0, lastY = 0;
+const prefs = () => player.online.prefs || {};
+const wantLock = () => !!prefs().mouseLock && !touching && inMatch();
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === canvas;
+  if (locked) { lockX = lastX; lockY = lastY; }
+});
+function keepLock() {
+  if (locked && !wantLock()) document.exitPointerLock();
+}
+canvas.addEventListener('pointerleave', (ev) => {
+  if (ev.pointerType !== 'mouse' || locked || !prefs().edgeLeave || !inMatch() || player.mouseDown) return;
+  const level = player.levels[1].panel.game.level;
+  const r = canvas.getBoundingClientRect();
+  let [x, y] = stagePoint(ev);
+  // (the map's edges: the sidebar is at the left, and the view may end above the stage's foot)
+  const left = (player.levels[1].SIDEBAR || 150) + 2, right = player.renderer.stageW - 2;
+  const top = 2, bottom = ((level.arena && level.arena.viewHeightPx) || player.renderer.stageH) - 2;
+  if (ev.clientX <= r.left + 1) x = left;
+  else if (ev.clientX >= r.right - 1) x = right;
+  if (ev.clientY <= r.top + 1) y = top;
+  else if (ev.clientY >= r.bottom - 1) y = bottom;
+  if (x === left || x === right || y === top || y === bottom) player.pointerMove(x, y);
 });
 canvas.addEventListener('pointerdown', (ev) => {
   if (ev.button !== 0) return;             // Flash only ever saw the left button
+  if (!locked && ev.pointerType === 'mouse' && wantLock() && canvas.requestPointerLock) {
+    const p = canvas.requestPointerLock();
+    if (p && p.catch) p.catch(() => {});
+  }
   canvas.focus();
-  canvas.setPointerCapture(ev.pointerId);  // a drag that leaves the stage still ends here
+  // (a drag that leaves the stage still ends here -- unless the mouse is kept in the game, which
+  // does that already, and where the browser refuses it)
+  try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* (kept in) */ }
   if (pendingUp) player.pointerUp(pendingUp[0], pendingUp[1]);
   pendingUp = null;
   const [x, y] = stagePoint(ev);
@@ -237,9 +289,13 @@ canvas.addEventListener('mousedown', (ev) => {
 addEventListener('mousemove', (ev) => {
   const h = heldButton;
   if (!h) return;
-  if (!h.dragging && Math.hypot(ev.clientX - h.x, ev.clientY - h.y) < DRAG_VIEW) return;
+  // (with the mouse kept in the game the pointer does not move on the screen: its motion, then)
+  if (locked) { h.mx = (h.mx || 0) + ev.movementX; h.my = (h.my || 0) + ev.movementY; }
+  const dx = locked ? h.mx : ev.clientX - h.x, dy = locked ? h.my : ev.clientY - h.y;
+  if (!h.dragging && Math.hypot(dx, dy) < DRAG_VIEW) return;
   h.dragging = true;
-  touch.panBy(ev.clientX - h.x, ev.clientY - h.y);
+  touch.panBy(dx, dy);
+  if (locked) { h.mx = 0; h.my = 0; }
   h.x = ev.clientX;
   h.y = ev.clientY;
 });
@@ -285,8 +341,24 @@ function inMenus(ev) {
   const t = ev.target;
   return t && t !== canvas && t !== document.body && t.closest && t.closest('.ui, .ui-back');
 }
+// Control groups with C&C's keys (the player's settings): Ctrl (Cmd) and a number makes the
+// selection a group, the number picks it, Shift and the number adds it, Alt and the number -- or
+// the number twice -- picks it and goes to it.  Read here, and kept from the browser (whose own
+// are Ctrl and Alt with a number), for the game's next frame (Control.doGroups).
+function groupKey(ev) {
+  if (prefs().groupKeys !== 'cnc' || !inMatch()) return false;
+  const m = /^(?:Digit|Numpad)([1-9])$/.exec(ev.code || '');
+  if (!m) return false;
+  ev.preventDefault();
+  if (!ev.repeat) {
+    (player.online.groupPresses = player.online.groupPresses || []).push({ n: Number(m[1]), assign: ev.ctrlKey || ev.metaKey,
+      add: ev.shiftKey && !(ev.ctrlKey || ev.metaKey), centre: ev.altKey });
+  }
+  return true;
+}
 addEventListener('keydown', (ev) => {
   if (inMenus(ev)) return;
+  if (groupKey(ev)) return;
   if (!trapped(ev)) return;
   player.keyDown(ev);
   ev.preventDefault();
@@ -312,6 +384,7 @@ function loop(now) {
   // (The next one asked for first: an error in a frame must not stop the game.)
   requestAnimationFrame(loop);
   releaseWhenSeen();
+  keepLock();
   touch.frame(touching);
   fitPortrait();
   advance(now);

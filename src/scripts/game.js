@@ -2511,7 +2511,14 @@
                {
                   __as.op(this.baits?.[this.baitList?.[_loc3_]?.x], this.baitList?.[_loc3_]?.y, "+", this.baitGrow);
                }
-               this.baitList?.[_loc3_]?.MC?.gotoAndStop?.(5 - Math.ceil(4 * _loc2_ / 100));
+               // (Online, speed: its picture set only when it is another -- a thousand crystals a
+               // frame, each the same as the last but for a few)
+               var shown = 5 - Math.ceil(4 * _loc2_ / 100);
+               var baitMC = this.baitList?.[_loc3_]?.MC;
+               if(baitMC && baitMC._currentframe !== shown)
+               {
+                  baitMC.gotoAndStop?.(shown);
+               }
             }
             this.drawWind?.();
          };
@@ -4329,6 +4336,10 @@
       {
          this.isBuilding = true;
          this.parent = parent;
+         if(parent)
+         {
+            parent.techVersion = (parent.techVersion || 0) + 1;
+         }
          this.type = type;
          this.tilePos = {x:x,y:y};
          this.active = true;
@@ -4569,6 +4580,10 @@
                return undefined;
             }
             this.active = false;
+            if(this.parent)
+            {
+               this.parent.techVersion = (this.parent.techVersion || 0) + 1;
+            }
             this.MC?.removeMovieClip?.();
             this.parent?.construction?.doPrerequisites?.(this);
             this.freeBlock?.(!sold);
@@ -6134,6 +6149,7 @@
                this.parent?.lose?.();
             }
             __as.set(this.target, "hilite", true);
+            this.parent.techVersion = (this.parent.techVersion || 0) + 1;
             __as.set(this.target, "owner", this.owner);
             __as.set(this.target?.MC, "teamColour", this.owner?.colour);
             __as.set(this.target, "team", this.team);
@@ -8745,10 +8761,10 @@
             this.enemies = 0;
             this.outcomeFutures = 0;
             this.outcomeThreats = 0;
-            __as.set(this.arena, "useds", this.arena?.tiles?.slice?.());
-            for(var _loc5_ of __as.keys(this.arena?.useds))
+            // (Online, speed: the grid copied, column by column, as plain arrays)
+            if(this.arena)
             {
-               __as.set(this.arena?.useds, _loc5_, this.arena?.useds?.[_loc5_]?.slice?.());
+               this.arena.useds = (this.arena.tiles || new Array()).map((column) => column?.slice ? column.slice() : column);
             }
             for(_loc5_ of __as.keys(this.arena?.baitList))
             {
@@ -10970,6 +10986,13 @@
          // levels hold some of it back from the player; that is the sidebar's business.)
          this.techFor = function (owner)
          {
+            // (Online, speed: worked out once a frame for each player -- it was eight times --
+            // and again whenever a building comes, goes or changes hands: techVersion)
+            var techKey = this.count + ":" + (this.techVersion || 0);
+            if(owner && owner.techKey === techKey && owner.techCache)
+            {
+               return owner.techCache;
+            }
             var tech = {};
             var factions = new Array(owner?.faction, owner?.faction == "good" ? "evil" : "good");
             var index = 0;
@@ -11080,6 +11103,11 @@
                {
                   tech.UK_good = tech.UK_evil = false;
                }
+            }
+            if(owner)
+            {
+               owner.techKey = techKey;
+               owner.techCache = tech;
             }
             return tech;
          };
@@ -12495,6 +12523,17 @@
          };
          this.doSquads = function ()
          {
+            // Online: none for anyone, by the host's settings
+            if(this.parent?.skirmish?.groups === false)
+            {
+               return undefined;
+            }
+            // Online: C&C's keys (the player's settings), read by the page (src/main.js groupKey)
+            if(Online?.prefs?.groupKeys == "cnc")
+            {
+               this.doGroups?.();
+               return undefined;
+            }
             if(this.ignoreSquads)
             {
                this.ignoreSquads--;
@@ -12565,6 +12604,59 @@
                   }
                   _loc2_ = _loc2_ + 1;
                }
+            }
+         };
+         // Online: control groups as C&C has them (Handle_Team), the presses the page read: Ctrl
+         // and a number, the selection made that group; the number, the group picked (Shift: added
+         // to what is picked); Alt and the number, or the number twice in a moment, picked and
+         // gone to.  The original's squads, the same nine.
+         this.doGroups = function ()
+         {
+            var presses = Online?.groupPresses;
+            if(!presses?.length)
+            {
+               return undefined;
+            }
+            Online.groupPresses = new Array();
+            var squads = this.parent?.squads;
+            for(var press of presses)
+            {
+               var n = press.n;
+               if(press.assign)
+               {
+                  squads?.assign?.(n, this.selected);
+                  continue;
+               }
+               // (those of it still about: not destroyed, nor carried in a transport)
+               var members = (squads?.["squad" + n] || new Array()).filter((unit) => unit?.active && !(unit.posX < 0) && !(unit.posY < 0));
+               if(!members.length)
+               {
+                  continue;
+               }
+               squads?.retrieve?.(n);
+               if(!press.add)
+               {
+                  this.resetSelected?.();
+               }
+               for(var unit of members)
+               {
+                  __as.set(unit, "selected", true);
+               }
+               var twice = this.lastGroup == n && this.parent?.count - this.lastGroupAt < 9;
+               if(press.centre || twice)
+               {
+                  var x = 0;
+                  var y = 0;
+                  for(unit of members)
+                  {
+                     x += unit.posX;
+                     y += unit.posY;
+                  }
+                  __as.set(this.parent?.camera, "posX", Math.round(x / members.length));
+                  __as.set(this.parent?.camera, "posY", Math.round(y / members.length));
+               }
+               this.lastGroup = n;
+               this.lastGroupAt = this.parent?.count;
             }
          };
       };

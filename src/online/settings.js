@@ -38,6 +38,9 @@ export const DEFAULTS = {
   ui: 0.9,
   size: 'medium',           // the interface size: a key of UI_SCALES
   edgeScroll: true,         // the view scrolls when the pointer is at its edge
+  mouseLock: false,         // in a match the mouse stays in the game (Pointer Lock), as in C&C: pushed at an edge, the view scrolls
+  edgeLeave: false,         // the pointer gone out of the window over an edge scrolls the view that way until it is back
+  groupKeys: 'original',    // control groups' keys: 'original' (Q and a number, a number, W and a number) or 'cnc' (C&C's)
   autoMine: true,           // a new miner of yours goes to the nearest crystals
   ownedCounts: false,       // the sidebar shows how many of each thing you have
   teamIcons: 'skirmish',    // the sidebar's pictures in your colour: 'off', 'skirmish' or 'all' (in the story as well)
@@ -76,7 +79,8 @@ export function loadSettings() {
   if (s.teamIcons === true) s.teamIcons = 'skirmish';
   if (s.teamIcons === false) s.teamIcons = 'off';
   if (!['off', 'skirmish', 'all'].includes(s.teamIcons)) s.teamIcons = DEFAULTS.teamIcons;
-  for (const k of ['edgeScroll', 'autoMine', 'ownedCounts', 'storyColours', 'storySpecOps', 'ignoreMinersDrag', 'ignoreEngineersDrag', 'multiMinerReturn', 'multiFighterReturn',
+  if (!['original', 'cnc'].includes(s.groupKeys)) s.groupKeys = DEFAULTS.groupKeys;
+  for (const k of ['edgeScroll', 'mouseLock', 'edgeLeave', 'autoMine', 'ownedCounts', 'storyColours', 'storySpecOps', 'ignoreMinersDrag', 'ignoreEngineersDrag', 'multiMinerReturn', 'multiFighterReturn',
     'screensaverDirector', 'screensaverHud']) if (typeof s[k] !== 'boolean') s[k] = DEFAULTS[k];
   for (const k of ['music', 'sound', 'ui']) {
     const v = Number(s[k]);

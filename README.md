@@ -62,7 +62,13 @@ error report, for a bug report.
 | Space, right-click, middle-click, double click | deselect, cancel a building placement |
 | Esc | pause menu |
 | H | jump to your headquarters |
-| Q + number, number, W + number | assign, select, jump to a squad |
+| Q + number, number, W + number | assign, select, jump to a squad (control group) |
+| Ctrl + number, number, Shift + number, Alt + number or the number twice | with C&C's keys (the settings): assign, select, add, select and jump |
+
+In the settings (Controls), the mouse can be kept in the game in a match, so that pushing it at
+an edge scrolls the view as in C&C (Esc lets it go), or the view can keep scrolling while the
+pointer is outside the window on the side it went out; and control groups can take C&C's keys.
+A skirmish's host can turn control groups off for everyone.
 
 On a phone or tablet, upright or on its side:
 

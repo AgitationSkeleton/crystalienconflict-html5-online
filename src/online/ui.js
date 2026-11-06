@@ -35,6 +35,7 @@ const MATCH = [
   { key: 'balance', group: 'Combat', label: 'Balance', ready: true, choices: [['vanilla', 'Vanilla'], ['conquer', 'Conquerer']] },
   { key: 'build', group: 'Production and speed', label: 'Build speed', ready: true, choices: [[0.5, 'Slow'], [1, 'Normal'], [2, 'Fast'], [3, 'Faster'], [10, 'Quickbuild (ten times)']] },
   { key: 'queue', group: 'Production and speed', label: 'Unit queue', ready: true, choices: [[false, 'Off'], [true, "Up to each unit's maximum"]] },
+  { key: 'groups', group: 'Game', label: 'Control groups', ready: true, choices: [[true, 'On'], [false, 'Off: none for anyone']] },
   { key: 'shields', group: 'Combat', label: 'Triple shields', ready: true, choices: [[false, 'Off'], [true, 'On, for everyone']] },
   { key: 'shroud', group: 'Map', label: 'Shroud', ready: true, choices: [[true, 'On'], [false, 'Off']] },
   { key: 'superweapons', group: 'Combat', label: 'Superweapons', ready: true, choices: [[true, 'On'], [false, 'Off']] },
@@ -59,6 +60,12 @@ function matchGroups(row) {
     el('div', { class: 'form' }, ...MATCH.filter((m) => m.group === group).sort((a, b) => a.label.localeCompare(b.label)).flatMap(row))));
 }
 
+// What each scheme of control group keys does, under the setting.
+const GROUP_NOTES = {
+  original: 'Q + number makes the selection a squad; the number picks it (Shift adds it); W + number picks it and goes to it.',
+  cnc: 'Ctrl + number makes the selection a group; the number picks it; Shift + number adds it; Alt + number, or the number twice, picks it and goes to it.',
+};
+
 // The games list, refreshed by itself this often (seconds) while it is shown and the page seen.
 const ROOM_REFRESH_S = 10;
 const MODE_NAMES = { all: 'Destroy all', structures: 'Destroy structures', hq: 'Destroy HQs', pizza: 'Pizza mode', ctf: 'Capture the flag', hero: 'Hunt the Hero' };
@@ -67,7 +74,7 @@ const MATCH_DEFAULTS = {
   map: 10, slots: 2, mode: 'all', cash: 10000, units: 3, prebuilt: false, specops: 'on', opsHQ: true, crates: true, balance: 'vanilla',
   christmas: false, crateRate: 'normal', income: 0, pizzaCost: 50000, speed: 1, shroud: true,
   superweapons: true, factions: 'all', regrowth: 1, palette: 'mars', build: 1, queue: false, shields: false, captures: 1,
-  shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off', shareFlags: false, caps: {},
+  shareMoney: 'off', sharePower: 'off', shareUnits: 'off', shareBuildings: 'off', shareFlags: false, caps: {}, groups: true,
 };
 
 // Unit and building limits (the Match panel's, below its settings; a skirmish's settings.caps,
@@ -777,7 +784,7 @@ export class OnlineUI {
       map: /^\d+$/.test(String(map.id)) ? Number(map.id) : map.id, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false, balance: m.balance || 'vanilla',
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
-      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, shareFlags: !!m.shareFlags,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, shareFlags: !!m.shareFlags, groups: m.groups !== false,
       shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings,
       caps: cleanCaps(m.caps), players,
     };
@@ -1289,7 +1296,7 @@ export class OnlineUI {
       map: /^\d+$/.test(String(map.id)) ? Number(map.id) : map.id, mode: m.mode, cash: m.cash, units: m.units, prebuilt: m.prebuilt, shroud: m.shroud,
       superweapons: m.superweapons, palette: m.palette, speed: m.speed, regrowth: m.regrowth, specops: m.specops, opsHQ: m.opsHQ !== false, balance: m.balance || 'vanilla',
       crates: m.crates, christmas: m.christmas, crateRate: m.crateRate, income: m.income, pizzaCost: m.pizzaCost,
-      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, shareFlags: !!m.shareFlags,
+      build: m.build || 1, queue: !!m.queue, shields: !!m.shields, captures: m.captures || 1, shareFlags: !!m.shareFlags, groups: m.groups !== false,
       shareMoney: m.shareMoney, sharePower: m.sharePower, shareUnits: m.shareUnits, shareBuildings: m.shareBuildings, caps: cleanCaps(m.caps), players,
       // (the map by its name, for the server's log: the game goes by map)
       mapName: map.name,
@@ -1422,6 +1429,7 @@ export class OnlineUI {
       el('option', { value: 'american', text: 'American (Color, Center, Defense)', selected: st.english === 'american' }));
     const section = (title) => el('div', { class: 'wide section', text: title });
     const row = (label, control) => [el('label', { text: label }), control];
+    const groupNote = el('div', { class: 'wide note', text: GROUP_NOTES[st.groupKeys] || GROUP_NOTES.original });
     // (in a match: the Screensaver's, if it is one)
     const screensaver = !ingame || !!(this.screensaver && this.panel && this.panel.skirmish && this.panel.skirmish.screensaver);
     return [
@@ -1440,6 +1448,15 @@ export class OnlineUI {
       el('label', { text: 'Always Show Health Bars' }), healthBars,
       section('Controls'),
       el('label', { text: 'Scroll at the edges' }), onOff('edgeScroll', 'Scroll at the edges'),
+      // (a browser lets the pointer go out of its window, where the edge is easy to miss: kept
+      // in, or gone out over an edge, the view scrolls as in C&C)
+      el('label', { text: 'Keep the Mouse in the Game' }), onOff('mouseLock', 'Keep the Mouse in the Game'),
+      el('div', { class: 'wide note', text: 'In a match, a click on the map keeps the mouse in the game, so pushing it at an edge scrolls. Esc lets it go.' }),
+      el('label', { text: 'Scroll Past the Window\'s Edge' }), onOff('edgeLeave', 'Scroll Past the Window\'s Edge'),
+      el('div', { class: 'wide note', text: 'The view keeps scrolling while the pointer is outside the window, on the side it went out.' }),
+      el('label', { text: 'Control Group Keys' }), el('select', { 'aria-label': 'Control Group Keys', onchange: (e) => { st.groupKeys = e.target.value; save(); groupNote.textContent = GROUP_NOTES[st.groupKeys]; } },
+        ...[['original', 'Original: Q + number, number, W + number'], ['cnc', 'C&C: Ctrl + number, number, Shift/Alt + number']].map(([v, t]) => el('option', { value: v, text: t, selected: st.groupKeys === v }))),
+      groupNote,
       el('label', { text: 'Ignore Miners When Dragging' }), onOff('ignoreMinersDrag', 'Ignore Miners When Dragging'),
       el('label', { text: 'Ignore Engineers When Dragging' }), onOff('ignoreEngineersDrag', 'Ignore Engineers When Dragging'),
       el('label', { text: 'Allow Multiple Miners to Return On Click' }), onOff('multiMinerReturn', 'Allow Multiple Miners to Return On Click'),
@@ -1557,7 +1574,8 @@ export class OnlineUI {
 
   // What the game reads of the settings while it plays.
   applyPrefs() {
-    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons || 'skirmish', storyColours: !!this.settings.storyColours, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off',
+    this.player.online.prefs = { edgeScroll: this.settings.edgeScroll !== false, mouseLock: !!this.settings.mouseLock, edgeLeave: !!this.settings.edgeLeave,
+      groupKeys: this.settings.groupKeys === 'cnc' ? 'cnc' : 'original', autoMine: this.settings.autoMine !== false, ownedCounts: !!this.settings.ownedCounts, teamIcons: this.settings.teamIcons || 'skirmish', storyColours: !!this.settings.storyColours, storySpecOps: !!this.settings.storySpecOps, healthBars: this.settings.healthBars || 'off',
       ignoreMinersDrag: !!this.settings.ignoreMinersDrag, ignoreEngineersDrag: !!this.settings.ignoreEngineersDrag,
       multiMinerReturn: !!this.settings.multiMinerReturn, multiFighterReturn: !!this.settings.multiFighterReturn,
       english: this.settings.english === 'american' ? 'american' : 'european',

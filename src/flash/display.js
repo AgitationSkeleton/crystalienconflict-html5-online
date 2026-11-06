@@ -65,6 +65,7 @@ export class DisplayObject {
   // what size -- so that a drawing made between two frames can show it part of the way
   // (render.js, smoothed()).
   $moving() {
+    if (this.$parent && this.$parent.$cullIdx) this.$parent.$cullIdx = null;
     const p = this.$player;
     const f = p ? p.frame : 0;
     if (this.$ipFrame !== f) {
@@ -79,6 +80,7 @@ export class DisplayObject {
 
   // ---- geometry ---------------------------------------------------------------------
   $setMatrix(m) {
+    if (this.$parent && this.$parent.$cullIdx) this.$parent.$cullIdx = null;
     this.$m = m.slice();
     this.$sr = null;
     this.$changed();
@@ -482,6 +484,7 @@ export class MovieClip extends DisplayObject {
   }
 
   $insert(child, depth) {
+    this.$cullIdx = null;
     child.$parent = this;
     child.$depth = depth;
     const c = this.$children;
@@ -493,6 +496,7 @@ export class MovieClip extends DisplayObject {
   }
 
   $remove(child) {
+    this.$cullIdx = null;
     const c = this.$children;
     const i = c.indexOf(child);
     if (i >= 0) c.splice(i, 1);
@@ -559,6 +563,7 @@ export class MovieClip extends DisplayObject {
   }
 
   $reinsert(child) {
+    this.$cullIdx = null;
     const c = this.$children;
     let i = c.length;
     while (i > 0 && c[i - 1].$depth > child.$depth) i--;
@@ -640,7 +645,10 @@ export class MovieClip extends DisplayObject {
     this.$insert(child, depth);
     if (op.e && child instanceof MovieClip) {
       child.$events = op.e.map((rec, i) => ({ ev: rec.ev, key: rec.k, key_: `c${this.$timelineKey()}:${frame}:${op.d}:${i}` }));
+      // (one that hears the mouse or the keys: player.eventClips)
+      if (child.$events.some((rec) => rec.ev.some((e) => /^(mouse|key)/.test(e)))) this.$player.eventClips.add(child);
     }
+    if (child instanceof ButtonObj && child.$char && child.$char.acts && child.$char.acts.some((a) => a.k !== undefined && a.k !== null)) this.$player.keyButtons.add(child);
     this.$player.didPlace(child);
   }
 
@@ -999,6 +1007,19 @@ export class MovieClip extends DisplayObject {
 }
 
 // ---- Buttons --------------------------------------------------------------------------------
+
+// A clip given a mouse handler is one the mouse's events go to (player.mouseClips): set as a
+// property (AS2's onMouseDown = function ...), kept as one.
+for (const name of ['onMouseMove', 'onMouseDown', 'onMouseUp']) {
+  Object.defineProperty(MovieClip.prototype, name, {
+    configurable: true,
+    get() { return this['$h' + name]; },
+    set(v) {
+      this['$h' + name] = v;
+      if (typeof v === 'function' && this.$player) this.$player.mouseClips.add(this);
+    },
+  });
+}
 
 export class ButtonObj extends DisplayObject {
   constructor(player, lib, cid) {

@@ -477,7 +477,7 @@ export class Renderer {
     if (this.cacheBuild && (obj instanceof EditText || obj instanceof BitmapObj)) this.cacheBuild.volatile = true;
     if (obj instanceof MovieClip) {
       if (obj.$gfx && obj.$gfx.ops.length) this.drawGraphics(ctx, obj.$gfxFrame === this.ipFrame && obj.$gfxPrev ? this.blendedGfx(obj) : obj.$gfx, m, cx);
-      this.drawChildren(ctx, obj.$children, m, cx);
+      this.drawChildren(ctx, obj.$children, m, cx, obj);
     } else if (obj instanceof ShapeObj) {
       this.drawShape(ctx, obj, m, cx);
     } else if (obj instanceof ButtonObj) {
@@ -493,7 +493,13 @@ export class Renderer {
     }
   }
 
-  drawChildren(ctx, children, m, cx) {
+  drawChildren(ctx, children, m, cx, parent) {
+    // (Online, speed: a long list of cullable children in rows -- the map's tiles, a band of them,
+    // the shroud -- searched for the rows the canvas shows rather than each checked)
+    if (parent && children.length >= 256 && !this.noCullIndex) {
+      const idx = this.cullRows(parent, children);
+      if (idx && this.drawRows(ctx, children, m, cx, idx)) return;
+    }
     for (let i = 0; i < children.length; i++) {
       const c = children[i];
       if (c.$cullable && this.offCanvas(ctx, c, m)) continue;
@@ -515,6 +521,60 @@ export class Renderer {
       }
       this.draw(ctx, c, m, cx);
     }
+  }
+
+  // A parent's children indexed by row, if they can be: all cullable, none a mask, each placed
+  // without turning or scaling, in order down the parent (as the game lays tiles out, row by row).
+  // Their places, and how far any of them reaches from its own (any frame they have shown: the
+  // largest), with a tile's room to spare.  Made again when a child moves or the children change
+  // (display.js: $cullIdx).
+  cullRows(parent, children) {
+    if (parent.$cullIdx !== undefined && parent.$cullIdx !== null) return parent.$cullIdx || null;
+    const n = children.length;
+    const xs = new Float64Array(n), ys = new Float64Array(n);
+    let x0 = 0, y0 = 0, x1 = 0, y1 = 0, prevY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const c = children[i], cm = c.$m;
+      if (!c.$cullable || c.$clipDepth || cm[0] !== 1 || cm[3] !== 1 || cm[1] || cm[2] || cm[5] < prevY) { parent.$cullIdx = false; return null; }
+      xs[i] = cm[4];
+      ys[i] = prevY = cm[5];
+      const b = c.$localBounds();
+      if (b) {
+        if (b[0] < x0) x0 = b[0];
+        if (b[1] < y0) y0 = b[1];
+        if (b[2] > x1) x1 = b[2];
+        if (b[3] > y1) y1 = b[3];
+      }
+    }
+    const room = 100;
+    parent.$cullIdx = { n, xs, ys, x0: x0 - room, y0: y0 - room, x1: x1 + room, y1: y1 + room };
+    return parent.$cullIdx;
+  }
+
+  // The children in view drawn, in their order (each still checked as one): false when the
+  // parent is turned or flipped, and the list is checked one by one.
+  drawRows(ctx, children, m, cx, idx) {
+    if (idx.n !== children.length || m[1] || m[2] || !(m[0] > 0) || !(m[3] > 0)) return false;
+    const pad = 4;
+    const left = (-pad - m[4]) / m[0], right = (ctx.canvas.width + pad - m[4]) / m[0];
+    const top = (-pad - m[5]) / m[3], bottom = (ctx.canvas.height + pad - m[5]) / m[3];
+    const ys = idx.ys, xs = idx.xs;
+    // (the first whose row could reach down into view)
+    let lo = 0, hi = idx.n;
+    const from = top - idx.y1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (ys[mid] < from) lo = mid + 1;
+      else hi = mid;
+    }
+    const until = bottom - idx.y0, xFrom = left - idx.x1, xUntil = right - idx.x0;
+    for (let i = lo; i < idx.n && ys[i] <= until; i++) {
+      if (xs[i] < xFrom || xs[i] > xUntil) continue;
+      const c = children[i];
+      if (this.offCanvas(ctx, c, m)) continue;
+      this.draw(ctx, c, m, cx);
+    }
+    return true;
   }
 
   // Online: is a cullable clip (a map tile, a patch of shroud) wholly off the canvas?  A big
