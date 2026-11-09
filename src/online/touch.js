@@ -25,7 +25,6 @@ const HOLD_MS = 420;             // a press held this long, still, starts a sele
 const DOUBLE_MS = 300;           // a second touch this soon after a tap ...
 const DOUBLE_NEAR = 40;          // ... and this near it (CSS pixels) is the second of a double tap
 const SITE_NEAR = 28;            // a tap this near a building being placed builds it
-const PINCH_STEP = 1.18;         // how far fingers spread for one step of the wheel
 const SIDEBAR = 150;             // the sidebar's width, in stage units
 const AWAY = -1000;              // where the pointer is put out of the way
 const STILL_WAITING = 1e6;       // the game's count of frames left for a second click, held open
@@ -174,6 +173,9 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
     if (lv.control && lv.control.takeOver) lv.control.takeOver();
     cam.posX -= dx / zoom;
     cam.posY -= (2 * dy) / zoom;
+    // (and the map follows the camera straight there, not easing after it: dragged, it trailed
+    // the finger by half a second)
+    if (lv.arena) lv.arena.snap = true;
   };
 
   canvas.addEventListener('pointerdown', (ev) => {
@@ -250,7 +252,7 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
       if (gesture) clearTimeout(gesture.hold);
       const [a, b] = [...fingers.values()];
       const back = placing() ? player.mouse.slice() : null;
-      gesture = { mode: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, steps: 0, back };
+      gesture = { mode: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, back };
     }
   }, true);
 
@@ -273,14 +275,16 @@ export function installTouch({ player, canvas, stagePoint, onTouchMode }) {
       pan((mx - g.mx) / k, (my - g.my) / k);
       g.mx = mx;
       g.my = my;
-      const want = Math.round(Math.log(d / g.d) / Math.log(PINCH_STEP));
-      if (want !== g.steps) {
-        // (the game zooms about the pointer, and over the sidebar would scroll a list instead:
-        // the pointer goes between the fingers, on the map)
+      // (the zoom as far as the fingers have spread, given to the game for its next frame
+      // (Control: Online.pinch), about the point between them -- wherever that is, the sidebar
+      // too: zoomed about the sidebar's edge instead, the map slid under the fingers)
+      if (d > 0 && g.d > 0) {
         const [sx, sy] = stagePoint({ clientX: mx, clientY: my });
-        player.pointerMove(Math.max(SIDEBAR + 2, sx), sy);
-        while (g.steps < want) { player.wheel(3); g.steps++; }
-        while (g.steps > want) { player.wheel(-3); g.steps--; }
+        const p = player.online.pinch || (player.online.pinch = { factor: 1, x: 0, y: 0 });
+        p.factor *= d / g.d;
+        p.x = sx;
+        p.y = sy;
+        g.d = d;
       }
       return;
     }

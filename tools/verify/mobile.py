@@ -216,6 +216,52 @@ def play(page, out, orient):
     time.sleep(0.8)
     z2 = page.evaluate('() => %s.arena.zoom' % LV)
     results['and out (%.2f)' % z2] = z2 < z1
+    # a pinch about a point over the sidebar: the map under the fingers stays under them (it
+    # zoomed about the sidebar's edge instead, the map sliding away), and the wind over the map
+    # is where the map is, at its size, as soon as it zooms
+    view0 = page.evaluate('() => { const lv = %s; return [lv.camera.posX, lv.camera.posY, lv.arena.zoom]; }' % LV)
+    MAPAT = '''([x, y]) => { const lv = player.levels[1].panel.game.level, a = lv.arena, r = player.renderer;
+      const b = r.canvas.getBoundingClientRect(), d = r.canvas.width / b.width;
+      const sx = ((x - b.left) * d - r.offsetX) / r.scale, sy = ((y - b.top) * d - r.offsetY) / r.scale;
+      return [(sx - 150 - a.MC._x) / a.zoom, (sy - a.MC._y) / a.zoom]; }'''
+    k = page.evaluate('() => { const r = player.renderer, b = r.canvas.getBoundingClientRect(); return r.scale / (r.canvas.width / b.width); }')
+    sl = page.evaluate('() => { const r = player.renderer, b = r.canvas.getBoundingClientRect(); return b.left + (r.offsetX + 120 * r.scale) / (r.canvas.width / b.width); }')
+    lx, ly = sl, vh * 0.5
+    page.evaluate('() => { %s.arena.zoomBy(1 / %s.arena.zoom, 400, 200); }' % (LV, LV))
+    time.sleep(0.5)
+    m0 = page.evaluate(MAPAT, [lx, ly])
+    z3 = page.evaluate('() => %s.arena.zoom' % LV)
+    touch('touchStart', [(lx - 15, ly - 30), (lx + 15, ly + 30)])
+    for i in range(1, 11):
+        touch('touchMove', [(lx - 15 - 2 * i, ly - 30 - 4 * i), (lx + 15 + 2 * i, ly + 30 + 4 * i)])
+        time.sleep(0.05)
+    time.sleep(0.4)
+    wind = page.evaluate('() => { const a = %s.arena; return [a.windMC._x + a.MC._x / a.zoom, a.windMC._y + a.MC._y / a.zoom]; }' % LV)
+    touch('touchEnd', [])
+    time.sleep(0.8)
+    m1 = page.evaluate(MAPAT, [lx, ly])
+    z4 = page.evaluate('() => %s.arena.zoom' % LV)
+    off = math.hypot(m1[0] - m0[0], m1[1] - m0[1]) * z4 * k
+    results['a pinch over the sidebar zooms (%.2f to %.2f) about the fingers (%.1f px off)' % (z3, z4, off)] = z4 > z3 and off < 12
+    results['the wind kept on the map as it zooms (%.2f, %.2f)' % tuple(wind)] = abs(wind[0]) < 1.5 and abs(wind[1]) < 1.5
+    page.evaluate('() => { %s.arena.zoomBy(1 / %s.arena.zoom, 400, 200); }' % (LV, LV))
+    time.sleep(0.5)
+    # a drag: the map follows the finger straight away (it eased after the camera, trailing it)
+    p0 = page.evaluate(MAPAT, [vw * 0.6, vh * 0.5])
+    touch('touchStart', [(vw * 0.6, vh * 0.5)])
+    for i in range(1, 9):
+        touch('touchMove', [(vw * 0.6 - 10 * i, vh * 0.5)])
+        time.sleep(0.02)
+    time.sleep(0.15)
+    p1 = page.evaluate(MAPAT, [vw * 0.6 - 80, vh * 0.5])
+    touch('touchEnd', [])
+    lag = math.hypot(p1[0] - p0[0], p1[1] - p0[1]) * page.evaluate('() => %s.arena.zoom' % LV) * k
+    results['a drag: the map under the finger stays under it (%.1f px behind)' % lag] = lag < 12
+    time.sleep(0.5)
+    # (the view back as it was, for what follows)
+    page.evaluate('''([x, y, z]) => { const lv = %s; lv.arena.zoomBy(z / lv.arena.zoom, 400, 200);
+      lv.camera.posX = x; lv.camera.posY = y; lv.arena.snap = true; }''' % LV, view0)
+    time.sleep(0.5)
     page.evaluate('() => { %s.arena.zoomBy(%s.arena.zoom > 1 ? 1 / %s.arena.zoom : 1, 400, 200); }' % (LV, LV, LV))
     time.sleep(0.3)
     # hold, then drag round the units: a selection box

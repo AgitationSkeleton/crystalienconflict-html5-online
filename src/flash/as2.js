@@ -101,6 +101,9 @@ export function installBuiltins(player) {
     Math: AS2Math, Array, Object, Boolean, Date, Function, Error, parseInt, NaN, Infinity,
     // (Online: typed arrays, which the game's own additions use for speed.)
     Int32Array, Uint8Array, Float64Array,
+    // (and the keyed collections they use: a game that used them without these listed failed
+    // with "Map is not a constructor", the LEGO palettes' tiles, Arena.doLego.)
+    Map, Set,
   });
   // String(): ActionScript prints numbers with 15 significant digits, not JavaScript's 17.
   function AS2String(v) {

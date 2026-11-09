@@ -73,6 +73,11 @@ SCENARIOS = {
                       "prebuilt:true,shroud:true,superweapons:true,palette:'mars',players:[{name:'Me',faction:'good',colour:'orange',"
                       "control:'local'},{name:'B',faction:'evil',colour:'green',control:'bot'},{name:'C',faction:'good',colour:'red',control:'bot'}]})",
                       'step 30', SOAK, 'shot end'],
+    # A LEGO Battles palette (its tiles coloured through a lookup, Arena.doLego), Headquarters,
+    # two hard computers: once "Map is not a constructor" as it began.
+    'skirmish-lbpal': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'lego-mp01',mode:'hq',cash:10000,units:3,"
+                       "prebuilt:true,shroud:true,superweapons:true,palette:'lb-mars-fw',players:[{name:'Me',faction:'good',colour:'red',"
+                       "control:'local'},{name:'B',faction:'evil',colour:'black',control:'bot',difficulty:'hard'}]})", 'step 30', SOAK, 'shot end'],
     # Capture the Flag: three players, two of them computers going for the flags.
     'skirmish-ctf': ['step 70', "eval player.levels[1].panel.startSkirmish({map:'lego-mp01',mode:'ctf',cash:20000,units:3,"
                      "prebuilt:true,shroud:true,superweapons:true,palette:'mars',specops:'on',players:[{name:'Me',faction:'good',colour:'cyan',"

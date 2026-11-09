@@ -2468,6 +2468,9 @@
             var dy = y - this.viewHeightPx / 2;
             __as.op(camera, "posX", "+", dx / before - dx / this.zoom);
             __as.op(camera, "posY", "+", 2 * (dy / before - dy / this.zoom));
+            // (and the wind over it put where the map now is, at its new size: left until the
+            // arena's next frame, the dust was drawn for a moment off where the map had gone)
+            this.placeWind?.();
             // (kept for the next skirmish: the player's own, not the story's nor the Screensaver
             // director's)
             if(this.parent?.skirmish && !this.parent?.control?.directing?.())
@@ -2525,9 +2528,6 @@
          this.drawWind = function ()
          {
             var _loc2_ = this.windMC;
-            __as.set(_loc2_, "_x", -this.MC?._x / this.zoom);
-            __as.set(_loc2_, "_y", -this.MC?._y / this.zoom);
-            _loc2_?.clear?.();
             // Online: the wind's drift kept going, not taken from the arena's count, which starts
             // again every 90 frames: the dust jumped back each time -- a little at the original's
             // pace, which is almost one width of its picture in 90 frames, and by half of it at the
@@ -2535,6 +2535,24 @@
             // and 2 down a frame, turned as the picture is), wrapped at that width: seamless at
             // any pace (a palette's, see calmWind).
             this.windDrift = ((this.windDrift || 0) + Math.sqrt(20) * (this.windSpeed || 1)) % (this.windBitmap?.width || 400);
+            this.placeWind();
+            if((Online?.fxRandom || random)?.(5) == 1 && _loc2_?._alpha < 200)
+            {
+               __as.op(_loc2_, "_alpha", "+", 25);
+            }
+            else
+            {
+               __as.op(_loc2_, "_alpha", "*", 0.95);
+            }
+         };
+         // Online: the wind drawn over the view where the map is (drawWind; and after a zoom,
+         // zoomBy), its dust fixed to the ground as it drifts.
+         this.placeWind = function ()
+         {
+            var _loc2_ = this.windMC;
+            __as.set(_loc2_, "_x", -this.MC?._x / this.zoom);
+            __as.set(_loc2_, "_y", -this.MC?._y / this.zoom);
+            _loc2_?.clear?.();
             var _loc3_ = new flash.geom.Matrix();
             _loc3_?.translate?.(-this.windDrift, 0);
             _loc3_?.rotate?.(-0.463);
@@ -2546,14 +2564,6 @@
             _loc2_?.lineTo?.(0, this.viewHeight);
             _loc2_?.lineTo?.(0, 0);
             _loc2_?.endFill;
-            if((Online?.fxRandom || random)?.(5) == 1 && _loc2_?._alpha < 200)
-            {
-               __as.op(_loc2_, "_alpha", "+", 25);
-            }
-            else
-            {
-               __as.op(_loc2_, "_alpha", "*", 0.95);
-            }
          };
          this.getZ = function (x, y)
          {
@@ -11595,6 +11605,16 @@
                      }
                   }
                }
+            }
+            // Online: two fingers pinching on a touch screen (touch.js): zoomed by as far as they
+            // have spread since the last frame, about the point between them -- smoothly, not
+            // in the wheel's steps, and about that point even over the sidebar.
+            var pinch = Online?.pinch;
+            if(pinch && pinch.factor != 1)
+            {
+               this.takeOver?.();
+               this.parent?.arena?.zoomBy?.(pinch.factor, pinch.x, pinch.y);
+               pinch.factor = 1;
             }
             // Online: the wheel zooms about the pointer, or about the view's centre over the sidebar.
             if(WHEELSTEPS)
