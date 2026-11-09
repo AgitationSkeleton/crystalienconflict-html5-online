@@ -246,7 +246,11 @@ export class Bot {
     // (below Hard, a pause between buildings, unless the one chosen is needed now)
     const gap = this.wantUrgent ? 0 : this.profile.buildGap;
     if (this.want.building && !p.building && this.tick >= this.readyAt.building && this.tick >= this.lastBuilt + gap && this.player.cash > 10) {
-      if (p.start(this.want.building)) this.want.building = null;
+      const foe = this.want.building.endsWith(this.player.faction === 'good' ? '_evil' : '_good');
+      if (p.start(this.want.building)) {
+        this.capturedNext = !foe;
+        this.want.building = null;
+      }
     }
   }
 
@@ -266,6 +270,13 @@ export class Bot {
     if (this.canBuild(bb) && wantpower && this.affordable(bb)) offer(bb, powerneed);
     const bl = 'BL_' + this.player.faction;
     if (this.canBuild(bl) && this.affordable(bl)) offer(bl, this.miners() === 0 ? CRITICAL : MEDIUM);
+    // A captured tree (the other side's headquarters -- or its Ops Ship or Hive -- taken): its
+    // ladder climbed, a rung at a time (Level.techFor): the Ops Ship or Hive, its power plant,
+    // barracks, factory, helipad, an outpost (with the factory, the Driller) and Technology
+    // Centre -- turn about with this side's own plan, so the base goes on growing as well.  (Only
+    // slot() reached for the other side's buildings, when this side's own were all built: the
+    // captured tree's units came late in a long game, or never.)
+    const captured = this.capturedRung();
     const bc = this.slot('BC');
     const curBC = cur('BC');
     if (curBC < roundUp(RATIO.barracks, N) && curBC < 2 && (cash > 300 || income) && this.canBuild(bc) && this.affordable(bc)) offer(bc, curBC > 0 ? LOW : MEDIUM);
@@ -302,10 +313,24 @@ export class Bot {
     for (const [type, urgency] of entries) {
       if (urgency > bestUrgency) { best = type; bestUrgency = urgency; }
     }
+    if (captured && bestUrgency <= MEDIUM && (this.capturedNext !== false || !best)) { best = captured; bestUrgency = MEDIUM; }
     // (below Hard, a base of a size, beyond which only what is needed now is built)
     this.wantUrgent = bestUrgency >= HIGH;
-    if (!this.wantUrgent && N >= this.profile.buildings) return null;
+    // (and a captured tree's next rung, whatever the base's size: what it makes is new)
+    if (!this.wantUrgent && N >= this.profile.buildings) return best === captured ? best : null;
     return best;
+  }
+
+  // The next rung of a captured tree's ladder (see plan), or null: none captured, or all built.
+  capturedRung() {
+    const foe = this.player.faction === 'good' ? 'evil' : 'good';
+    if (!this.ownBuildings((b) => b.type === 'BA_' + foe || b.type === 'BK_' + foe).length) return null;
+    for (const code of ['BK', 'BB', 'BC', 'BE', 'BF', 'BL', 'BG']) {
+      const type = code + '_' + foe;
+      if (this.count(type) > 0) continue;
+      if (this.canBuild(type) && this.canPower(type) && this.affordable(type)) return type;
+    }
+    return null;
   }
 
   // §2.4 CAC_AI_Extra: the first rung of the ladder this player does not own.
@@ -618,6 +643,19 @@ export class Bot {
     const m = this.missionOf(u);
     if (m.kind === 'move') {
       if (m.then === 'unload' && u.stats.carrier) { u.deploy = true; this.idle(u); return; }
+      if (m.errand && m.back) {
+        if (m.back.kind === 'harvest') {
+          // (back to the crystals it was mining, which harvest leaves be while they last)
+          u.mission = null;
+          this.idle(u);
+          const fed = u.nav.lastFed;
+          if (fed && fed.x) { u.nav.voyage((fed.x - 0.5) * CELL, (fed.y - 0.5) * CELL, false); u.nav.feeding = true; }
+          return;
+        }
+        u.mission = m.back;
+        if (m.back.anchor) u.nav.voyage(m.back.anchor.x, m.back.anchor.y, true);
+        return;
+      }
       u.mission = { kind: this.armed(u) ? 'guard_area' : 'guard', anchor: { x: u.posX, y: u.posY } };
     }
   }
@@ -1238,15 +1276,57 @@ export class Bot {
   }
 
   // ---- §4.9 collect (crates and pizzas; see Level.crates) ---------------------------------
+  // A crate near one of this side's units that is free to go -- a soldier, a decoy, a vehicle,
+  // an aircraft that lands, one busy fighting, a miner beside it (back to its crystals after) --
+  // is fetched by the one soonest there, at once (Online: the mod's one collector at a time, a
+  // decoy or a vehicle, left a crate by the base lying while it went the long way to another).
+  // Further off, the mod's way: a decoy on guard, else a vehicle, to the crate nearest it, a few
+  // such errands at a time.
   collect() {
     const crates = this.level.crateCells ? this.level.crateCells() : [];
     if (!crates.length) return;
+    const errandOf = (u) => u.mission && u.mission.errand;
+    const fetched = (c) => this.own((u) => errandOf(u) && u.mission.dest && cells(u.mission.dest.x, u.mission.dest.y, c.posX, c.posY) < 1).length > 0;
+    const send = (u, c, far) => {
+      const m = this.missionOf(u);
+      this.order(u, 'move', { dest: { x: c.posX, y: c.posY }, errand: true, far, back: m.kind === 'harvest' ? m : null });
+    };
+
+    // Near: how far (cells) a unit may go, or -1.
+    const NEAR = 12;
+    const reach = (u) => {
+      if (u.posX < 0 || u.flag || u.hero || errandOf(u) || (u.mission && u.mission.runner)) return -1;
+      const k = this.missionOf(u).kind;
+      const walking = u.nav && u.nav.path && u.nav.path.length > 1;
+      if (this.aircraft(u)) return u.stats.transformer && (k === 'guard' || k === 'guard_area') && !walking ? NEAR : -1;
+      if (this.isMiner(u)) return k === 'harvest' && !u.cargo ? 3 : -1;
+      if (['move', 'enter', 'capture', 'unload', 'sortie'].includes(k)) return -1;
+      if (walking && !['guard_area', 'attack', 'hunt', 'rescue'].includes(k)) return -1;
+      return NEAR;
+    };
+    let nearErrands = this.own((u) => errandOf(u) && !u.mission.far).length;
+    for (const c of crates) {
+      if (nearErrands >= 4) break;
+      if (fetched(c)) continue;
+      let best = null, bestT = Infinity;
+      for (const u of this.own((x) => !errandOf(x))) {
+        const d = cells(u.posX, u.posY, c.posX, c.posY);
+        if (d > reach(u)) continue;
+        const t = d / Math.max(0.5, u.stats.speed || 1);
+        if (t < bestT) { best = u; bestT = t; }
+      }
+      if (best) { send(best, c, false); nearErrands++; }
+    }
+
+    // Further off.
     const force = this.own((u) => !this.aircraft(u));
-    const errands = force.filter((u) => u.mission && u.mission.errand).length;
+    const errands = this.own((u) => errandOf(u) && u.mission.far).length;
     if (errands >= Math.min(3, 1 + Math.floor(force.length / 12))) return;
-    let collector = this.own((u) => this.isDecoy(u)).find((u) => ['guard', 'guard_area'].includes(this.missionOf(u).kind) && !(u.nav.path && u.nav.path.length > 1));
+    const left = crates.filter((c) => !fetched(c));
+    if (!left.length) return;
+    let collector = this.own((u) => this.isDecoy(u) && !errandOf(u)).find((u) => ['guard', 'guard_area'].includes(this.missionOf(u).kind) && !(u.nav.path && u.nav.path.length > 1));
     if (!collector) {
-      collector = this.own((u) => this.vehicle(u) && !this.isMiner(u) && !u.flag).find((u) => {
+      collector = this.own((u) => this.vehicle(u) && !this.isMiner(u) && !u.flag && !errandOf(u)).find((u) => {
         const k = this.missionOf(u).kind;
         if (['move', 'enter', 'capture', 'harvest', 'unload'].includes(k)) return false;
         return !(u.nav.path && u.nav.path.length > 1) || ['guard_area', 'attack', 'hunt'].includes(k);
@@ -1254,11 +1334,11 @@ export class Bot {
     }
     if (!collector) return;
     let best = null, bestD = Infinity;
-    for (const c of crates) {
+    for (const c of left) {
       const d = cells(collector.posX, collector.posY, c.posX, c.posY);
       if (d < bestD) { bestD = d; best = c; }
     }
-    if (best) this.order(collector, 'move', { dest: { x: best.posX, y: best.posY }, errand: true });
+    if (best) send(collector, best, true);
   }
 
   // ---- §5.1 CAC_AI_Pizza: fetch our pizza, camp theirs ------------------------------------------
